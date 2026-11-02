@@ -1,0 +1,19 @@
+name: Server & web
+
+on:
+  push:
+    branches: [main]
+    paths: ["server/**", "web/**", "package.json", ".github/workflows/server.yml"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm test
+      - run: npm run build
