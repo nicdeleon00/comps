@@ -1,0 +1,32 @@
+name: Probe data sources
+
+# One-off check of which Pokémon price sources respond, and their response shapes.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [".github/workflows/probe.yml"]
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe
+        run: |
+          probe() {
+            echo "::group::$1"
+            curl -sS -m 30 -o /tmp/body -w "HTTP %{http_code}  %{size_download} bytes  %{time_total}s\n" -H "Accept: application/json" "$2" || echo "curl failed"
+            head -c "${3:-1500}" /tmp/body; echo
+            echo "::endgroup::"
+          }
+          probe "pokemontcg cards" "https://api.pokemontcg.io/v2/cards?q=set.id:base1%20number:4&select=id,name,number,rarity,set,images,tcgplayer,cardmarket" 4000
+          probe "pokemontcg sets" "https://api.pokemontcg.io/v2/sets?pageSize=2&orderBy=-releaseDate" 1500
+          probe "pokemontcg page 1 x250 (timing)" "https://api.pokemontcg.io/v2/cards?page=1&pageSize=250&select=id,name,number,set,tcgplayer" 300
+          probe "tcgcsv groups" "https://tcgcsv.com/tcgplayer/3/groups" 1200
+          probe "tcgcsv base set products" "https://tcgcsv.com/tcgplayer/3/604/products" 2500
+          probe "tcgcsv base set prices" "https://tcgcsv.com/tcgplayer/3/604/prices" 1200
+          probe "tcgcsv last-updated" "https://tcgcsv.com/last-updated.txt" 200
+          probe "tcgdex card" "https://api.tcgdex.net/v2/en/cards/base1-4" 2500
+          probe "pricecharting (no token)" "https://www.pricecharting.com/api/products?q=charizard" 500
+          probe "frankfurter" "https://api.frankfurter.dev/v1/latest?base=EUR&symbols=USD" 300
+          probe "pokemontcg image" "https://images.pokemontcg.io/base1/4.png" 100
