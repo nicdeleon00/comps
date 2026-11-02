@@ -2,15 +2,13 @@ import SwiftUI
 
 @MainActor
 struct DealsView: View {
-    @AppStorage(Pref.serverURL) private var serverURL = ""
     @State private var tab: Pane = .undervalued
     @State private var kind: String? = nil
     @State private var sort = "profit"
-    @State private var deals: [Deal] = []
-    @State private var spreads: [Spread] = []
+    @State private var allDeals: [Deal] = []
+    @State private var allSpreads: [Spread] = []
     @State private var loading = false
     @State private var error: String?
-    @State private var showSettings = false
 
     enum Pane: String, CaseIterable { case undervalued = "Undervalued", grading = "Raw → Graded" }
 
@@ -18,22 +16,9 @@ struct DealsView: View {
 
     var body: some View {
         NavigationStack {
-            Group {
-                if serverURL.isEmpty {
-                    ContentUnavailableView {
-                        Label("Connect your server", systemImage: "server.rack")
-                    } description: {
-                        Text("Deals come from the Comps server, which watches the whole market and live listings. Run it on your computer, then connect here.")
-                    } actions: {
-                        Button("Connect") { showSettings = true }.buttonStyle(.borderedProminent)
-                    }
-                } else {
-                    content
-                }
-            }
-            .navigationTitle("Deals")
-            .navigationDestination(for: CardSummary.self) { c in CardDetailView(cardID: c.id, preview: c) }
-            .sheet(isPresented: $showSettings) { SettingsView() }
+            content
+                .navigationTitle("Deals")
+                .navigationDestination(for: CardSummary.self) { c in CardDetailView(cardID: c.id, preview: c) }
         }
     }
 
@@ -80,41 +65,55 @@ struct DealsView: View {
 
             Section {
                 if tab == .undervalued {
-                    ForEach(deals) { d in
+                    ForEach(shownDeals.prefix(150)) { d in
                         NavigationLink(value: d.card) { DealRow(deal: d) }
                     }
                 } else {
-                    ForEach(spreads) { s in
+                    ForEach(shownSpreads.prefix(150)) { s in
                         NavigationLink(value: s.card) { SpreadRow(spread: s) }
                     }
                 }
-                if !loading && (tab == .undervalued ? deals.isEmpty : spreads.isEmpty) && error == nil {
-                    Text(tab == .undervalued ? "Nothing under value right now." : "No profitable spreads yet. Graded prices need PriceCharting on the server.")
+                if !loading && (tab == .undervalued ? shownDeals.isEmpty : shownSpreads.isEmpty) && error == nil {
+                    Text(tab == .undervalued ? "Nothing under value right now." : "No profitable spreads yet. Graded prices need a PriceCharting token (see the website's Settings).")
                         .font(.subheadline).foregroundStyle(.secondary)
                 }
             }
         }
         .listStyle(.plain)
-        .overlay { if loading && deals.isEmpty && spreads.isEmpty { ProgressView() } }
+        .overlay { if loading && allDeals.isEmpty && allSpreads.isEmpty { ProgressView() } }
         .refreshable { await load() }
-        .task(id: "\(tab.rawValue)|\(kind ?? "")|\(sort)|\(serverURL)") { await load() }
+        .task(id: tab.rawValue) { await load() }
+    }
+
+    private var shownDeals: [Deal] {
+        guard let kind else { return allDeals }
+        return allDeals.filter { $0.kind == kind }
+    }
+
+    private var shownSpreads: [Spread] {
+        let xs = allSpreads.filter { $0.profit > 0 }
+        switch sort {
+        case "roi": return xs.sorted { $0.roi > $1.roi }
+        case "multiple": return xs.sorted { $0.multiple > $1.multiple }
+        case "breakEven": return xs.sorted { ($0.breakEven ?? 9) < ($1.breakEven ?? 9) }
+        default: return xs.sorted { $0.profit > $1.profit }
+        }
     }
 
     private func load() async {
-        guard let api = APIClient.current else { return }
         loading = true
         defer { loading = false }
         do {
             if tab == .undervalued {
-                let d = try await api.deals(kind: kind)
-                withAnimation(.snappy) { deals = d }
+                let d = try await HostedData.current.deals()
+                withAnimation(.snappy) { allDeals = d }
             } else {
-                let s = try await api.spreads(sort: sort)
-                withAnimation(.snappy) { spreads = s }
+                let s = try await HostedData.current.spreads()
+                withAnimation(.snappy) { allSpreads = s }
             }
             error = nil
         } catch {
-            self.error = error.localizedDescription
+            self.error = "Couldn't load deals: \(error.localizedDescription)"
         }
     }
 }

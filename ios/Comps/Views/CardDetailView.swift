@@ -84,8 +84,8 @@ struct CardDetailView: View {
                 if let d = detail, !d.signals.isEmpty { signals(d.signals).padding(.horizontal).padding(.top, 28) }
                 if let d = detail, !d.listings.isEmpty { listings(d.listings).padding(.horizontal).padding(.top, 28) }
                 if let d = detail { links(d.links).padding(.horizontal).padding(.top, 28) }
-                if detail == nil && !loading && APIClient.current == nil {
-                    Text("Connect your Comps server in Settings for graded prices, history and live deals.")
+                if detail == nil && !loading && direct != nil {
+                    Text("Price history and deal checks are kept for cards worth $1 or more.")
                         .font(.footnote).foregroundStyle(.secondary).multilineTextAlignment(.center)
                         .padding(.horizontal, 30).padding(.top, 28)
                 }
@@ -120,19 +120,16 @@ struct CardDetailView: View {
     private func load() async {
         loading = true
         defer { loading = false }
-        if let api = APIClient.current, let d = (try? await api.card(cardID)) {
+        // Full page (history, grades, deals) for cards worth $1+; the catalog covers the rest.
+        if let d = (try? await HostedData.current.card(cardID)) ?? nil {
             withAnimation(.snappy) { detail = d }
             return
         }
-        let id = cardID
-        var c: ScanCandidate?
-        if id.hasPrefix("pkm:") { c = try? await DirectProviders.pokemonCard(id: String(id.dropFirst(4))) }
-        else if id.hasPrefix("mtg:") { c = try? await DirectProviders.scryfallCard(id: String(id.dropFirst(4))) }
-        else if id.hasPrefix("ygo:") {
-            let parts = id.split(separator: ":").map(String.init)
-            if parts.count >= 2 { c = (try? await DirectProviders.yugioh(setCode: parts[1]))?.first { $0.card.id == id } }
+        await Catalog.shared.ensureLoaded()
+        if let card = await Catalog.shared.card(id: cardID) {
+            let variants = await Catalog.shared.variants(id: cardID)
+            withAnimation(.snappy) { direct = ScanCandidate(card: card, variants: variants, score: 1, reason: "Catalog") }
         }
-        withAnimation(.snappy) { direct = c }
     }
 
     // MARK: Sections

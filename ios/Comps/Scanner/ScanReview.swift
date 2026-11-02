@@ -189,11 +189,11 @@ struct ScanItemEditor: View {
         guard q.count >= 2 else { return }
         searching = true
         Task {
+            await Catalog.shared.ensureLoaded()
+            let cards = await Catalog.shared.search(q, limit: 20)
             var results: [ScanCandidate] = []
-            if let api = APIClient.current, let cards = (try? await api.search(q)) {
-                results = cards.map { ScanCandidate(card: $0, variants: [VariantPrice(variant: $0.variant ?? "default", label: "", price: $0.price, grades: $0.grades)], score: 0.5, reason: "Search") }
-            } else {
-                results = await DirectProviders.search(q).map { ScanCandidate(card: $0, variants: [VariantPrice(variant: $0.variant ?? "default", label: "", price: $0.price)], score: 0.5, reason: "Search") }
+            for c in cards {
+                results.append(ScanCandidate(card: c, variants: await Catalog.shared.variants(id: c.id), score: 0.5, reason: "Search"))
             }
             withAnimation(.snappy) {
                 if !results.isEmpty {

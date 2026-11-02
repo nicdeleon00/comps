@@ -80,7 +80,6 @@ final class ScannerModel {
     var readyCount: Int { items.filter { $0.status == .matched || $0.status == .review }.count }
 
     init() {
-        if let g = UserDefaults.standard.string(forKey: Pref.scanGame), let game = Game(rawValue: g) { self.game = game }
         engine.continuous = true
         let engine = self.engine
         camera.onFrame = { buffer in engine.process(buffer) }
@@ -94,6 +93,7 @@ final class ScannerModel {
         light.prepare()
         notify.prepare()
         camera.start()
+        Task { await Catalog.shared.ensureLoaded() }
         phase = .searching
     }
 

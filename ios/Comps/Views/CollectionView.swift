@@ -7,17 +7,14 @@ struct CollectionView: View {
     @Environment(\.modelContext) private var context
     @Query(filter: #Predicate<Holding> { $0.isTombstoned == false }, sort: \Holding.updatedAt, order: .reverse) private var holdings: [Holding]
     @Query(sort: \ValueSnapshot.day) private var snapshots: [ValueSnapshot]
-    @AppStorage(Pref.serverURL) private var serverURL = ""
 
     @State private var filter: Filter = .all
     @State private var sort: Sort = .value
     @State private var range: Span = .threeMonths
-    @State private var serverHistory: [(Date, Double)] = []
     @State private var selected: Date?
     @State private var refreshing = false
     @State private var editing: Holding?
     @State private var showSettings = false
-    @State private var syncError: String?
     @State private var csvURL: URL?
     var onScan: () -> Void
 
@@ -47,7 +44,7 @@ struct CollectionView: View {
 
     private var series: [(date: Date, value: Double)] {
         let cutoff = Calendar.current.date(byAdding: .day, value: -range.days, to: .now) ?? .distantPast
-        let raw: [(Date, Double)] = serverHistory.count > 1 ? serverHistory : snapshots.map { ($0.date, $0.value) }
+        let raw: [(Date, Double)] = snapshots.map { ($0.date, $0.value) }
         return raw.filter { $0.0 >= cutoff }.map { (date: $0.0, value: $0.1) }
     }
 
@@ -162,9 +159,6 @@ struct CollectionView: View {
                     .pickerStyle(.segmented)
                     .padding(.top, 4)
             }
-            if let syncError {
-                Label(syncError, systemImage: "exclamationmark.triangle.fill").font(.caption).foregroundStyle(.orange).padding(.top, 4)
-            }
         }
     }
 
@@ -204,17 +198,8 @@ struct CollectionView: View {
         guard !refreshing else { return }
         refreshing = true
         defer { refreshing = false }
-        if APIClient.current != nil {
-            do {
-                try await Portfolio.sync(context: context)
-                syncError = nil
-            } catch {
-                syncError = "Sync failed: \(error.localizedDescription)"
-            }
-        }
         await Portfolio.refreshPrices(context: context)
         csvURL = Portfolio.csv(holdings)
-        if let api = APIClient.current, let h = (try? await api.collectionHistory(days: 365)) { serverHistory = h }
     }
 }
 

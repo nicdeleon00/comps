@@ -34,10 +34,7 @@ enum FeatureExtractor {
 
     // Same patterns as server/src/engine/identify.js
     static let pokemonNumber = #"(?:^|[^\w/])([A-Z]{0,3}\d{1,3}[a-z]?)\s?/\s?([A-Z]{0,3}\d{2,3})(?!\d)"#
-    static let yugiohCode = #"\b([A-Z0-9]{2,5})-([A-Z]{2})?(\d{3})\b"#
-    static let mtgSet = #"\b([A-Z0-9]{3,5})\s*[•·*.\-]\s*(EN|JA|DE|FR|IT|ES|PT|KO|RU|ZHS|ZHT|PH)\b"#
-    static let mtgNumber = #"(?:^|\s)(?:[CURMSLTP]\s+)?(\d{3,4})(?:\s|$)"#
-    static let hp = #"(?i)\bHP\s?\d{2,3}\b|\b\d{2,3}\s?HP\b"#
+    static let promoNumber = #"(?i)\b(SWSH|SVP|SV|SM|XY|BW|HGSS|DP|MEP)\s?(\d{2,3})\b"#
     static let slabGrade = #"(?i)\b(GEM\s*MT|GEM\s*MINT|PRISTINE|MINT|NM-MT|NM|EX-MT|EX|VG-EX|VG)\s*(10|9\.5|9|8\.5|8|7\.5|7|6|5|4|3|2|1)\b"#
     static let grader = #"\b(PSA|BGS|BECKETT|CGC|SGC)\b"#
 
@@ -49,32 +46,14 @@ enum FeatureExtractor {
         let bottomFirst = lines.sorted { $0.box.minY > $1.box.minY }
 
         for l in bottomFirst {
-            if let m = firstMatch(yugiohCode, in: l.text) {
-                f.setCode = "\(m[1])-\(m[2])\(m[3])"
-                f.game = .yugioh
-                break
+            if let m = firstMatch(pokemonNumber, in: l.text) { f.number = m[1]; f.total = m[2]; break }
+        }
+        if f.number == nil {
+            for l in bottomFirst {
+                if let m = firstMatch(promoNumber, in: l.text) { f.number = m[1].uppercased() + m[2]; break }
             }
         }
-        if f.game == nil {
-            for l in bottomFirst {
-                if let m = firstMatch(pokemonNumber, in: l.text) { f.number = m[1]; f.total = m[2]; break }
-            }
-            let hasHP = lines.contains { firstMatch(hp, in: $0.text) != nil }
-            for l in bottomFirst {
-                if let m = firstMatch(mtgSet, in: l.text) { f.setCode = m[1]; break }
-            }
-            if f.setCode != nil && !hasHP {
-                f.game = .mtg
-                if f.number == nil {
-                    for l in bottomFirst where l.box.minY > 0.85 {
-                        if let m = firstMatch(mtgNumber, in: l.text) { f.number = m[1]; break }
-                    }
-                }
-            } else if f.number != nil || hasHP {
-                f.game = .pokemon
-            }
-        }
-        if let hint { f.game = hint }
+        f.game = .pokemon
 
         // Slab labels: "GEM MT 10", "PSA".
         let all = lines.map(\.text).joined(separator: " ")
@@ -129,59 +108,11 @@ enum Similarity {
     }
 }
 
-/// Turns OCR lines into ranked card candidates — via the server when one is
-/// connected (it has the whole catalog locally), otherwise straight from the public APIs.
+/// Turns OCR lines into ranked card candidates using the on-phone catalog.
 enum CardResolver {
     static func resolve(lines: [OCRLine], hint: Game?) async -> (features: CardFeatures, candidates: [ScanCandidate]) {
-        let f = FeatureExtractor.extract(lines, hint: hint)
-        if let api = APIClient.current, let list = (try? await api.identify(lines: lines, game: hint)), !list.isEmpty {
-            return (f, list)
-        }
-        return (f, await direct(f))
-    }
-
-    static func direct(_ f: CardFeatures) async -> [ScanCandidate] {
-        var out: [ScanCandidate] = []
-        do {
-            switch f.game ?? .pokemon {
-            case .yugioh:
-                if let code = f.setCode { out = try await DirectProviders.yugioh(setCode: code) }
-                if out.isEmpty, let name = f.name { out = try await DirectProviders.yugioh(name: name) }
-            case .mtg:
-                if let set = f.setCode, let n = f.number { out = [try await DirectProviders.scryfall(set: set, number: n)] }
-                if out.isEmpty, let name = f.name { out = try await DirectProviders.scryfall(name: name) }
-            default:
-                var parts: [String] = []
-                if let n = f.number {
-                    let trimmed = n.replacingOccurrences(of: #"^([A-Z]*)0+(?=\d)"#, with: "$1", options: .regularExpression)
-                    parts.append("number:\(trimmed)")
-                }
-                if let total = f.total, let t = Int(total) { parts.append("set.printedTotal:\(t)") }
-                if !parts.isEmpty { out = try await DirectProviders.pokemon(query: parts.joined(separator: " ")) }
-                if out.isEmpty, let name = f.name {
-                    out = try await DirectProviders.pokemon(query: DirectProviders.pokemonNameQuery(name))
-                }
-            }
-        } catch {
-            return []
-        }
-        return rank(out, f)
-    }
-
-    static func rank(_ list: [ScanCandidate], _ f: CardFeatures) -> [ScanCandidate] {
-        let names = [f.name].compactMap { $0 } + f.nameCandidates
-        return list.map { c in
-            var c = c
-            var s = c.score
-            if !names.isEmpty {
-                let best = names.map { Similarity.score($0, c.card.name) }.max() ?? 0
-                s = 0.25 + 0.75 * best
-            }
-            if let total = f.total, let t = Int(total), c.card.total == String(t) { s += 0.1 }
-            if f.game == .mtg && f.setCode != nil && f.number != nil { s = max(s, c.score) }
-            c.score = min(1, s)
-            return c
-        }
-        .sorted { $0.score > $1.score }
+        let f = FeatureExtractor.extract(lines, hint: .pokemon)
+        await Catalog.shared.ensureLoaded()
+        return (f, await Catalog.shared.match(f))
     }
 }

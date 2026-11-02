@@ -20,6 +20,8 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>CompsDataURL</key>
+	<string>$(COMPS_DATA_URL)</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -45,7 +47,7 @@
 	<key>NSCameraUsageDescription</key>
 	<string>Comps uses the camera to scan and identify your cards.</string>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>Comps connects to your Comps server on this network to sync your collection and load deals.</string>
+	<string>Comps can load prices from a Comps server on your network.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

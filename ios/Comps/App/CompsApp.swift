@@ -26,8 +26,7 @@ struct RootView: View {
 
     @Environment(\.modelContext) private var context
     @Environment(\.scenePhase) private var scenePhase
-    @AppStorage(Pref.serverURL) private var serverURL = ""
-    @AppStorage(Pref.serverToken) private var token = ""
+    @AppStorage(Pref.dataURL) private var dataURL = ""
     @State private var selection: AppTab = .collection
     @State private var scanning = false
 
@@ -56,13 +55,18 @@ struct RootView: View {
             ScannerView()
         }
         .onOpenURL { url in
-            // comps://connect?url=…&token=… from the server's pairing QR code.
+            // comps://connect?url=… from the website's Settings page QR code.
             if let pair = PairingScanner.parse(url.absoluteString) {
-                serverURL = pair.0
-                if let t = pair.1 { token = t }
-                UserDefaults.standard.set(0.0, forKey: Pref.lastSync)
-                Task { _ = try? await Portfolio.sync(context: context); await Portfolio.refreshPrices(context: context) }
+                dataURL = pair.0
+                Task {
+                    await Catalog.shared.ensureLoaded(force: true)
+                    await Portfolio.refreshPrices(context: context)
+                }
             }
+        }
+        .task {
+            await Catalog.shared.ensureLoaded()
+            await Portfolio.refreshPrices(context: context)
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { Task { await Portfolio.refreshPrices(context: context) } }

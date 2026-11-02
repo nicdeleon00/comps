@@ -87,23 +87,11 @@ struct ScannerView: View {
         HStack {
             CircleButton(system: "xmark") { dismiss() }
             Spacer()
-            Menu {
-                Picker("Game", selection: Binding(get: { model.game }, set: { g in
-                    model.game = g
-                    UserDefaults.standard.set(g?.rawValue, forKey: Pref.scanGame)
-                })) {
-                    Text("Any game").tag(Game?.none)
-                    ForEach([Game.pokemon, .mtg, .yugioh, .sports]) { g in Text(g.label).tag(Game?.some(g)) }
-                }
-            } label: {
-                HStack(spacing: 6) {
-                    Text(model.game?.label ?? "Any game").font(.subheadline.weight(.semibold))
-                    Image(systemName: "chevron.down").font(.caption2.weight(.bold))
-                }
+            Text("Pokémon")
+                .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.white)
                 .padding(.horizontal, 14).frame(height: 36)
                 .background(.ultraThinMaterial, in: Capsule())
-            }
             Spacer()
             CircleButton(system: model.torch ? "flashlight.on.fill" : "flashlight.off.fill", active: model.torch) { model.setTorch(!model.torch) }
         }

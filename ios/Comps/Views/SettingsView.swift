@@ -6,62 +6,54 @@ import Vision
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
-    @AppStorage(Pref.serverURL) private var serverURL = ""
-    @AppStorage(Pref.serverToken) private var token = ""
-    @AppStorage(Pref.pokemonKey) private var pokemonKey = ""
+    @AppStorage(Pref.dataURL) private var dataURL = ""
     @AppStorage(Pref.haptics) private var haptics = true
     @AppStorage(Pref.scanSound) private var sound = false
     @AppStorage(Pref.scanCondition) private var scanCondition = "NM"
     @AppStorage(Pref.autoAccept) private var autoAccept = 0.8
-    @AppStorage(Pref.lastSync) private var lastSync = 0.0
 
-    @State private var status: ConnectionStatus = .idle
+    @State private var status: HostedStatus?
+    @State private var catalogCount = 0
+    @State private var catalogDate: Date?
+    @State private var updating = false
+    @State private var error: String?
     @State private var showPairing = false
-    @State private var syncing = false
-
-    enum ConnectionStatus: Equatable { case idle, checking, ok(String), failed(String) }
 
     var body: some View {
         NavigationStack {
             Form {
                 Section {
-                    TextField("http://192.168.1.20:8787", text: $serverURL)
+                    LabeledContent("Cards", value: catalogCount > 0 ? catalogCount.formatted() : "Not downloaded")
+                    LabeledContent("Prices from", value: catalogDate.map { $0.formatted(.relative(presentation: .named)) } ?? "—")
+                    if let status {
+                        LabeledContent("Open deals", value: status.counts.deals.formatted())
+                        LabeledContent("Graded prices", value: status.providers["pricecharting"]?.on == true ? "On" : "Needs PriceCharting")
+                        LabeledContent("eBay listings", value: status.providers["ebay"]?.on == true ? "On" : "Needs eBay keys")
+                    }
+                    Button {
+                        Task { await update() }
+                    } label: {
+                        HStack { Text("Update prices now"); if updating { Spacer(); ProgressView() } }
+                    }
+                    .disabled(updating)
+                    if let error { Text(error).font(.footnote).foregroundStyle(Color.down) }
+                } header: {
+                    Text("Prices")
+                } footer: {
+                    Text("Prices refresh on GitHub every 6 hours. The app keeps a copy of every English Pokémon card, so scanning and values work offline.")
+                }
+
+                Section {
+                    TextField(HostedData.defaultURL, text: $dataURL)
                         .keyboardType(.URL)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
-                    SecureField("Access token (optional)", text: $token)
-                    Button { showPairing = true } label: { Label("Scan pairing code", systemImage: "qrcode.viewfinder") }
-                    HStack {
-                        Button("Test connection") { Task { await test() } }
-                            .disabled(serverURL.isEmpty || status == .checking)
-                        Spacer()
-                        statusView
-                    }
+                        .onSubmit { Task { await update() } }
+                    Button { showPairing = true } label: { Label("Scan site code", systemImage: "qrcode.viewfinder") }
                 } header: {
-                    Text("Comps server")
+                    Text("Price site")
                 } footer: {
-                    Text("Run the server on your computer and open its Settings page — it shows this address and a pairing code. Without a server, scanning and raw prices still work.")
-                }
-
-                if !serverURL.isEmpty {
-                    Section("Sync") {
-                        HStack {
-                            Text("Last synced")
-                            Spacer()
-                            Text(lastSync > 0 ? Date(millis: lastSync).formatted(.relative(presentation: .named)) : "Never").foregroundStyle(.secondary)
-                        }
-                        Button {
-                            Task {
-                                syncing = true
-                                defer { syncing = false }
-                                _ = try? await Portfolio.sync(context: context)
-                                await Portfolio.refreshPrices(context: context)
-                            }
-                        } label: {
-                            HStack { Text("Sync now"); if syncing { Spacer(); ProgressView() } }
-                        }
-                        .disabled(syncing)
-                    }
+                    Text("Leave blank to use \(HostedData.defaultURL). The website's Settings page has a code you can scan.")
                 }
 
                 Section {
@@ -81,56 +73,47 @@ struct SettingsView: View {
                 }
 
                 Section {
-                    SecureField("Pokémon TCG API key (optional)", text: $pokemonKey)
-                } header: {
-                    Text("Direct lookups")
-                } footer: {
-                    Text("Used when no server is connected. A free key from dev.pokemontcg.io raises the rate limit.")
-                }
-
-                Section {
                     LabeledContent("Version", value: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0")
-                    Link("Card data: Pokémon TCG API, Scryfall, YGOPRODeck", destination: URL(string: "https://pokemontcg.io")!)
-                        .font(.footnote)
+                    Text("Prices: TCGplayer via TCGCSV, Cardmarket via TCGdex. Card images © their owners.")
+                        .font(.footnote).foregroundStyle(.secondary)
                 }
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+            .task { await refreshInfo() }
             .sheet(isPresented: $showPairing) {
-                PairingScanner { url, tok in
-                    serverURL = url
-                    if let tok { token = tok }
+                PairingScanner { url, _ in
+                    dataURL = url
                     showPairing = false
-                    lastSync = 0
-                    Task { await test() }
+                    Task { await update() }
                 }
             }
         }
     }
 
-    @ViewBuilder private var statusView: some View {
-        switch status {
-        case .idle: EmptyView()
-        case .checking: ProgressView()
-        case .ok(let s): Label(s, systemImage: "checkmark.circle.fill").foregroundStyle(Color.up).font(.footnote)
-        case .failed(let s): Text(s).foregroundStyle(Color.down).font(.footnote).lineLimit(2)
-        }
+    private func refreshInfo() async {
+        catalogCount = await Catalog.shared.count
+        catalogDate = await Catalog.shared.updatedAt
+        status = try? await HostedData.current.status()
     }
 
-    private func test() async {
-        guard let api = APIClient.current else { status = .failed("Invalid address"); return }
-        status = .checking
+    private func update() async {
+        updating = true
+        defer { updating = false }
+        error = nil
         do {
-            let s = try await api.status()
-            withAnimation { status = .ok("\(s.counts.valued.formatted()) prices\(s.demo ? " · sample" : "")") }
+            status = try await HostedData.current.status()
         } catch {
-            withAnimation { status = .failed(error.localizedDescription) }
+            self.error = "Couldn't reach the price site: \(error.localizedDescription)"
         }
+        await Catalog.shared.ensureLoaded(force: true)
+        await Portfolio.refreshPrices(context: context)
+        await refreshInfo()
     }
 }
 
-/// Reads the QR code on the server's Settings page: comps://connect?url=…&token=…
+/// Reads the QR code on the website's Settings page: comps://connect?url=…
 @MainActor
 struct PairingScanner: View {
     var onPair: (String, String?) -> Void
@@ -155,7 +138,7 @@ struct PairingScanner: View {
                 }
                 .padding()
                 Spacer()
-                Text("Point at the code on your server's Settings page")
+                Text("Point at the code on the website's Settings page")
                     .font(.subheadline.weight(.semibold)).foregroundStyle(.white)
                     .padding(.horizontal, 16).padding(.vertical, 10)
                     .background(.ultraThinMaterial, in: Capsule())

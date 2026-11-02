@@ -24,6 +24,7 @@ jobs:
       - name: Build (unsigned, Release)
         run: |
           set +e
+          OWNER_LC=$(echo "$GITHUB_REPOSITORY_OWNER" | tr '[:upper:]' '[:lower:]')
           xcodebuild \
             -project ios/Comps.xcodeproj \
             -scheme Comps \
@@ -32,6 +33,7 @@ jobs:
             -destination 'generic/platform=iOS' \
             -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            COMPS_DATA_URL="https://${OWNER_LC}.github.io/${GITHUB_REPOSITORY#*/}/" \
             build > build.log 2>&1
           status=$?
           # Surface compiler errors as annotations, and print each with context.
@@ -72,8 +74,8 @@ jobs:
               "name": "Comps",
               "bundleIdentifier": "com.comps.scanner",
               "developerName": "${GITHUB_REPOSITORY_OWNER}",
-              "subtitle": "Card collection scanner and price tracker",
-              "localizedDescription": "Scan cards continuously, track your collection's value, and find undervalued cards and grading spreads.",
+              "subtitle": "Pokémon card scanner and price tracker",
+              "localizedDescription": "Scan Pokémon cards continuously, track your collection's value, and find undervalued cards and grading spreads.",
               "iconURL": "${RAW}/ios/Comps/Assets.xcassets/AppIcon.appiconset/AppIcon.png",
               "tintColor": "#0071E3",
               "versions": [{

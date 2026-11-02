@@ -234,53 +234,6 @@ struct CardDetail: Decodable {
     var links: DetailLinks
 }
 
-/// Holding as the server stores it (sync payload).
-struct ServerHolding: Codable {
-    var id: String
-    var cardId: String
-    var game: String?
-    var name: String?
-    var setName: String?
-    var number: String?
-    var image: String?
-    var variant: String?
-    var grader: String?
-    var grade: String?
-    var condition: String?
-    var quantity: Int
-    var costBasis: Double?
-    var acquiredAt: String?
-    var notes: String?
-    var createdAt: Double?
-    var updatedAt: Double
-    var deleted: Bool
-}
-
-struct SyncRequest: Encodable { var items: [ServerHolding]; var since: Double }
-struct SyncResponse: Decodable { var applied: Int; var items: [ServerHolding]; var serverTime: Double }
-
-struct PriceRequestItem: Encodable { var cardId: String; var variant: String?; var grader: String?; var grade: String?; var condition: String? }
-struct PriceRequest: Encodable { var items: [PriceRequestItem] }
-struct PriceItem: Decodable { var cardId: String; var variant: String?; var value: Double?; var basis: String?; var raw: Double?; var change7d: Double? }
-struct PricesResponse: Decodable { var items: [PriceItem] }
-
-struct ServerCounts: Decodable { var cards: Int; var valued: Int; var deals: Int; var holdings: Int }
-struct ServerStatus: Decodable { var version: String; var demo: Bool; var counts: ServerCounts }
-
-struct CollectionSummaryResponse: Decodable {
-    var value: Double
-    var history: [[ValueOrDay]]
-}
-
-/// The summary history is `[[day, value]]`; decode either element type.
-enum ValueOrDay: Decodable {
-    case day(String), value(Double)
-    init(from decoder: Decoder) throws {
-        let c = try decoder.singleValueContainer()
-        if let s = try? c.decode(String.self) { self = .day(s) } else { self = .value(try c.decode(Double.self)) }
-    }
-}
-
 enum ImageURL {
     /// Server card images come back as "/img?u=<original>". The phone loads the original directly.
     static func resolve(_ string: String?) -> URL? {
@@ -289,7 +242,7 @@ enum ImageURL {
             return URL(string: u)
         }
         if string.hasPrefix("http") { return URL(string: string) }
-        return APIClient.current?.url(for: string)
+        return HostedData.current.url(string)
     }
 
     static func original(_ string: String?) -> String? {

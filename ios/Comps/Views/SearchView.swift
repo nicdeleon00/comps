@@ -31,11 +31,11 @@ struct SearchView: View {
                 } else if results.isEmpty {
                     ContentUnavailableView(query.count < 2 ? "Search any card" : "No results",
                                            systemImage: "magnifyingglass",
-                                           description: Text(query.count < 2 ? "Pokémon, Magic, Yu-Gi-Oh!, and sports cards when your server has PriceCharting." : "Try fewer words, or the card number."))
+                                           description: Text(query.count < 2 ? "Every English Pokémon card. Try “Charizard 4/102” or “Umbreon VMAX”." : "Try fewer words, or the card number."))
                 }
             }
             .navigationTitle("Search")
-            .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Card, set or player")
+            .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Card, set or number")
             .navigationDestination(for: CardSummary.self) { c in CardDetailView(cardID: c.id, preview: c) }
             .task(id: query) {
                 let q = query.trimmingCharacters(in: .whitespaces)
@@ -44,13 +44,26 @@ struct SearchView: View {
                 guard !Task.isCancelled else { return }
                 searching = true
                 defer { searching = false }
-                let found: [CardSummary]
-                if let api = APIClient.current, let r = (try? await api.search(q)) { found = r }
-                else { found = await DirectProviders.search(q) }
+                await Catalog.shared.ensureLoaded()
+                let found = await Catalog.shared.search(q)
                 guard !Task.isCancelled else { return }
                 withAnimation(.snappy) { results = found }
             }
-            .sheet(item: $adding) { c in HoldingEditor(card: c, variants: []) }
+            .sheet(item: $adding) { c in AddFromSearch(card: c) }
         }
+    }
+}
+
+/// Loads the card's printings from the catalog before showing the editor.
+@MainActor
+struct AddFromSearch: View {
+    let card: CardSummary
+    @State private var variants: [VariantPrice]?
+
+    var body: some View {
+        Group {
+            if let variants { HoldingEditor(card: card, variants: variants) } else { ProgressView() }
+        }
+        .task { variants = await Catalog.shared.variants(id: card.id) }
     }
 }
