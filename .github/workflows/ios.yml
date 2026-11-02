@@ -40,6 +40,7 @@ jobs:
             -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
             COMPS_DATA_URL="https://${OWNER_LC}.github.io/${GITHUB_REPOSITORY#*/}/" \
+            CURRENT_PROJECT_VERSION="${GITHUB_RUN_NUMBER}" \
             build > build.log 2>&1
           status=$?
           # Surface compiler errors as annotations, and print each with context.
