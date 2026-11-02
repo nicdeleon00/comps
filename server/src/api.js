@@ -241,6 +241,16 @@ function prices(db, items = []) {
   });
 }
 
+/** The most valuable cards in the newest main set. */
+function newestChase(db) {
+  const today = new Date().toISOString().slice(0, 10);
+  const set = db.get(`SELECT * FROM sets WHERE released IS NOT NULL AND released <= ? AND supplemental = 0 AND cards >= 60 ORDER BY released DESC LIMIT 1`, today);
+  if (!set) return null;
+  const rows = db.all(`SELECT c.*, MAX(v.raw) AS best FROM cards c JOIN valuations v ON v.card_id = c.id WHERE c.group_id = ? GROUP BY c.id ORDER BY best DESC LIMIT 8`, Number(set.id));
+  const vals = primaryVals(db, rows.map((r) => r.id));
+  return { set: { id: set.id, name: set.name, series: set.series, released: set.released }, cards: rows.map((r) => cardOut(r, vals.get(r.id)?.[0])) };
+}
+
 /** Every set with its total value and most valuable card. */
 function listSets(db) {
   const sets = db.all('SELECT * FROM sets WHERE cards > 0');
@@ -340,6 +350,7 @@ export function createApi({ db, settings, jobs }) {
       spreads: spreads.items,
       gainers: attachSparks(db, movers(db, 'up')),
       losers: attachSparks(db, movers(db, 'down')),
+      newest: newestChase(db),
     };
   });
 

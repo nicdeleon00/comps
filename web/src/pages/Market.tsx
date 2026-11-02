@@ -9,7 +9,8 @@ import { SpreadRow, CardRow, dealReason } from '../components/Rows';
 import { IconChevron, IconMarket } from '../components/icons';
 import { Header } from './shared';
 
-type Market = { status: Status; deals: Deal[]; dealCounts: Record<string, number>; spreads: Spread[]; gainers: Card[]; losers: Card[] };
+type Market = { status: Status; deals: Deal[]; dealCounts: Record<string, number>; spreads: Spread[]; gainers: Card[]; losers: Card[];
+  newest?: { set: { id: string; name: string; series: string; released: string }; cards: Card[] } | null };
 
 function DealTile({ d, i }: { d: Deal; i: number }) {
   return (
@@ -79,6 +80,26 @@ export function MarketPage() {
               </li>
             ))}
           </ul>
+        </section>
+      )}
+
+      {data?.newest && data.newest.cards.length > 0 && (
+        <section class="section">
+          <div class="section-head">
+            <h2>Chase cards · {data.newest.set.name}</h2>
+            <Link class="more" href={`/sets/${data.newest.set.id}`}>Whole set<IconChevron size={14} /></Link>
+          </div>
+          <div class="binder chase">
+            {data.newest.cards.slice(0, 6).map((c, i) => (
+              <Link href={cardHref(c.id)} prefetchUrl={cardApi(c.id)} class="binder-card enter" style={{ '--i': i }} onClick={() => setHero(c.id)}>
+                <Thumb card={c} size="lg" />
+                <div class="binder-meta">
+                  <div class="binder-name ellipsis">{c.name}</div>
+                  <div class="binder-row"><span class="faint num">{c.number}{c.total ? `/${c.total}` : ''}</span><b class="num">{money(c.price)}</b></div>
+                </div>
+              </Link>
+            ))}
+          </div>
         </section>
       )}
 
