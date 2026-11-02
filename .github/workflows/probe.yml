@@ -1,6 +1,6 @@
 name: Probe data sources
 
-# One-off check of which Pokémon price sources respond, and their response shapes.
+# One-off check of live data shapes used to build the providers.
 on:
   workflow_dispatch:
   push:
@@ -11,22 +11,27 @@ jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
-      - name: Probe
+      - name: TCGCSV groups
         run: |
-          probe() {
-            echo "::group::$1"
-            curl -sS -m 30 -o /tmp/body -w "HTTP %{http_code}  %{size_download} bytes  %{time_total}s\n" -H "Accept: application/json" "$2" || echo "curl failed"
-            head -c "${3:-1500}" /tmp/body; echo
+          curl -sS https://tcgcsv.com/tcgplayer/3/groups -o groups.json
+          jq -r '.results[] | [.groupId, .publishedOn[0:10], (.isSupplemental|tostring), .abbreviation, .name] | @tsv' groups.json
+      - name: Modern set product names and numbers
+        run: |
+          for name in "Evolving Skies" "Scarlet & Violet 151" "Prismatic Evolutions" "Hidden Fates" "Crown Zenith"; do
+            gid=$(jq -r --arg n "$name" '[.results[] | select(.name | contains($n))][0].groupId' <(curl -sS https://tcgcsv.com/tcgplayer/3/groups))
+            echo "::group::$name ($gid)"
+            curl -sS "https://tcgcsv.com/tcgplayer/3/$gid/products" | jq -r '.results[] | [.productId, .name, ((.extendedData // []) | map(select(.name=="Number" or .name=="Rarity")) | map(.value) | join(" | "))] | @tsv' | head -60
+            curl -sS "https://tcgcsv.com/tcgplayer/3/$gid/prices" | jq -r '[.results[].subTypeName] | group_by(.) | map({(.[0]): length}) | add'
             echo "::endgroup::"
-          }
-          probe "pokemontcg cards" "https://api.pokemontcg.io/v2/cards?q=set.id:base1%20number:4&select=id,name,number,rarity,set,images,tcgplayer,cardmarket" 4000
-          probe "pokemontcg sets" "https://api.pokemontcg.io/v2/sets?pageSize=2&orderBy=-releaseDate" 1500
-          probe "pokemontcg page 1 x250 (timing)" "https://api.pokemontcg.io/v2/cards?page=1&pageSize=250&select=id,name,number,set,tcgplayer" 300
-          probe "tcgcsv groups" "https://tcgcsv.com/tcgplayer/3/groups" 1200
-          probe "tcgcsv base set products" "https://tcgcsv.com/tcgplayer/3/604/products" 2500
-          probe "tcgcsv base set prices" "https://tcgcsv.com/tcgplayer/3/604/prices" 1200
-          probe "tcgcsv last-updated" "https://tcgcsv.com/last-updated.txt" 200
-          probe "tcgdex card" "https://api.tcgdex.net/v2/en/cards/base1-4" 2500
-          probe "pricecharting (no token)" "https://www.pricecharting.com/api/products?q=charizard" 500
-          probe "frankfurter" "https://api.frankfurter.dev/v1/latest?base=EUR&symbols=USD" 300
-          probe "pokemontcg image" "https://images.pokemontcg.io/base1/4.png" 100
+          done
+      - name: Image sizes
+        run: |
+          for suffix in _200w.jpg _400w.jpg _in_1000x1000.jpg _1000x1000.jpg; do
+            echo "$suffix $(curl -s -o /dev/null -w '%{http_code} %{size_download}' https://tcgplayer-cdn.tcgplayer.com/product/42382$suffix)"
+          done
+      - name: TCGdex sets
+        run: |
+          curl -sS https://api.tcgdex.net/v2/en/sets | jq -r '.[] | [.id, .name, (.cardCount.official|tostring)] | @tsv' | head -400
+          echo "::group::set detail sv03.5"
+          curl -sS https://api.tcgdex.net/v2/en/sets/sv03.5 | jq -c '{id, name, releaseDate, serie, cards: (.cards[0:5])}'
+          echo "::endgroup::"
