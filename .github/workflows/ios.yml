@@ -34,9 +34,12 @@ jobs:
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
             build > build.log 2>&1
           status=$?
-          # Surface compiler errors as annotations on the run.
-          grep -E "^/.*: error: " build.log | sed -E 's#^(/[^:]+):([0-9]+):([0-9]+): error: (.*)$#::error file=\1,line=\2,col=\3::\4#' | head -50
-          tail -n 25 build.log
+          # Surface compiler errors as annotations, and print each with context.
+          grep -E "^/.*: error: " build.log | sort -u | sed -E 's#^(/[^:]+):([0-9]+):([0-9]+): error: (.*)$#::error file=\1,line=\2,col=\3::\4#' | head -80
+          echo "---- errors with context ----"
+          grep -E -A4 "^/.*: error: " build.log | head -400 || true
+          echo "---- tail ----"
+          tail -n 15 build.log
           exit $status
 
       - name: Package IPA

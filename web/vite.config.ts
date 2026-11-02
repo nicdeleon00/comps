@@ -1,6 +1,8 @@
 import { defineConfig } from 'vite';
 
 export default defineConfig({
+  // GitHub Pages serves the site under /<repo>/.
+  base: process.env.VITE_BASE ?? '/',
   esbuild: { jsx: 'automatic', jsxImportSource: 'preact' },
   resolve: {
     alias: { react: 'preact/compat', 'react-dom': 'preact/compat' },

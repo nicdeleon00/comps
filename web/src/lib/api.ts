@@ -17,7 +17,18 @@ export class HttpError extends Error {
   constructor(public status: number, message: string) { super(message); }
 }
 
+/** Built for GitHub Pages: data comes from published JSON files, not a server. */
+export const STATIC = import.meta.env.VITE_STATIC === '1';
+
 export async function request<T>(method: string, url: string, body?: unknown): Promise<T> {
+  if (STATIC) {
+    const { staticRequest } = await import('./static');
+    try {
+      return (await staticRequest(method, url, body)) as T;
+    } catch (e) {
+      throw new HttpError((e as { status?: number }).status ?? 500, (e as Error).message);
+    }
+  }
   const headers: Record<string, string> = { Accept: 'application/json' };
   const t = token();
   if (t) headers.Authorization = `Bearer ${t}`;

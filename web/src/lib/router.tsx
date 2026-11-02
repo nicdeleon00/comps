@@ -5,16 +5,22 @@ import { useEffect, useState } from 'preact/hooks';
 import { prefetch } from './api';
 
 type Loc = { path: string; query: URLSearchParams };
+/** "/comps" on GitHub Pages, "" when served at the root. */
+export const BASE = import.meta.env.BASE_URL.replace(/\/$/, '');
+export const withBase = (path: string) => (/^https?:/.test(path) ? path : BASE + path);
 const listeners = new Set<(l: Loc) => void>();
 const scrolls = new Map<string, number>();
 let loc: Loc = parse(location.pathname + location.search);
+// GitHub Pages serves 404.html for deep links; it's the same app, so just route.
 let entryKey = (history.state?.key as string) ?? newKey();
 if (!history.state?.key) history.replaceState({ key: entryKey }, '');
 
 function newKey() { return Math.random().toString(36).slice(2, 10); }
 function parse(href: string): Loc {
   const u = new URL(href, location.origin);
-  return { path: u.pathname, query: u.searchParams };
+  let path = u.pathname;
+  if (BASE && path.startsWith(BASE)) path = path.slice(BASE.length) || '/';
+  return { path, query: u.searchParams };
 }
 
 const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -42,8 +48,8 @@ export function navigate(to: string, { replace = false, scroll = true } = {}) {
   scrolls.set(entryKey, window.scrollY);
   transition(() => {
     entryKey = newKey();
-    if (replace) history.replaceState({ key: entryKey }, '', to);
-    else history.pushState({ key: entryKey }, '', to);
+    if (replace) history.replaceState({ key: entryKey }, '', withBase(to));
+    else history.pushState({ key: entryKey }, '', withBase(to));
     loc = next;
     listeners.forEach((l) => l(loc));
     if (scroll) window.scrollTo(0, 0);
@@ -59,8 +65,8 @@ export function setQuery(patch: Record<string, string | number | null | undefine
   }
   const s = q.toString();
   const to = loc.path + (s ? `?${s}` : '');
-  history.replaceState({ key: entryKey }, '', to);
-  loc = parse(to);
+  history.replaceState({ key: entryKey }, '', withBase(to));
+  loc = parse(withBase(to));
   listeners.forEach((l) => l(loc));
 }
 
@@ -90,7 +96,7 @@ export function Link({ href, prefetchUrl, onClick, replace, ...rest }: LinkProps
   const external = /^https?:/.test(href);
   return (
     <a
-      href={href}
+      href={withBase(href)}
       {...(external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
       onMouseEnter={prefetchUrl ? () => prefetch(prefetchUrl) : undefined}
       onTouchStart={prefetchUrl ? () => prefetch(prefetchUrl) : undefined}

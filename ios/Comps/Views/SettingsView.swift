@@ -184,7 +184,7 @@ struct PairingScanner: View {
         .onDisappear { camera.stop() }
     }
 
-    static func parse(_ s: String) -> (String, String?)? {
+    nonisolated static func parse(_ s: String) -> (String, String?)? {
         if s.hasPrefix("http://") || s.hasPrefix("https://") { return (s, nil) }
         guard let comps = URLComponents(string: s), comps.scheme == "comps", let url = comps.queryItems?.first(where: { $0.name == "url" })?.value else { return nil }
         return (url, comps.queryItems?.first(where: { $0.name == "token" })?.value)
