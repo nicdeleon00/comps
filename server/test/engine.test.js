@@ -6,9 +6,8 @@ import { extractFeatures } from '../src/engine/identify.js';
 import { valuate, holdingValue, gradeKey } from '../src/engine/valuation.js';
 import { scoreSignal } from '../src/engine/signals.js';
 import { parseProductName, mapRow } from '../src/providers/pricecharting.js';
-import { mapCard as mapPokemon } from '../src/providers/pokemontcg.js';
-import { mapCard as mapScryfall } from '../src/providers/scryfall.js';
-import { mapCard as mapYgo } from '../src/providers/ygoprodeck.js';
+import { mapProduct, mapPrice, prepareGroups, cleanSetName, seriesFor, variantKey } from '../src/providers/tcgcsv.js';
+import { matchSets, quotesFromCard } from '../src/providers/tcgdex.js';
 import { parseCSV, similarity, money } from '../src/lib/util.js';
 
 const costs = { fee: 25, shipping: 5, sellFeePct: 0.13, sellFixed: 0 };
@@ -35,13 +34,15 @@ test('grade EV: needs raw and PSA 10', () => {
   assert.equal(gradeEV({ psa10: 10 }, costs, ERA_RATES.modern), null);
 });
 
-test('era buckets', () => {
-  assert.equal(eraOf('1999-01-09'), 'vintage');
-  assert.equal(eraOf('2010-05-01'), 'mid');
+test('Pokémon era buckets', () => {
+  assert.equal(eraOf('1999-01-09'), 'wotc');
+  assert.equal(eraOf('2005-02-14'), 'ex');
+  assert.equal(eraOf('2014-05-07'), 'bwxy');
+  assert.equal(eraOf('2019-08-23'), 'sm');
   assert.equal(eraOf('2023-09-22'), 'modern');
 });
 
-const charizard = { game: 'pokemon', name: 'Charizard', number: '4', printed_total: '102', set_name: 'Base' };
+const charizard = { game: 'pokemon', name: 'Charizard', base_name: 'Charizard', number: '004', printed_total: '102', set_name: 'Base Set' };
 
 test('listing filter: accepts a clean raw copy', () => {
   assert.deepEqual(classifyListing('Charizard 4/102 Base Set Holo Rare WOTC 1999 NM', charizard, 'holofoil'), { ok: true });
@@ -91,21 +92,9 @@ test('OCR features: Pokémon', () => {
   assert.equal(f.total, '102');
 });
 
-test('OCR features: Yu-Gi-Oh set code beats everything', () => {
-  const f = extractFeatures([{ text: 'Blue-Eyes White Dragon', y: 0.05, h: 0.05 }, { text: 'LOB-EN001', y: 0.72, h: 0.02 }]);
-  assert.equal(f.game, 'yugioh');
-  assert.equal(f.setCode, 'LOB-EN001');
-});
-
-test('OCR features: Magic set line + collector number', () => {
-  const f = extractFeatures([
-    { text: 'Sheoldred, the Apocalypse', y: 0.04, h: 0.04 },
-    { text: 'M 0107', y: 0.94, h: 0.015 },
-    { text: 'DMU • EN', y: 0.96, h: 0.015 },
-  ]);
-  assert.equal(f.game, 'mtg');
-  assert.equal(f.setCode, 'DMU');
-  assert.equal(f.number, '0107');
+test('OCR features: secret rares and black star promos', () => {
+  assert.deepEqual([extractFeatures([{ text: 'TG05/TG30', y: 0.95 }]).number, extractFeatures([{ text: 'TG05/TG30', y: 0.95 }]).total], ['TG05', 'TG30']);
+  assert.equal(extractFeatures([{ text: 'SWSH050', y: 0.95 }]).number, 'SWSH050');
 });
 
 test('valuation: rejects an outlier source and weights the rest', () => {
@@ -143,34 +132,55 @@ test('PriceCharting product names', () => {
   assert.deepEqual([m.quote.data.ungraded, m.quote.data.g9, m.quote.data.psa10, m.quote.data.volume], [7.5, 58, 420, 210]);
 });
 
-test('Pokémon TCG API mapping', () => {
-  const { card, quotes } = mapPokemon({
-    id: 'base1-4', name: 'Charizard', number: '4', rarity: 'Rare Holo',
-    set: { id: 'base1', name: 'Base', series: 'Base', printedTotal: 102, releaseDate: '1999/01/09' },
-    images: { small: 'https://images.pokemontcg.io/base1/4.png', large: 'https://images.pokemontcg.io/base1/4_hires.png' },
-    tcgplayer: { url: 'x', updatedAt: '2026/11/01', prices: { holofoil: { low: 300, mid: 420, high: 900, market: 410, directLow: null } } },
-    cardmarket: { prices: { trendPrice: 350, averageSellPrice: 340, avg1: 360, avg7: 352, avg30: 340, lowPrice: 200 } },
-  });
-  assert.equal(card.id, 'pkm:base1-4');
-  assert.equal(card.releaseDate, '1999-01-09');
-  assert.equal(quotes.length, 2);
-  assert.equal(quotes[1].variant, 'holofoil');
-  assert.equal(quotes[1].currency, 'EUR');
+// Shapes below are copied from live TCGCSV / TCGdex responses.
+test('TCGCSV groups: set names and eras', () => {
+  assert.equal(cleanSetName('SWSH07: Evolving Skies'), 'Evolving Skies');
+  assert.equal(cleanSetName('SV: Scarlet & Violet 151'), 'Scarlet & Violet 151');
+  assert.equal(cleanSetName('SM - Cosmic Eclipse'), 'Cosmic Eclipse');
+  assert.equal(cleanSetName('ME06: Delta Reign'), 'Delta Reign');
+  assert.equal(seriesFor('ME06: Delta Reign', '2026-11-06'), 'Mega Evolution');
+  assert.equal(seriesFor('SV: Prismatic Evolutions', '2025-01-17'), 'Scarlet & Violet');
+  assert.equal(seriesFor('Hidden Fates: Shiny Vault', '2019-08-23'), 'Sun & Moon');
+  assert.equal(seriesFor('EX Team Rocket Returns', '2004-11-01'), 'EX');
+  assert.equal(seriesFor('Team Rocket', '2000-04-24'), 'Wizards of the Coast');
+  assert.equal(seriesFor('McDonald\'s Promos 2019', '2019-10-01'), 'Sun & Moon');
+  // Placeholder dates shared by many groups are ignored.
+  const gs = prepareGroups(Array.from({ length: 7 }, (_, i) => ({ groupId: i, name: `POP Series ${i}`, publishedOn: '2026-11-01T00:00:00' })));
+  assert.equal(gs[0].released, null);
+  assert.equal(gs[0].series, 'POP');
 });
 
-test('Scryfall mapping (double-faced card images)', () => {
-  const { card, quotes } = mapScryfall({ id: 'abc', name: 'Delver of Secrets // Insectile Aberration', set: 'isd', set_name: 'Innistrad', collector_number: '51', rarity: 'common', released_at: '2011-09-30',
-    card_faces: [{ image_uris: { normal: 'https://cards.scryfall.io/n.jpg', large: 'https://cards.scryfall.io/l.jpg' } }], prices: { usd: '0.50', usd_foil: '12.00', eur: '0.30' } });
-  assert.equal(card.image, 'https://cards.scryfall.io/n.jpg');
-  assert.deepEqual(quotes.map((q) => `${q.variant}/${q.source}`), ['nonfoil/scryfall', 'nonfoil/cardmarket', 'foil/scryfall']);
+test('TCGCSV products and prices', () => {
+  const group = prepareGroups([{ groupId: 23237, name: 'SV: Scarlet & Violet 151', abbreviation: 'MEW', publishedOn: '2023-09-22T00:00:00' }])[0];
+  const card = mapProduct({ productId: 502552, name: 'Bulbasaur - 001/165', imageUrl: 'https://tcgplayer-cdn.tcgplayer.com/product/502552_200w.jpg', url: 'https://www.tcgplayer.com/product/502552',
+    extendedData: [{ name: 'Number', value: '001/165' }, { name: 'Rarity', value: 'Common' }] }, group);
+  assert.equal(card.id, 'tcg:502552');
+  assert.equal(card.name, 'Bulbasaur');
+  assert.deepEqual([card.number, card.printedTotal, card.setName, card.ext.series], ['001', '165', 'Scarlet & Violet 151', 'Scarlet & Violet']);
+  assert.equal(card.imageLarge, 'https://tcgplayer-cdn.tcgplayer.com/product/502552_400w.jpg');
+  const alt = mapProduct({ productId: 246688, name: 'Leafeon V (Alternate Full Art)', extendedData: [{ name: 'Number', value: '167/203' }] }, group);
+  assert.equal(alt.name, 'Leafeon V (Alternate Full Art)');
+  assert.equal(alt.ext.baseName, 'Leafeon V');
+  assert.equal(mapProduct({ productId: 1, name: 'Evolving Skies Booster Box', extendedData: [] }, group), null);
+  const q = mapPrice({ productId: 42346, lowPrice: 43.5, midPrice: 55.0, highPrice: 1499.99, marketPrice: 75.55, directLowPrice: null, subTypeName: 'Holofoil' });
+  assert.deepEqual([q.cardId, q.variant, q.data.market, q.data.low], ['tcg:42346', 'holofoil', 75.55, 43.5]);
+  assert.equal(variantKey('1st Edition Holofoil'), '1stEditionHolofoil');
+  assert.equal(variantKey('Reverse Holofoil'), 'reverseHolofoil');
 });
 
-test('YGOPRODeck mapping: one card per printing', () => {
-  const out = mapYgo({ id: 89631139, name: 'Blue-Eyes White Dragon', card_images: [{ id: 89631139 }],
-    card_sets: [{ set_name: 'LOB', set_code: 'LOB-EN001', set_rarity: 'Ultra Rare', set_rarity_code: '(UR)', set_price: '95.5' }, { set_name: 'SDK', set_code: 'SDK-001', set_rarity: 'Ultra Rare', set_rarity_code: '(UR)', set_price: '0' }],
-    card_prices: [{ tcgplayer_price: '1.2' }] }, 2);
-  assert.equal(out.length, 1);
-  assert.equal(out[0].card.id, 'ygo:LOB-EN001:UR');
+test('TCGdex: set matching and Cardmarket prices by TCGplayer product id', () => {
+  const m = matchSets([{ id: '23237', name: 'Scarlet & Violet 151', total: '165' }, { id: '604', name: 'Base Set', total: '102' }],
+    [{ id: 'sv03.5', name: '151', official: 165 }, { id: 'base1', name: 'Base Set', official: 102 }, { id: 'base4', name: 'Base Set 2', official: 130 }]);
+  assert.equal(m.get('23237'), 'sv03.5');
+  assert.equal(m.get('604'), 'base1');
+  const card = { variants_detailed: [
+    { type: 'holo', subtype: 'unlimited', thirdParty: { cardmarket: 273699, tcgplayer: 42382 }, pricing: { cardmarket: { avg: 458.1, low: 99, trend: 490.62, avg1: 470.5, avg7: 398.82, avg30: 460.58, 'trend-holo': 123.63 } } },
+    { type: 'holo', subtype: 'shadowless', thirdParty: { tcgplayer: 106999 }, pricing: { cardmarket: { trend: 3843.13 } } },
+  ] };
+  const qs = quotesFromCard(card, 42382, ['holofoil']);
+  assert.equal(qs.length, 1);
+  assert.deepEqual([qs[0].variant, qs[0].data.trend, qs[0].data.avg7], ['holofoil', 490.62, 398.82]);
+  assert.equal(quotesFromCard(card, 555, ['holofoil']).length, 0);
 });
 
 test('utils', () => {

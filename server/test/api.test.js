@@ -28,12 +28,12 @@ test('market, deals and spreads come back populated and sorted', async () => {
   const s = await api('GET', '/api/spreads', { sort: 'roi', limit: '100' });
   for (let i = 1; i < s.items.length; i++) assert.ok(s.items[i - 1].roi >= s.items[i].roi);
   // Linked PriceCharting duplicates never show up as separate rows.
-  assert.ok(!s.items.some((x) => x.card.id.startsWith('pc:demo-pkm')));
+  assert.ok(!s.items.some((x) => x.card.id.startsWith('pc:')));
 });
 
 test('card detail has grading EV, history and links', async () => {
   const { api } = setup();
-  const d = await api('GET', '/api/cards/pkm:base1-4', {});
+  const d = await api('GET', '/api/cards/tcg:42382', {});
   assert.equal(d.card.name, 'Charizard');
   assert.ok(d.variants[0].grading.ev > 0);
   assert.ok(d.history.holofoil.length > 100);
@@ -43,7 +43,7 @@ test('card detail has grading EV, history and links', async () => {
 test('identify resolves printed identifiers without live lookups', async () => {
   const { api } = setup();
   const r = await api('POST', '/api/identify', {}, { live: false, lines: [{ text: 'Umbreon VMAX', y: 0.05, h: 0.05 }, { text: '215/203', y: 0.95, h: 0.02 }] });
-  assert.equal(r.candidates[0].card.id, 'pkm:swsh7-215');
+  assert.equal(r.candidates[0].card.id, 'tcg:900010');
   assert.ok(r.candidates[0].card.price > 0);
 });
 
@@ -59,7 +59,7 @@ test('collection sync is last-write-wins with tombstones', async () => {
   await api('DELETE', `/api/collection/${h.id}`, {});
   const after = await api('GET', '/api/collection', {});
   assert.ok(!after.items.some((x) => x.id === h.id));
-  const created = await api('POST', '/api/collection', {}, { cardId: 'pkm:base1-58', grader: 'PSA', grade: '10' });
+  const created = await api('POST', '/api/collection', {}, { cardId: 'tcg:900005', grader: 'PSA', grade: '10' });
   assert.equal(created.name, 'Pikachu');
   assert.equal(created.basis, 'psa10');
 });
@@ -74,20 +74,38 @@ test('settings never leak secrets and ignore masked echoes', async () => {
   assert.equal(settings.get().gradingFee, 30);
 });
 
-test('PriceCharting products link to catalog cards by name, number and set', () => {
+test('PriceCharting products link to TCGplayer cards by product id, or name, number and set', () => {
   const db = openDatabase(':memory:');
-  upsertCards(db, [{ id: 'pkm:base1-4', game: 'pokemon', name: 'Charizard', setName: 'Base', number: '4' }]);
-  upsertQuotes(db, [{ cardId: 'pkm:base1-4', variant: 'holofoil', source: 'tcgplayer', data: { market: 400 } }]);
+  upsertCards(db, [
+    { id: 'tcg:42382', game: 'pokemon', name: 'Charizard', setName: 'Base Set', number: '004', ext: { baseName: 'Charizard', groupId: 604 } },
+    { id: 'tcg:106999', game: 'pokemon', name: 'Charizard', setName: 'Base Set (Shadowless)', number: '004', ext: { baseName: 'Charizard', groupId: 1663 } },
+  ]);
+  upsertQuotes(db, [
+    { cardId: 'tcg:42382', variant: 'holofoil', source: 'tcgplayer', data: { market: 400 } },
+    { cardId: 'tcg:106999', variant: '1stEditionHolofoil', source: 'tcgplayer', data: { market: 9000 } },
+    { cardId: 'tcg:106999', variant: 'holofoil', source: 'tcgplayer', data: { market: 1500 } },
+  ]);
   const rows = [
     { id: '1', 'product-name': 'Charizard #4', 'console-name': 'Pokemon Base Set', 'loose-price': '400', 'manual-only-price': '9000' },
     { id: '2', 'product-name': 'Charizard [1st Edition] #4', 'console-name': 'Pokemon Base Set', 'loose-price': '9000', 'manual-only-price': '300000' },
     { id: '3', 'product-name': 'Charizard #4', 'console-name': 'Pokemon Japanese Base Set', 'loose-price': '200', 'manual-only-price': '2000' },
+    { id: '4', 'product-name': 'Charizard [Shadowless] #4', 'console-name': 'Pokemon Base Set', 'loose-price': '1500', 'manual-only-price': '50000' },
   ].map((r) => mapRow(r, 'pokemon-cards'));
   upsertCards(db, rows.map((r) => r.card));
   upsertQuotes(db, rows.map((r) => r.quote));
   linkPriceCharting(db);
-  const links = db.all('SELECT * FROM links');
-  assert.equal(links.length, 1);
-  assert.equal(links[0].pc_id, 'pc:1');
-  assert.equal(links[0].variant, 'holofoil');
+  const links = db.all('SELECT * FROM links ORDER BY pc_id');
+  assert.deepEqual(links.map((l) => `${l.pc_id}>${l.card_id}/${l.variant}`), ['pc:1>tcg:42382/holofoil', 'pc:4>tcg:106999/holofoil']);
+});
+
+test('sets endpoint groups cards by set with values', async () => {
+  const { api } = setup();
+  const sets = await api('GET', '/api/sets', {});
+  assert.ok(sets.items.length >= 5);
+  const evs = sets.items.find((s) => s.name === 'Evolving Skies');
+  assert.ok(evs.value > 1000);
+  const detail = await api('GET', `/api/sets/${evs.id}`, {});
+  assert.equal(detail.cards[0].name, 'Umbreon VMAX (Alternate Art Secret)');
+  const filtered = await api('GET', '/api/deals', { series: 'Wizards of the Coast', limit: '100' });
+  assert.ok(filtered.items.every((d) => d.card.series === 'Wizards of the Coast'));
 });

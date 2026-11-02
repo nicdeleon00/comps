@@ -16,10 +16,32 @@ CREATE TABLE IF NOT EXISTS cards (
   image TEXT,
   image_large TEXT,
   ext TEXT,
+  group_id INTEGER,
+  series TEXT,
+  base_name TEXT,
   updated_at INTEGER
 );
 CREATE INDEX IF NOT EXISTS cards_game_number ON cards(game, number);
-CREATE INDEX IF NOT EXISTS cards_set ON cards(game, set_code);
+CREATE INDEX IF NOT EXISTS cards_group ON cards(group_id);
+CREATE INDEX IF NOT EXISTS cards_series ON cards(series);
+
+CREATE TABLE IF NOT EXISTS sets (
+  id TEXT PRIMARY KEY,
+  name TEXT,
+  code TEXT,
+  series TEXT,
+  released TEXT,
+  supplemental INTEGER,
+  modified TEXT,
+  cards INTEGER,
+  tcgdex_id TEXT
+);
+
+CREATE TABLE IF NOT EXISTS tcgdex_map (
+  card_id TEXT PRIMARY KEY,
+  tcgdex_id TEXT,
+  checked_at INTEGER
+) WITHOUT ROWID;
 
 CREATE VIRTUAL TABLE IF NOT EXISTS cards_fts USING fts5(
   name, set_name, number,

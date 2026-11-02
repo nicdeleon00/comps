@@ -1,0 +1,93 @@
+name: Prices & website
+
+# Refreshes Pokémon prices, finds deals and grading spreads, and publishes the
+# website to GitHub Pages. Price history lives in the "data" release so it
+# survives between runs. Optional secrets: PRICECHARTING_TOKEN (graded prices),
+# EBAY_CLIENT_ID + EBAY_CLIENT_SECRET (live listing scanner).
+on:
+  schedule:
+    - cron: "23 */6 * * *"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Re-download the whole catalog even if it's fresh"
+        type: boolean
+        default: false
+  push:
+    branches: [main]
+    paths: ["server/**", "web/**", ".github/workflows/data.yml"]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: prices
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    env:
+      DATA_DIR: ${{ github.workspace }}/data
+      PRICECHARTING_TOKEN: ${{ secrets.PRICECHARTING_TOKEN }}
+      EBAY_CLIENT_ID: ${{ secrets.EBAY_CLIENT_ID }}
+      EBAY_CLIENT_SECRET: ${{ secrets.EBAY_CLIENT_SECRET }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Restore price history
+        run: |
+          mkdir -p data
+          if gh release download data --pattern comps.db.gz --dir data 2>/dev/null; then
+            gunzip -f data/comps.db.gz && ls -lh data
+          else
+            echo "No saved database yet — starting fresh."
+          fi
+
+      - name: Refresh prices
+        run: node --disable-warning=ExperimentalWarning server/src/cli.js refresh ${{ (github.event_name == 'workflow_dispatch' && inputs.force) && '--force' || '' }}
+
+      - name: Save price history
+        run: |
+          gzip -kf data/comps.db
+          ls -lh data/comps.db.gz
+          gh release view data >/dev/null 2>&1 || gh release create data --prerelease --title "Price database" \
+            --notes "SQLite database with your price history. Updated by the Prices & website workflow — don't delete it."
+          gh release upload data data/comps.db.gz --clobber
+
+      - name: Build website
+        run: |
+          npm --prefix web ci --no-audit --no-fund
+          REPO="${GITHUB_REPOSITORY#*/}"
+          VITE_STATIC=1 VITE_BASE="/${REPO}/" npm --prefix web run build
+
+      - name: Export data
+        run: node --disable-warning=ExperimentalWarning server/src/cli.js export web/dist/data && du -sh web/dist/data
+
+      - name: Publish to GitHub Pages
+        run: |
+          cd web/dist
+          cp index.html 404.html
+          touch .nojekyll
+          git init -q -b gh-pages
+          git add -A
+          git -c user.name="comps-bot" -c user.email="comps-bot@users.noreply.github.com" commit -qm "Site and prices $(date -u +%Y-%m-%dT%H:%MZ)"
+          git push -qf "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" gh-pages
+          echo "Published https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}/"
+
+      - name: Keep the schedule alive
+        # GitHub pauses scheduled workflows after 60 days without commits.
+        run: |
+          git fetch -q origin main
+          last=$(git log -1 --format=%ct origin/main)
+          if [ $(( $(date +%s) - last )) -gt $(( 50 * 86400 )) ]; then
+            git checkout -q -B main origin/main
+            git -c user.name="comps-bot" -c user.email="comps-bot@users.noreply.github.com" commit -q --allow-empty -m "Keep scheduled price refresh active"
+            git push -q origin main
+          fi

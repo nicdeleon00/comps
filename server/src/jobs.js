@@ -1,9 +1,8 @@
 // Refresh pipeline. Catalog providers run every `refreshHours`; the eBay
 // listing scan runs every `listingsHours`. Jobs never overlap.
 
-import { refreshPokemon } from './providers/pokemontcg.js';
-import { refreshScryfall } from './providers/scryfall.js';
-import { refreshYgo } from './providers/ygoprodeck.js';
+import { refreshTcgcsv } from './providers/tcgcsv.js';
+import { refreshTcgdex } from './providers/tcgdex.js';
 import { refreshPriceCharting } from './providers/pricecharting.js';
 import { refreshFx } from './providers/fx.js';
 import { ebayConfigured } from './providers/ebay.js';
@@ -37,7 +36,7 @@ export function createJobs(db, settings) {
     const s = settings.get();
     const fx = s.fxEurUsd;
     const costs = settings.grading();
-    const n = rebuildValuations(db, fx);
+    const n = rebuildValuations(db, fx, { historyMinUsd: s.historyMinUsd });
     computeSpreads(db, costs);
     computeSignals(db, { fx, costs });
     snapshotPortfolio(db);
@@ -46,12 +45,12 @@ export function createJobs(db, settings) {
 
   async function runCatalog() {
     const s = settings.get();
-    const games = new Set(String(s.games).split(',').map((g) => g.trim()));
     await step('fx', () => refreshFx(s, settings));
-    if (games.has('pokemon')) await step('pokemon', (p) => refreshPokemon(db, s, p));
-    if (games.has('mtg')) await step('mtg', (p) => refreshScryfall(db, s, p));
-    if (games.has('yugioh')) await step('yugioh', (p) => refreshYgo(db, s, p));
+    await step('pokemon', (p) => refreshTcgcsv(db, s, p));
     if (s.pricechartingToken) await step('pricecharting', (p) => refreshPriceCharting(db, s, p));
+    // Value first so the EU step knows which cards are worth enriching.
+    await step('valuations', () => recompute());
+    await step('europe', (p) => refreshTcgdex(db, settings.get(), p));
     await step('valuations', () => recompute());
     compactHistory(db);
   }
@@ -72,6 +71,8 @@ export function createJobs(db, settings) {
 
   return {
     recompute,
+    runCatalog,
+    runListings,
     get running() { return running; },
     trigger(what = 'all') {
       const fn = what === 'listings' ? runListings : what === 'recompute' ? async () => step('valuations', () => recompute()) : async () => { await runCatalog(); await runListings(); };

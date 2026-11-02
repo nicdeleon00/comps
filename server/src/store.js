@@ -5,17 +5,19 @@ import { safeJSON, yearOf } from './lib/util.js';
 
 export function upsertCards(db, cards) {
   if (!cards.length) return 0;
-  const sql = `INSERT INTO cards (id, game, name, set_name, set_code, number, printed_total, rarity, release_date, image, image_large, ext, updated_at)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+  const sql = `INSERT INTO cards (id, game, name, set_name, set_code, number, printed_total, rarity, release_date, image, image_large, ext, group_id, series, base_name, updated_at)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     ON CONFLICT(id) DO UPDATE SET game=excluded.game, name=excluded.name, set_name=excluded.set_name, set_code=excluded.set_code,
       number=excluded.number, printed_total=excluded.printed_total, rarity=excluded.rarity, release_date=excluded.release_date,
       image=COALESCE(excluded.image, cards.image), image_large=COALESCE(excluded.image_large, cards.image_large),
-      ext=excluded.ext, updated_at=excluded.updated_at`;
+      ext=excluded.ext, group_id=excluded.group_id, series=excluded.series, base_name=excluded.base_name, updated_at=excluded.updated_at`;
   const t = Date.now();
   db.tx(() => {
     for (const c of cards) {
+      const e = c.ext ?? {};
       db.run(sql, c.id, c.game, c.name, c.setName ?? null, c.setCode ?? null, c.number ?? null, c.printedTotal ?? null,
-        c.rarity ?? null, c.releaseDate ?? null, c.image ?? null, c.imageLarge ?? null, c.ext ? JSON.stringify(c.ext) : null, t);
+        c.rarity ?? null, c.releaseDate ?? null, c.image ?? null, c.imageLarge ?? null, c.ext ? JSON.stringify(c.ext) : null,
+        e.groupId ?? null, e.series ?? null, e.baseName ?? c.name, t);
     }
   });
   return cards.length;
@@ -49,13 +51,14 @@ export function setJob(db, name, patch) {
   );
 }
 
-const GAME_LABEL = { pokemon: 'Pokémon', mtg: 'Magic', yugioh: 'Yu-Gi-Oh!', sports: 'Sports', other: 'Other' };
-export const gameLabel = (g) => GAME_LABEL[g] ?? g;
+let imageMode = 'proxy';
+/** 'proxy' serves card art through this server's cache; 'direct' (static export) links the CDN. */
+export function setImageMode(mode) { imageMode = mode; }
 
 /** Rewrites remote image URLs through the local caching proxy. */
 export function img(url) {
   if (!url) return null;
-  return `/img?u=${encodeURIComponent(url)}`;
+  return imageMode === 'direct' ? url : `/img?u=${encodeURIComponent(url)}`;
 }
 
 /** Shape a card row (+ optional valuation row) for API responses. */
@@ -72,6 +75,8 @@ export function cardOut(row, val) {
     total: row.printed_total,
     rarity: row.rarity,
     year: yearOf(row.release_date),
+    series: row.series ?? null,
+    setId: row.group_id != null ? String(row.group_id) : null,
     image: img(row.image),
     imageLarge: img(row.image_large ?? row.image),
     tags: ext.tags ?? undefined,

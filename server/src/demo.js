@@ -17,66 +17,55 @@ function rng(seed) {
   };
 }
 
-const PKM = 'https://images.pokemontcg.io';
-const YGO = 'https://images.ygoprodeck.com/images/cards_small';
-const YGOL = 'https://images.ygoprodeck.com/images/cards';
+const CDN = 'https://tcgplayer-cdn.tcgplayer.com/product';
 
-// [id, name, set, setCode, number, total, rarity, date, variant, raw, g9, g10]
+// [groupId, set name, code, series, released]
+const SETS = [
+  [604, 'Base Set', 'BS', 'Wizards of the Coast', '1999-01-09'],
+  [1396, 'Neo Genesis', 'N1', 'Neo', '2000-12-16'],
+  [1404, 'EX Deoxys', 'DX', 'EX', '2005-02-14'],
+  [2594, 'Hidden Fates: Shiny Vault', 'HIF:SV', 'Sun & Moon', '2019-08-23'],
+  [2781, 'Shining Fates: Shiny Vault', 'SHFSV', 'Sword & Shield', '2021-02-19'],
+  [2848, 'Evolving Skies', 'SWSH07', 'Sword & Shield', '2021-08-27'],
+  [3118, 'Lost Origin', 'SWSH11', 'Sword & Shield', '2022-09-09'],
+  [3170, 'Silver Tempest', 'SWSH12', 'Sword & Shield', '2022-11-11'],
+  [17689, 'Crown Zenith: Galarian Gallery', 'CRZ:GG', 'Sword & Shield', '2023-01-20'],
+  [23228, 'Obsidian Flames', 'OBF', 'Scarlet & Violet', '2023-08-11'],
+  [23237, 'Scarlet & Violet 151', 'MEW', 'Scarlet & Violet', '2023-09-22'],
+  [23353, 'Paldean Fates', 'PAF', 'Scarlet & Violet', '2024-01-26'],
+  [23651, 'Surging Sparks', 'SSP', 'Scarlet & Violet', '2024-11-08'],
+  [23821, 'Prismatic Evolutions', 'PRE', 'Scarlet & Violet', '2025-01-17'],
+];
+
+// [productId, name, groupId, number, total, rarity, variant, raw, g9, g10]
 const POKEMON = [
-  ['base1-4', 'Charizard', 'Base', 'base1', '4', '102', 'Rare Holo', '1999-01-09', 'holofoil', 412, 1350, 8900],
-  ['base1-2', 'Blastoise', 'Base', 'base1', '2', '102', 'Rare Holo', '1999-01-09', 'holofoil', 138, 520, 3400],
-  ['base1-15', 'Venusaur', 'Base', 'base1', '15', '102', 'Rare Holo', '1999-01-09', 'holofoil', 104, 390, 2650],
-  ['base1-10', 'Mewtwo', 'Base', 'base1', '10', '102', 'Rare Holo', '1999-01-09', 'holofoil', 46, 210, 1400],
-  ['base1-58', 'Pikachu', 'Base', 'base1', '58', '102', 'Common', '1999-01-09', 'normal', 7.5, 58, 420],
-  ['neo1-9', 'Lugia', 'Neo Genesis', 'neo1', '9', '111', 'Rare Holo', '2000-12-16', 'holofoil', 310, 1150, 9800],
-  ['ex8-107', 'Rayquaza ☆', 'Deoxys', 'ex8', '107', '107', 'Rare Holo Star', '2005-02-14', 'holofoil', 980, 2400, 7900],
-  ['sma-SV49', 'Charizard-GX', 'Hidden Fates Shiny Vault', 'sma', 'SV49', '94', 'Rare Shiny GX', '2019-08-23', 'holofoil', 96, 135, 410],
-  ['swsh45sv-SV107', 'Charizard VMAX', 'Shining Fates Shiny Vault', 'swsh45sv', 'SV107', '122', 'Rare Shiny', '2021-02-19', 'holofoil', 118, 150, 360],
-  ['swsh7-215', 'Umbreon VMAX', 'Evolving Skies', 'swsh7', '215', '203', 'Rare Secret', '2021-08-27', 'holofoil', 1460, 1580, 3250],
-  ['swsh7-218', 'Rayquaza VMAX', 'Evolving Skies', 'swsh7', '218', '203', 'Rare Secret', '2021-08-27', 'holofoil', 612, 690, 1480],
-  ['swsh7-212', 'Sylveon VMAX', 'Evolving Skies', 'swsh7', '212', '203', 'Rare Secret', '2021-08-27', 'holofoil', 318, 350, 760],
-  ['swsh7-209', 'Glaceon VMAX', 'Evolving Skies', 'swsh7', '209', '203', 'Rare Secret', '2021-08-27', 'holofoil', 342, 380, 830],
-  ['swsh11-186', 'Giratina V', 'Lost Origin', 'swsh11', '186', '196', 'Rare Ultra', '2022-09-09', 'holofoil', 470, 505, 1120],
-  ['swsh12-186', 'Lugia V', 'Silver Tempest', 'swsh12', '186', '195', 'Rare Ultra', '2022-11-11', 'holofoil', 255, 290, 705],
-  ['swsh12pt5gg-GG69', 'Giratina VSTAR', 'Crown Zenith Galarian Gallery', 'swsh12pt5gg', 'GG69', '70', 'Rare Secret', '2023-01-20', 'holofoil', 168, 190, 470],
-  ['sv3-223', 'Charizard ex', 'Obsidian Flames', 'sv3', '223', '197', 'Special Illustration Rare', '2023-08-11', 'holofoil', 86, 98, 260],
-  ['sv3pt5-199', 'Charizard ex', '151', 'sv3pt5', '199', '165', 'Special Illustration Rare', '2023-09-22', 'holofoil', 228, 255, 610],
-  ['sv3pt5-198', 'Venusaur ex', '151', 'sv3pt5', '198', '165', 'Special Illustration Rare', '2023-09-22', 'holofoil', 62, 70, 175],
-  ['sv3pt5-200', 'Blastoise ex', '151', 'sv3pt5', '200', '165', 'Special Illustration Rare', '2023-09-22', 'holofoil', 71, 80, 205],
-  ['sv3pt5-203', "Erika's Invitation", '151', 'sv3pt5', '203', '165', 'Special Illustration Rare', '2023-09-22', 'holofoil', 82, 92, 255],
-  ['sv4pt5-234', 'Charizard ex', 'Paldean Fates', 'sv4pt5', '234', '91', 'Special Illustration Rare', '2024-01-26', 'holofoil', 118, 132, 320],
-  ['sv8-238', 'Pikachu ex', 'Surging Sparks', 'sv8', '238', '191', 'Special Illustration Rare', '2024-11-08', 'holofoil', 410, 440, 920],
-  ['sv8pt5-161', 'Umbreon ex', 'Prismatic Evolutions', 'sv8pt5', '161', '131', 'Special Illustration Rare', '2025-01-17', 'holofoil', 1180, 1260, 2600],
-];
-
-// [id, name, set, setCode, number, rarity, date, raw, foilMult]
-const MTG = [
-  ['demo-sheoldred', 'Sheoldred, the Apocalypse', 'Dominaria United', 'dmu', '107', 'Mythic', '2022-09-09', 72, 1.3],
-  ['demo-ragavan', 'Ragavan, Nimble Pilferer', 'Modern Horizons 2', 'mh2', '138', 'Mythic', '2021-06-18', 46, 1.5],
-  ['demo-bowmasters', 'Orcish Bowmasters', 'The Lord of the Rings: Tales of Middle-earth', 'ltr', '103', 'Rare', '2023-06-23', 31, 1.4],
-  ['demo-onering', 'The One Ring', 'The Lord of the Rings: Tales of Middle-earth', 'ltr', '246', 'Mythic', '2023-06-23', 58, 1.6],
-  ['demo-jace', 'Jace, the Mind Sculptor', 'Worldwake', 'wwk', '31', 'Mythic', '2010-02-05', 39, 3.2],
-  ['demo-cradle', "Gaea's Cradle", "Urza's Saga", 'usg', '321', 'Rare', '1998-10-12', 780, null],
-];
-
-// [konamiId, name, set, setCode, rarityCode, rarity, date, raw, g9, g10]
-const YUGIOH = [
-  [89631139, 'Blue-Eyes White Dragon', 'Legend of Blue Eyes White Dragon', 'LOB-EN001', 'UR', 'Ultra Rare', '2002-03-08', 92, 360, 1900],
-  [46986414, 'Dark Magician', 'Legend of Blue Eyes White Dragon', 'LOB-EN005', 'UR', 'Ultra Rare', '2002-03-08', 44, 190, 980],
-  [74677422, 'Red-Eyes Black Dragon', 'Legend of Blue Eyes White Dragon', 'LOB-EN070', 'UR', 'Ultra Rare', '2002-03-08', 38, 170, 860],
-  [33396948, 'Exodia the Forbidden One', 'Legend of Blue Eyes White Dragon', 'LOB-EN124', 'UR', 'Ultra Rare', '2002-03-08', 58, 240, 1350],
-  [14558127, 'Ash Blossom & Joyous Spring', 'Maximum Crisis', 'MACR-EN036', 'ScR', 'Secret Rare', '2017-05-05', 16, 40, 115],
-];
-
-// [id, name, set, number, date, raw, g8, g9, g10, volume]
-const SPORTS = [
-  ['demo-luka', 'Luka Doncic', 'Basketball Cards 2018 Panini Prizm', '280', '2018-11-01', 215, 240, 340, 1080, 180],
-  ['demo-lebron', 'LeBron James', 'Basketball Cards 2003 Topps Chrome', '111', '2003-11-01', 880, 1250, 2150, 8800, 40],
-  ['demo-trout', 'Mike Trout', 'Baseball Cards 2011 Topps Update', 'US175', '2011-10-01', 480, 560, 880, 3450, 120],
-  ['demo-mahomes', 'Patrick Mahomes', 'Football Cards 2017 Panini Prizm', '269', '2017-12-01', 290, 330, 510, 1580, 90],
-  ['demo-ohtani', 'Shohei Ohtani', 'Baseball Cards 2018 Topps Update', 'US1', '2018-10-01', 58, 70, 108, 375, 260],
-  ['demo-herbert', 'Justin Herbert', 'Football Cards 2020 Panini Prizm', '325', '2020-12-01', 38, 45, 62, 178, 140],
-  ['demo-wemby', 'Victor Wembanyama', 'Basketball Cards 2023 Panini Prizm', '136', '2023-12-01', 64, 75, 98, 290, 310],
+  [42382, 'Charizard', 604, '004', '102', 'Holo Rare', 'holofoil', 412, 1350, 8900],
+  [900002, 'Blastoise', 604, '002', '102', 'Holo Rare', 'holofoil', 138, 520, 3400],
+  [900003, 'Venusaur', 604, '015', '102', 'Holo Rare', 'holofoil', 104, 390, 2650],
+  [42347, 'Mewtwo', 604, '010', '102', 'Holo Rare', 'holofoil', 46, 210, 1400],
+  [900005, 'Pikachu', 604, '058', '102', 'Common', 'normal', 7.5, 58, 420],
+  [900006, 'Lugia', 1396, '9', '111', 'Holo Rare', 'holofoil', 310, 1150, 9800],
+  [900007, 'Rayquaza Star', 1404, '107', '107', 'Rare Holo Star', 'holofoil', 980, 2400, 7900],
+  [900008, 'Charizard GX', 2594, 'SV49', 'SV94', 'Shiny Holo Rare', 'holofoil', 96, 135, 410],
+  [900009, 'Charizard VMAX', 2781, 'SV107', 'SV122', 'Shiny Holo Rare', 'holofoil', 118, 150, 360],
+  [900010, 'Umbreon VMAX (Alternate Art Secret)', 2848, '215', '203', 'Secret Rare', 'holofoil', 1460, 1580, 3250],
+  [900011, 'Rayquaza VMAX (Alternate Art Secret)', 2848, '218', '203', 'Secret Rare', 'holofoil', 612, 690, 1480],
+  [246704, 'Sylveon VMAX (Alternate Art Secret)', 2848, '212', '203', 'Secret Rare', 'holofoil', 318, 350, 760],
+  [900013, 'Glaceon VMAX (Alternate Art Secret)', 2848, '209', '203', 'Secret Rare', 'holofoil', 342, 380, 830],
+  [246719, 'Umbreon V (Alternate Full Art)', 2848, '189', '203', 'Ultra Rare', 'holofoil', 298, 330, 640],
+  [900015, 'Giratina V (Alternate Full Art)', 3118, '186', '196', 'Ultra Rare', 'holofoil', 470, 505, 1120],
+  [900016, 'Lugia V (Alternate Full Art)', 3170, '186', '195', 'Ultra Rare', 'holofoil', 255, 290, 705],
+  [900017, 'Giratina VSTAR', 17689, 'GG69', 'GG70', 'Secret Rare', 'holofoil', 168, 190, 470],
+  [900018, 'Charizard ex', 23228, '223', '197', 'Special Illustration Rare', 'holofoil', 86, 98, 260],
+  [900019, 'Charizard ex', 23237, '199', '165', 'Special Illustration Rare', 'holofoil', 228, 255, 610],
+  [900020, 'Venusaur ex', 23237, '198', '165', 'Special Illustration Rare', 'holofoil', 62, 70, 175],
+  [900021, 'Blastoise ex', 23237, '200', '165', 'Special Illustration Rare', 'holofoil', 71, 80, 205],
+  [900022, "Erika's Invitation", 23237, '203', '165', 'Special Illustration Rare', 'holofoil', 82, 92, 255],
+  [513721, 'Pikachu', 23237, '173', '165', 'Illustration Rare', 'holofoil', 14, 22, 85],
+  [900024, 'Charizard ex', 23353, '234', '091', 'Special Illustration Rare', 'holofoil', 118, 132, 320],
+  [900025, 'Pikachu ex', 23651, '238', '191', 'Special Illustration Rare', 'holofoil', 410, 440, 920],
+  [900026, 'Umbreon ex', 23821, '161', '131', 'Special Illustration Rare', 'holofoil', 1180, 1260, 2600],
+  [900027, 'Eevee ex', 23821, '167', '131', 'Special Illustration Rare', 'holofoil', 92, 104, 260],
 ];
 
 export function seedDemo(db, settings) {
@@ -89,61 +78,45 @@ export function seedDemo(db, settings) {
   const fx = 1.08;
   const now = Date.now();
 
-  POKEMON.forEach(([id, name, set, setCode, number, total, rarity, date, variant, raw, g9, g10], i) => {
-    const cid = `pkm:${id}`;
-    cards.push({ id: cid, game: 'pokemon', name, setName: set, setCode, number, printedTotal: total, rarity, releaseDate: date,
-      image: `${PKM}/${setCode}/${number}.png`, imageLarge: `${PKM}/${setCode}/${number}_hires.png`, ext: { tcgplayer: null } });
+  const setById = new Map(SETS.map(([gid, name, code, series, released]) => [gid, { gid, name, code, series, released }]));
+  POKEMON.forEach(([pid, name, gid, number, total, rarity, variant, raw, g9, g10], i) => {
+    const set = setById.get(gid);
+    const cid = `tcg:${pid}`;
+    const baseName = name.replace(/\s*\([^)]*\)\s*/g, ' ').trim();
+    cards.push({ id: cid, game: 'pokemon', name, setName: set.name, setCode: set.code, number, printedTotal: total, rarity, releaseDate: set.released,
+      image: `${CDN}/${pid}_200w.jpg`, imageLarge: `${CDN}/${pid}_400w.jpg`,
+      ext: { groupId: gid, series: set.series, baseName, productId: pid, tcgplayer: `https://www.tcgplayer.com/product/${pid}` } });
     // Some cards get a lowball ask, some a hot EU market, some a lagging US price.
     const lowAsk = i % 5 === 1 ? 0.58 + r() * 0.1 : 0.82 + r() * 0.12;
     quotes.push({ cardId: cid, variant, source: 'tcgplayer', data: { market: raw, low: Math.round(raw * lowAsk * 100) / 100, mid: jitter(raw * 1.08, 0.03), high: jitter(raw * 2.2, 0.2) } });
+    if (variant === 'holofoil' && rarity === 'Holo Rare') {
+      quotes.push({ cardId: cid, variant: 'reverseHolofoil', source: 'tcgplayer', data: { market: jitter(raw * 0.4, 0.1), low: jitter(raw * 0.3, 0.1) } });
+    }
     const euRatio = i % 7 === 3 ? 0.55 : i % 6 === 2 ? 1.35 : 0.92 + r() * 0.12;
     const trend = Math.round((raw * euRatio / fx) * 100) / 100;
     const accel = i % 6 === 2 ? 1.32 : 0.95 + r() * 0.1;
-    quotes.push({ cardId: cid, variant, source: 'cardmarket', currency: 'EUR', data: { trend, avgSell: jitter(trend, 0.04), low: jitter(trend * 0.7, 0.05), avg30: Math.round((trend / accel) * 100) / 100, avg7: trend, avg1: jitter(trend * 1.02, 0.01) } });
-    const pcId = `pc:demo-pkm-${i}`;
-    cards.push({ id: pcId, game: 'pokemon', name, setName: set, setCode: `Pokemon ${set}`, number, releaseDate: date, ext: { category: 'pokemon-cards' } });
+    if (raw >= 15) quotes.push({ cardId: cid, variant, source: 'cardmarket', currency: 'EUR', data: { trend, avgSell: jitter(trend, 0.04), low: jitter(trend * 0.7, 0.05), avg30: Math.round((trend / accel) * 100) / 100, avg7: trend, avg1: jitter(trend * 1.02, 0.01) } });
+    const pcId = `pc:demo-${i}`;
+    const vintage = set.released < '2004';
+    cards.push({ id: pcId, game: 'pokemon', name: baseName, setName: set.name, setCode: `Pokemon ${set.name}`, number, releaseDate: set.released, ext: { category: 'pokemon-cards' } });
     quotes.push({ cardId: pcId, variant: 'default', source: 'pricecharting', data: {
       // Vintage raw copies are rarely mint, so mid grades still beat raw; modern 7s/8s sell under raw.
-      ungraded: jitter(raw, 0.05), g7: jitter(date < '2003' ? Math.max(raw * 1.08, g9 * 0.3) : raw * 0.72, 0.05),
-      g8: jitter(date < '2003' ? Math.max(raw * 1.3, g9 * 0.5) : raw * 0.9, 0.05), g9, g95: jitter(g9 * 1.35, 0.05), psa10: g10,
+      ungraded: jitter(raw, 0.05), g7: jitter(vintage ? Math.max(raw * 1.08, g9 * 0.3) : raw * 0.72, 0.05),
+      g8: jitter(vintage ? Math.max(raw * 1.3, g9 * 0.5) : raw * 0.9, 0.05), g9, g95: jitter(g9 * 1.35, 0.05), psa10: g10,
       bgs10: jitter(g10 * 1.25, 0.1), cgc10: jitter(g10 * 0.62, 0.08), sgc10: jitter(g10 * 0.7, 0.08), volume: Math.round(8 + r() * 200) } });
     links.push([cid, variant, pcId]);
     const drift = i % 8 === 0 ? 0.18 : i % 9 === 4 ? -0.3 : (r() - 0.45) * 0.25;
     histories.push([cid, variant, raw, g9, g10, drift]);
   });
 
-  MTG.forEach(([id, name, set, setCode, number, rarity, date, raw, foilMult], i) => {
-    const cid = `mtg:${id}`;
-    cards.push({ id: cid, game: 'mtg', name, setName: set, setCode, number, rarity, releaseDate: date, ext: {} });
-    quotes.push({ cardId: cid, variant: 'nonfoil', source: 'scryfall', data: { market: raw } });
-    quotes.push({ cardId: cid, variant: 'nonfoil', source: 'cardmarket', currency: 'EUR', data: { trend: Math.round((raw * (i === 2 ? 0.58 : 0.9 + r() * 0.15) / fx) * 100) / 100 } });
-    if (foilMult) {
-      quotes.push({ cardId: cid, variant: 'foil', source: 'scryfall', data: { market: Math.round(raw * foilMult * 100) / 100 } });
-    }
-    histories.push([cid, 'nonfoil', raw, null, null, (r() - 0.5) * 0.3]);
-  });
-
-  YUGIOH.forEach(([kid, name, set, code, rc, rarity, date, raw, g9, g10], i) => {
-    const cid = `ygo:${code}:${rc}`;
-    cards.push({ id: cid, game: 'yugioh', name, setName: set, setCode: code, number: code, rarity, releaseDate: date,
-      image: `${YGO}/${kid}.jpg`, imageLarge: `${YGOL}/${kid}.jpg`, ext: { konamiId: kid } });
-    quotes.push({ cardId: cid, variant: 'default', source: 'ygoprodeck', data: { market: raw } });
-    const pcId = `pc:demo-ygo-${i}`;
-    cards.push({ id: pcId, game: 'yugioh', name, setName: set, setCode: `YuGiOh ${set}`, number: code, releaseDate: date, ext: { category: 'yugioh-cards' } });
-    quotes.push({ cardId: pcId, variant: 'default', source: 'pricecharting', data: { ungraded: jitter(raw, 0.06), g8: jitter(g9 * 0.5, 0.05), g9, g95: jitter(g9 * 1.4, 0.05), psa10: g10, volume: Math.round(10 + r() * 60) } });
-    links.push([cid, 'default', pcId]);
-    histories.push([cid, 'default', raw, g9, g10, (r() - 0.5) * 0.2]);
-  });
-
-  SPORTS.forEach(([id, name, set, number, date, raw, g8, g9, g10, volume]) => {
-    const cid = `pc:${id}`;
-    cards.push({ id: cid, game: 'sports', name, setName: set.replace(/^(Basketball|Baseball|Football) Cards /, ''), setCode: set, number, releaseDate: date, ext: { category: set.split(' ')[0].toLowerCase() + '-cards' } });
-    quotes.push({ cardId: cid, variant: 'default', source: 'pricecharting', data: { ungraded: raw, g7: jitter(raw * 1.02, 0.03), g8, g9, g95: jitter(g9 * 1.3, 0.05), psa10: g10, bgs10: jitter(g10 * 1.4, 0.1), sgc10: jitter(g10 * 0.65, 0.05), volume } });
-    histories.push([cid, 'default', raw, g9, g10, (r() - 0.4) * 0.3]);
-  });
-
   upsertCards(db, cards);
   upsertQuotes(db, quotes);
+  db.tx(() => {
+    for (const st of SETS) {
+      const n = POKEMON.filter((c) => c[2] === st[0]).length;
+      db.run('INSERT OR REPLACE INTO sets (id, name, code, series, released, supplemental, modified, cards) VALUES (?,?,?,?,?,?,?,?)', String(st[0]), st[1], st[2], st[3], st[4], 0, null, n);
+    }
+  });
 
   db.tx(() => {
     for (const [cid, variant, pc] of links) db.run('INSERT OR REPLACE INTO links (card_id, variant, pc_id, confidence) VALUES (?,?,?,?)', cid, variant, pc, 0.95);
@@ -170,19 +143,17 @@ export function seedDemo(db, settings) {
 
     // eBay-style listings, a few clearly underpriced.
     const L = [
-      ['pkm:base1-4', 'holofoil', 'Charizard 4/102 Base Set Unlimited Holo Rare WOTC 1999 NM', 305, 5, null, null],
-      ['pkm:base1-4', 'holofoil', 'PSA 9 Charizard 4/102 Base Set Holo Unlimited Pokemon 1999', 1080, 0, 'PSA', '9'],
-      ['pkm:base1-58', 'normal', 'Pikachu 58/102 Base Set Yellow Cheeks Pokemon Card NM', 3.99, 1.25, null, null],
-      ['pkm:swsh7-215', 'holofoil', 'Umbreon VMAX 215/203 Evolving Skies Alt Art Secret Rare Pokemon NM/M', 1095, 0, null, null],
-      ['pkm:swsh7-215', 'holofoil', 'PSA 10 GEM MINT Umbreon VMAX 215/203 Evolving Skies Alternate Art', 2690, 0, 'PSA', '10'],
-      ['pkm:sv3pt5-199', 'holofoil', 'Charizard ex 199/165 SIR Pokemon 151 Special Illustration Rare Pack Fresh', 159, 4.5, null, null],
-      ['pkm:neo1-9', 'holofoil', 'Lugia 9/111 Neo Genesis Unlimited Holo Rare Pokemon Card', 228, 5, null, null],
-      ['pkm:swsh11-186', 'holofoil', 'Giratina V 186/196 Lost Origin Alt Art Pokemon Card Near Mint', 362, 0, null, null],
-      ['pkm:sv8-238', 'holofoil', 'CGC 10 Pristine Pikachu ex 238/191 Surging Sparks SIR', 610, 0, 'CGC', '10'],
-      ['pkm:base1-2', 'holofoil', 'Blastoise 2/102 Base Set Holo Rare Unlimited 1999 WOTC', 99, 4.99, null, null],
-      ['pkm:swsh12-186', 'holofoil', 'Lugia V Alternate Art 186/195 Silver Tempest Pokemon Card', 192, 1, null, null],
-      ['ygo:LOB-EN001:UR', 'default', 'Blue-Eyes White Dragon LOB-EN001 Ultra Rare Unlimited Yugioh NM', 64, 4, null, null],
-      ['mtg:demo-sheoldred', 'nonfoil', 'Sheoldred, the Apocalypse Dominaria United DMU Mythic NM MTG', 52, 1, null, null],
+      ['tcg:42382', 'holofoil', 'Charizard 4/102 Base Set Unlimited Holo Rare WOTC 1999 NM', 305, 5, null, null],
+      ['tcg:42382', 'holofoil', 'PSA 9 Charizard 4/102 Base Set Holo Unlimited Pokemon 1999', 1080, 0, 'PSA', '9'],
+      ['tcg:900005', 'normal', 'Pikachu 58/102 Base Set Yellow Cheeks Pokemon Card NM', 3.99, 1.25, null, null],
+      ['tcg:900010', 'holofoil', 'Umbreon VMAX 215/203 Evolving Skies Alt Art Secret Rare Pokemon NM/M', 1095, 0, null, null],
+      ['tcg:900010', 'holofoil', 'PSA 10 GEM MINT Umbreon VMAX 215/203 Evolving Skies Alternate Art', 2690, 0, 'PSA', '10'],
+      ['tcg:900019', 'holofoil', 'Charizard ex 199/165 SIR Pokemon 151 Special Illustration Rare Pack Fresh', 159, 4.5, null, null],
+      ['tcg:900006', 'holofoil', 'Lugia 9/111 Neo Genesis Unlimited Holo Rare Pokemon Card', 228, 5, null, null],
+      ['tcg:900015', 'holofoil', 'Giratina V 186/196 Lost Origin Alt Art Pokemon Card Near Mint', 362, 0, null, null],
+      ['tcg:900025', 'holofoil', 'CGC 10 Pristine Pikachu ex 238/191 Surging Sparks SIR', 610, 0, 'CGC', '10'],
+      ['tcg:900002', 'holofoil', 'Blastoise 2/102 Base Set Holo Rare Unlimited 1999 WOTC', 99, 4.99, null, null],
+      ['tcg:900016', 'holofoil', 'Lugia V Alternate Art 186/195 Silver Tempest Pokemon Card', 192, 1, null, null],
     ];
     L.forEach(([cid, variant, title, price, ship, grader, grade], i) => {
       db.run(`INSERT OR REPLACE INTO listings (item_id, card_id, variant, title, price, shipping, currency, buying, grader, grade, url, image, seller, feedback, fetched_at)
@@ -192,19 +163,16 @@ export function seedDemo(db, settings) {
 
     // A starter collection.
     const H = [
-      ['pkm:base1-4', 'holofoil', 'PSA', '9', 1, 980, 400],
-      ['pkm:swsh7-215', 'holofoil', null, null, 1, 620, 380],
-      ['pkm:swsh7-218', 'holofoil', 'PSA', '10', 1, 1100, 300],
-      ['pkm:sv3pt5-199', 'holofoil', null, null, 2, 140, 200],
-      ['pkm:sv8pt5-161', 'holofoil', null, null, 1, 1050, 90],
-      ['pkm:sv8-238', 'holofoil', 'PSA', '10', 1, 640, 120],
-      ['pkm:base1-58', 'normal', null, null, 4, 3, 500],
-      ['pkm:sma-SV49', 'holofoil', 'PSA', '10', 1, 380, 600],
-      ['pkm:swsh11-186', 'holofoil', null, null, 1, 290, 260],
-      ['ygo:LOB-EN001:UR', 'default', null, null, 1, 70, 700],
-      ['mtg:demo-sheoldred', 'nonfoil', null, null, 4, 60, 410],
-      ['pc:demo-luka', 'default', 'PSA', '9', 1, 300, 520],
-      ['pc:demo-ohtani', 'default', null, null, 2, 40, 330],
+      ['tcg:42382', 'holofoil', 'PSA', '9', 1, 980, 400],
+      ['tcg:900010', 'holofoil', null, null, 1, 620, 380],
+      ['tcg:900011', 'holofoil', 'PSA', '10', 1, 1100, 300],
+      ['tcg:900019', 'holofoil', null, null, 2, 140, 200],
+      ['tcg:900026', 'holofoil', null, null, 1, 1050, 90],
+      ['tcg:900025', 'holofoil', 'PSA', '10', 1, 640, 120],
+      ['tcg:900005', 'normal', null, null, 4, 3, 500],
+      ['tcg:900008', 'holofoil', 'PSA', '10', 1, 380, 600],
+      ['tcg:900015', 'holofoil', null, null, 1, 290, 260],
+      ['tcg:246719', 'holofoil', null, null, 2, 210, 330],
     ];
     H.forEach(([cid, variant, grader, grade, qty, cost, ageDays], i) => {
       const c = db.get('SELECT * FROM cards WHERE id = ?', cid);
@@ -215,7 +183,7 @@ export function seedDemo(db, settings) {
       }, { force: true });
     });
 
-    for (const [cid, variant, target] of [['pkm:sv8pt5-161', 'holofoil', 1000], ['pkm:neo1-9', 'holofoil', 260], ['pkm:ex8-107', 'holofoil', null], ['pc:demo-wemby', 'default', 50]]) {
+    for (const [cid, variant, target] of [['tcg:900026', 'holofoil', 1000], ['tcg:900006', 'holofoil', 260], ['tcg:900007', 'holofoil', null], ['tcg:900027', 'holofoil', 80]]) {
       db.run('INSERT OR REPLACE INTO watchlist (card_id, variant, target, created_at) VALUES (?,?,?,?)', cid, variant, target, now);
     }
   });

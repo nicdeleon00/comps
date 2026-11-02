@@ -22,12 +22,16 @@ export function parseGrade(title) {
 
 function hasNumber(title, number, total) {
   if (!number) return true;
-  const n = String(number).replace(/^0+(?=\d)/, '');
+  const n = String(number).replace(/^([A-Za-z]*)0+(?=\d)/, '$1');
   const esc = n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const pads = `0{0,2}${esc}`;
-  const patterns = [new RegExp(`(?:^|[^\\w])#?${pads}\\s*/\\s*\\w+`, 'i'), new RegExp(`#\\s*${pads}\\b`, 'i'), new RegExp(`\\b${pads}\\b`, 'i')];
-  if (total) return patterns[0].test(title) || patterns[1].test(title);
-  return patterns.some((p) => p.test(title));
+  const prefix = esc.match(/^[A-Za-z]*/)[0];
+  const digits = esc.slice(prefix.length);
+  const pads = `${prefix}0{0,2}${digits}`;
+  const withTotal = new RegExp(`(?:^|[^\\w])#?${pads}\\s*/\\s*\\w+`, 'i');
+  const hash = new RegExp(`#\\s*${pads}\\b`, 'i');
+  const bare = new RegExp(`\\b${pads}\\b`, 'i');
+  if (total) return withTotal.test(title) || hash.test(title);
+  return withTotal.test(title) || hash.test(title) || bare.test(title);
 }
 
 /**
@@ -36,32 +40,22 @@ function hasNumber(title, number, total) {
  */
 export function classifyListing(title, card, variant) {
   const t = String(title);
-  const tl = t.toLowerCase();
-  const nameTokens = tokens(card.name).filter((w) => w.length > 1 && !['ex', 'gx', 'v', 'the', 'of'].includes(w));
+  const base = card.base_name || card.name;
+  const nameTokens = tokens(base).filter((w) => w.length > 1 && !['ex', 'gx', 'v', 'the', 'of'].includes(w));
   const tt = new Set(tokens(t));
   const matched = nameTokens.filter((w) => tt.has(w)).length;
   if (nameTokens.length && matched / nameTokens.length < 0.75) return { ok: false, reason: 'name' };
 
   const junk = JUNK_RE.exec(t);
-  if (junk && !norm(card.name).includes(norm(junk[0]))) return { ok: false, reason: `junk:${junk[0]}` };
+  if (junk && !norm(base).includes(norm(junk[0]))) return { ok: false, reason: `junk:${junk[0]}` };
   if (LANG_RE.test(t) && !LANG_RE.test(card.set_name ?? '')) return { ok: false, reason: 'language' };
 
-  if (card.game === 'pokemon') {
-    if (!hasNumber(t, card.number, card.printed_total)) return { ok: false, reason: 'number' };
-    const first = /\b1st\s*(ed|edition)?\b|first\s*edition/i.test(t);
-    if (variant.startsWith('1stEdition') !== first) return { ok: false, reason: 'edition' };
-    const reverse = /\breverse\b|\brev\s*holo\b/i.test(t);
-    if ((variant === 'reverseHolofoil') !== reverse) return { ok: false, reason: 'reverse' };
-    if (/shadowless/i.test(t) && !/shadowless/i.test(card.name)) return { ok: false, reason: 'shadowless' };
-  } else if (card.game === 'mtg') {
-    const foil = /\bfoil\b/i.test(t) && !/\bnon[-\s]?foil\b/i.test(t);
-    if ((variant === 'foil' || variant === 'etched') !== foil) return { ok: false, reason: 'foil' };
-    if (card.set_name && !tl.includes(norm(card.set_name).split(' ')[0]) && !tl.includes(String(card.set_code).toLowerCase())) return { ok: false, reason: 'set' };
-  } else if (card.game === 'yugioh') {
-    const code = String(card.set_code ?? '').toLowerCase();
-    const short = code.replace(/-(en|eu)(\d)/, '-$2');
-    if (code && !tl.includes(code) && !tl.includes(short)) return { ok: false, reason: 'setcode' };
-  }
+  if (!hasNumber(t, card.number, card.printed_total)) return { ok: false, reason: 'number' };
+  const first = /\b1st\s*(ed|edition)?\b|first\s*edition/i.test(t);
+  if (variant.startsWith('1stEdition') !== first) return { ok: false, reason: 'edition' };
+  const reverse = /\breverse\b|\brev\s*holo\b/i.test(t);
+  if ((variant === 'reverseHolofoil') !== reverse) return { ok: false, reason: 'reverse' };
+  if (/shadowless/i.test(t) !== /shadowless/i.test(card.set_name ?? '')) return { ok: false, reason: 'shadowless' };
 
   const g = parseGrade(t);
   if (g) {
@@ -74,18 +68,10 @@ export function classifyListing(title, card, variant) {
 }
 
 function queryFor(card) {
-  const name = card.name.replace(/[()"]/g, ' ');
-  const neg = ' -proxy -custom -orica -lot -digital -japanese';
-  switch (card.game) {
-    case 'pokemon':
-      return `${name} ${card.number}${card.printed_total ? '/' + card.printed_total : ''}${neg}`;
-    case 'mtg':
-      return `${name} ${card.set_name ?? ''}${neg}`;
-    case 'yugioh':
-      return `${name} ${card.set_code ?? ''}${neg}`;
-    default:
-      return `${card.set_name ?? ''} ${name} ${card.number ? '#' + card.number : ''}${neg}`.trim();
-  }
+  const name = String(card.base_name || card.name).replace(/[()"]/g, ' ');
+  const num = String(card.number ?? '').replace(/^0+(?=\d)/, '');
+  const total = card.printed_total && /^\d+$/.test(card.printed_total) ? `/${card.printed_total}` : '';
+  return `${name} ${num}${total} -proxy -custom -orica -lot -digital -japanese`;
 }
 
 /** Picks which cards to spend eBay calls on this cycle. */
@@ -123,7 +109,7 @@ export async function scanListings(db, settings, { maxCards = 120 } = {}) {
     const card = db.get('SELECT * FROM cards WHERE id = ?', cand.card_id);
     const v = db.get('SELECT * FROM valuations WHERE card_id = ? AND variant = ?', cand.card_id, cand.variant);
     if (!card || !v) continue;
-    const category = ['pokemon', 'mtg', 'yugioh'].includes(card.game) ? CATEGORY.tcg : CATEGORY.sports;
+    const category = CATEGORY.tcg;
     const q = queryFor(card);
     const searches = [];
     if (v.raw >= 5) searches.push({ condition: CONDITION.ungraded, min: v.raw * 0.3, max: v.raw * 1.05 });

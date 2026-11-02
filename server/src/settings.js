@@ -2,17 +2,17 @@
 // Settings screen (stored in SQLite) are used.
 
 const DEFAULTS = {
-  pokemontcgApiKey: '',
   pricechartingToken: '',
   ebayClientId: '',
   ebayClientSecret: '',
   ebayMarketplace: 'EBAY_US',
   ebayDailyBudget: 4000,
-  pricechartingCategories:
-    'pokemon-cards,magic-cards,yugioh-cards,baseball-cards,basketball-cards,football-cards,hockey-cards,soccer-cards',
-  games: 'pokemon,mtg,yugioh',
-  mtgMinUsd: 2,
-  ygoMinUsd: 2,
+  pricechartingCategories: 'pokemon-cards',
+  // Cardmarket (EU) prices are fetched for cards worth at least this much.
+  euMinUsd: 15,
+  euMaxCards: 900,
+  // Daily history is kept for card printings worth at least this much.
+  historyMinUsd: 1,
   refreshHours: 12,
   listingsHours: 3,
   // Grading economics, editable in Settings.
@@ -20,21 +20,19 @@ const DEFAULTS = {
   gradingShipping: 5,
   sellFeePct: 13.25,
   sellFixed: 0.4,
-  fxEurUsd: 1.08,
+  fxEurUsd: 1.1,
 };
 
 const ENV = {
-  pokemontcgApiKey: 'POKEMONTCG_API_KEY',
   pricechartingToken: 'PRICECHARTING_TOKEN',
   ebayClientId: 'EBAY_CLIENT_ID',
   ebayClientSecret: 'EBAY_CLIENT_SECRET',
   ebayMarketplace: 'EBAY_MARKETPLACE',
   pricechartingCategories: 'PRICECHARTING_CATEGORIES',
-  games: 'COMPS_GAMES',
   refreshHours: 'REFRESH_HOURS',
 };
 
-export const SECRET_KEYS = new Set(['pokemontcgApiKey', 'pricechartingToken', 'ebayClientId', 'ebayClientSecret']);
+export const SECRET_KEYS = new Set(['pricechartingToken', 'ebayClientId', 'ebayClientSecret']);
 
 export function createSettings(db) {
   const read = () => {
@@ -42,7 +40,7 @@ export function createSettings(db) {
     const out = {};
     for (const [k, def] of Object.entries(DEFAULTS)) {
       const envVal = ENV[k] ? process.env[ENV[k]] : undefined;
-      let v = envVal ?? stored[k] ?? def;
+      let v = envVal || stored[k] || def;
       if (typeof def === 'number') v = Number(v);
       out[k] = v;
     }

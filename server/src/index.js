@@ -74,7 +74,7 @@ async function readBody(req, limit = 10 * 1024 * 1024) {
 
 // --- Image proxy: caches card art on disk so pages load instantly and we
 // don't hammer the source CDNs. Only known image hosts are allowed.
-const IMG_HOSTS = new Set(['images.pokemontcg.io', 'cards.scryfall.io', 'c1.scryfall.com', 'images.ygoprodeck.com', 'i.ebayimg.com', 'storage.googleapis.com', 'commondatastorage.googleapis.com']);
+const IMG_HOSTS = new Set(['tcgplayer-cdn.tcgplayer.com', 'product-images.tcgplayer.com', 'assets.tcgdex.net', 'images.pokemontcg.io', 'i.ebayimg.com', 'storage.googleapis.com']);
 const IMG_DIR = join(DATA_DIR, 'img');
 const inflight = new Map();
 

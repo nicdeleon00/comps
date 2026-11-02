@@ -1,16 +1,13 @@
 // JSON API used by the website and the iOS app.
 
-import { cardOut, valuationOut, gradesOut, upsertCards, upsertQuotes, img, gameLabel } from './store.js';
+import { cardOut, valuationOut, gradesOut, img } from './store.js';
 import { extractFeatures, matchLocal, searchCatalog } from './engine/identify.js';
 import { gradeEV, ratesFor } from './engine/grading.js';
 import { KINDS } from './engine/signals.js';
-import { holdingValue, revalue } from './engine/valuation.js';
+import { holdingValue } from './engine/valuation.js';
 import { valuedHoldings, summary, sync, upsertHolding, hydrate } from './collection.js';
 import { ebayConfigured, ebaySearchUrl, ebaySoldUrl } from './providers/ebay.js';
-import { searchPokemon } from './providers/pokemontcg.js';
-import { scryfallBySetNumber, scryfallFuzzy } from './providers/scryfall.js';
-import { ygoBySetCode, ygoByName } from './providers/ygoprodeck.js';
-import { searchPriceCharting } from './providers/pricecharting.js';
+import { SERIES_ORDER } from './providers/tcgcsv.js';
 import { safeJSON, groupBy, log, daysAgo } from './lib/util.js';
 import { networkInterfaces } from 'node:os';
 
@@ -18,7 +15,23 @@ export const VARIANT_LABEL = {
   normal: 'Normal', holofoil: 'Holo', reverseHolofoil: 'Reverse Holo', '1stEditionHolofoil': '1st Edition Holo',
   '1stEditionNormal': '1st Edition', unlimitedHolofoil: 'Unlimited Holo', nonfoil: 'Non-foil', foil: 'Foil', etched: 'Etched', default: '',
 };
-const SOURCE_LABEL = { tcgplayer: 'TCGplayer', cardmarket: 'Cardmarket', scryfall: 'TCGplayer (via Scryfall)', ygoprodeck: 'YGOPRODeck', ygo_ref: 'Card-level', pricecharting: 'PriceCharting' };
+const SOURCE_LABEL = { tcgplayer: 'TCGplayer', cardmarket: 'Cardmarket (EU)', pricecharting: 'PriceCharting' };
+
+// Rarity buckets used by filters, over TCGplayer's rarity names.
+export const RARITY_SQL = {
+  sir: "c.rarity LIKE 'Special Illustration%'",
+  ir: "c.rarity = 'Illustration Rare'",
+  hyper: "(c.rarity LIKE '%Hyper%' OR c.rarity LIKE '%Secret%' OR c.rarity LIKE 'Rare Rainbow%')",
+  ultra: "(c.rarity LIKE '%Ultra%' OR c.rarity = 'Double Rare' OR c.rarity LIKE '%ACE SPEC%' OR c.rarity LIKE '%Amazing%' OR c.rarity LIKE '%Radiant%' OR c.rarity LIKE '%Prism%' OR c.rarity LIKE '%BREAK%' OR c.rarity LIKE '%LV.X%')",
+  holo: "(c.rarity LIKE '%Holo%' OR c.rarity LIKE '%Shiny%' OR c.rarity LIKE '%Shining%' OR c.rarity LIKE '%Star%')",
+};
+
+/** Shared WHERE clauses for series / rarity / set filters. */
+function cardFilters(q, where, p) {
+  if (q.series && SERIES_ORDER.includes(q.series)) { where.push('c.series = ?'); p.push(q.series); }
+  if (q.rarity && RARITY_SQL[q.rarity]) where.push(RARITY_SQL[q.rarity]);
+  if (q.set) { where.push('c.group_id = ?'); p.push(Number(q.set)); }
+}
 
 const vlabel = (v) => VARIANT_LABEL[v] ?? v;
 const int = (v, d) => (Number.isFinite(Number(v)) && v !== '' && v != null ? Number(v) : d);
@@ -77,13 +90,12 @@ function valsByKey(db, rows) {
   return out;
 }
 
-const GAMES = new Set(['pokemon', 'mtg', 'yugioh', 'sports', 'other']);
 
 function listDeals(db, q) {
   const where = ['1=1'];
   const p = [];
   if (q.kind && KINDS[q.kind]) { where.push('s.kind = ?'); p.push(q.kind); }
-  if (GAMES.has(q.game)) { where.push('c.game = ?'); p.push(q.game); }
+  cardFilters(q, where, p);
   if (q.max) { where.push('s.price <= ?'); p.push(Number(q.max)); }
   if (q.min) { where.push('s.price >= ?'); p.push(Number(q.min)); }
   if (q.minScore) { where.push('s.score >= ?'); p.push(Number(q.minScore)); }
@@ -114,7 +126,7 @@ function spreadOut(s, card, val) {
 function listSpreads(db, q) {
   const where = ['1=1'];
   const p = [];
-  if (GAMES.has(q.game)) { where.push('c.game = ?'); p.push(q.game); }
+  cardFilters(q, where, p);
   if (q.maxRaw) { where.push('s.raw <= ?'); p.push(Number(q.maxRaw)); }
   if (q.minRaw) { where.push('s.raw >= ?'); p.push(Number(q.minRaw)); }
   if (q.minProfit != null && q.minProfit !== '') { where.push('s.profit >= ?'); p.push(Number(q.minProfit)); }
@@ -172,11 +184,14 @@ function cardDetail(db, settings, id) {
   }));
   const holdings = valuedHoldings(db).filter((h) => h.cardId === id);
   const watch = db.all('SELECT variant, target FROM watchlist WHERE card_id = ?', id);
-  const q = row.game === 'pokemon' ? `${row.name} ${row.number}${row.printed_total ? '/' + row.printed_total : ''}` : row.game === 'yugioh' ? `${row.name} ${row.set_code}` : `${row.name} ${row.set_name ?? ''}`;
+  const num = String(row.number ?? '').replace(/^0+(?=\d)/, '');
+  const q = `${row.base_name || row.name} ${num}${row.printed_total && /^\d+$/.test(row.printed_total) ? '/' + row.printed_total : ''}`;
   const ext = safeJSON(row.ext, {});
+  const set = row.group_id ? db.get('SELECT id, name, code, series, released, cards FROM sets WHERE id = ?', String(row.group_id)) : null;
   return {
     card: cardOut(row, vals[0]),
-    ext: { ...ext, release: row.release_date, gameLabel: gameLabel(row.game) },
+    ext: { ...ext, release: row.release_date },
+    set,
     variants,
     history,
     rates,
@@ -191,46 +206,15 @@ function cardDetail(db, settings, id) {
       ebayGraded: ebaySearchUrl(`${q} PSA`, true),
       ebaySold: ebaySoldUrl(q),
       tcgplayer: ext.tcgplayer ?? null,
-      cardmarket: ext.cardmarket ?? null,
-      scryfall: ext.scryfall ?? null,
       pricecharting: ext.pricecharting ?? (links[0] ? `https://www.pricecharting.com/game/${links[0].pc_id.slice(3)}` : null),
     },
   };
 }
 
-async function identify(db, settings, body) {
-  const f = extractFeatures(body.lines ?? [], body.game ?? 'auto');
+function identify(db, body) {
+  const f = extractFeatures(body.lines ?? []);
   if (body.name && !f.name) f.name = body.name;
-  let matches = matchLocal(db, f);
-  if ((!matches.length || matches[0].score < 0.7) && body.live !== false) {
-    const s = settings.get();
-    const found = [];
-    try {
-      if (f.game === 'yugioh' && f.setCode) found.push(...await ygoBySetCode(f.setCode));
-      else if (f.game === 'mtg' && f.setCode && f.number) found.push(await scryfallBySetNumber(f.setCode, f.number));
-      else if (f.game === 'pokemon' && (f.number || f.name)) {
-        const parts = [];
-        if (f.name) {
-          const n = f.name.replace(/["*]/g, '').trim();
-          parts.push(/\s/.test(n) ? `name:"${n}"` : `name:${n}*`);
-        }
-        if (f.number) parts.push(`number:${f.number.replace(/^0+(?=\d)/, '')}`);
-        found.push(...await searchPokemon(s, parts.join(' ')));
-      } else if (f.game === 'mtg' && f.name) found.push(...await scryfallFuzzy(f.name));
-      else if (f.game === 'yugioh' && f.name) found.push(...await ygoByName(f.name));
-      else if (f.name || f.text) found.push(...await searchPriceCharting(s, f.name ?? f.text.slice(0, 80)));
-    } catch (err) {
-      log.warn(`identify live lookup: ${err.message}`);
-    }
-    if (found.length) {
-      upsertCards(db, found.map((m) => m.card));
-      upsertQuotes(db, found.flatMap((m) => m.quotes ?? (m.quote ? [m.quote] : [])));
-      // Value only the new cards so they're priced immediately.
-      revalue(db, s.fxEurUsd, found.map((m) => m.card.id));
-      matches = matchLocal(db, f);
-      if (!matches.length) matches = found.map((m) => ({ row: db.get('SELECT * FROM cards WHERE id = ?', m.card.id), score: 0.6, reason: 'live search' }));
-    }
-  }
+  const matches = matchLocal(db, f);
   const vals = primaryVals(db, matches.map((m) => m.row.id));
   return {
     features: { game: f.game, name: f.name, number: f.number, total: f.total, setCode: f.setCode },
@@ -255,6 +239,35 @@ function prices(db, items = []) {
     const { value, basis } = holdingValue(h, v);
     return { cardId: h.cardId, variant: v.variant, value, basis, raw: v.raw, grades: gradesOut(v), change7d: v.change_7d, change30d: v.change_30d, updatedAt: v.updated_at };
   });
+}
+
+/** Every set with its total value and most valuable card. */
+function listSets(db) {
+  const sets = db.all('SELECT * FROM sets WHERE cards > 0');
+  const stats = new Map(db.all(`SELECT c.group_id AS gid, COUNT(DISTINCT c.id) AS priced, SUM(v.raw) AS value,
+      MAX(v.raw) AS top FROM cards c JOIN valuations v ON v.card_id = c.id WHERE c.id LIKE 'tcg:%' GROUP BY c.group_id`).map((r) => [String(r.gid), r]));
+  const topCards = new Map(db.all(`SELECT c.group_id AS gid, c.id, c.name, c.image, MAX(v.raw) AS raw FROM cards c JOIN valuations v ON v.card_id = c.id
+      WHERE c.id LIKE 'tcg:%' GROUP BY c.group_id`).map((r) => [String(r.gid), r]));
+  const rank = (s) => SERIES_ORDER.indexOf(s);
+  return sets
+    .map((s) => {
+      const st = stats.get(s.id) ?? {};
+      const t = topCards.get(s.id);
+      return {
+        id: s.id, name: s.name, code: s.code, series: s.series, released: s.released, cards: s.cards,
+        value: st.value ? Math.round(st.value) : 0, top: t ? { id: t.id, name: t.name, image: img(t.image), price: t.raw } : null,
+      };
+    })
+    .sort((a, b) => (rank(a.series) - rank(b.series)) || String(b.released ?? '').localeCompare(String(a.released ?? '')) || b.value - a.value);
+}
+
+function setDetail(db, id) {
+  const set = db.get('SELECT * FROM sets WHERE id = ?', String(id));
+  if (!set) return null;
+  const rows = db.all('SELECT * FROM cards WHERE group_id = ?', Number(id));
+  const vals = primaryVals(db, rows.map((r) => r.id));
+  const cards = rows.map((r) => cardOut(r, vals.get(r.id)?.[0])).sort((a, b) => (b.price ?? 0) - (a.price ?? 0));
+  return { set: { id: set.id, name: set.name, code: set.code, series: set.series, released: set.released, cards: set.cards }, cards };
 }
 
 function counts(db) {
@@ -294,9 +307,8 @@ function status(db, settings, jobs) {
     version: '1.0.0',
     demo: s._demo,
     providers: {
-      pokemon: { on: s.games.includes('pokemon'), key: Boolean(s.pokemontcgApiKey) },
-      mtg: { on: s.games.includes('mtg') },
-      yugioh: { on: s.games.includes('yugioh') },
+      pokemon: { on: true },
+      europe: { on: true },
       pricecharting: { on: Boolean(s.pricechartingToken) },
       ebay: { on: ebayConfigured(s) },
     },
@@ -335,10 +347,13 @@ export function createApi({ db, settings, jobs }) {
   on('GET', '/api/spreads', ({ query }) => listSpreads(db, query));
 
   on('GET', '/api/search', ({ query }) => {
-    const rows = searchCatalog(db, query.q ?? '', { game: GAMES.has(query.game) ? query.game : null, limit: Math.min(60, int(query.limit, 24)) });
+    const rows = searchCatalog(db, query.q ?? '', { limit: Math.min(60, int(query.limit, 24)) });
     const vals = primaryVals(db, rows.map((r) => r.id));
     return { items: rows.map((r) => cardOut(r, vals.get(r.id)?.[0])) };
   });
+
+  on('GET', '/api/sets', () => ({ items: listSets(db), series: SERIES_ORDER }));
+  on('GET', '/api/sets/:id', ({ params }) => setDetail(db, params.id) ?? { error: 'not found', status: 404 });
 
   on('GET', '/api/cards/:id', ({ params }) => cardDetail(db, settings, params.id) ?? { error: 'not found', status: 404 });
 
@@ -356,7 +371,7 @@ export function createApi({ db, settings, jobs }) {
     return cardDetail(db, settings, params.id);
   });
 
-  on('POST', '/api/identify', ({ body }) => identify(db, settings, body ?? {}));
+  on('POST', '/api/identify', ({ body }) => identify(db, body ?? {}));
   on('POST', '/api/prices', ({ body }) => ({ items: prices(db, body?.items ?? []) }));
 
   on('GET', '/api/collection', ({ query }) => ({ items: valuedHoldings(db), summary: summary(db, { days: int(query.days, 90) }) }));

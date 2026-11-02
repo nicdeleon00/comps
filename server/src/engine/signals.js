@@ -28,7 +28,7 @@ export function computeSignals(db, { fx, costs }) {
     WHERE v.card_id NOT IN (SELECT pc_id FROM links)`);
   const valByKey = new Map(vals.map((v) => [`${v.card_id}|${v.variant}`, v]));
   const quotes = groupBy(
-    db.all(`SELECT card_id, variant, source, data FROM quotes WHERE source IN ('tcgplayer','scryfall','cardmarket')`),
+    db.all(`SELECT card_id, variant, source, data FROM quotes WHERE source IN ('tcgplayer','cardmarket')`),
     (q) => `${q.card_id}|${q.variant}`,
   );
   const out = [];
@@ -43,7 +43,7 @@ export function computeSignals(db, { fx, costs }) {
   for (const v of vals) {
     if (!(v.raw > 0)) continue;
     const qs = Object.fromEntries((quotes.get(`${v.card_id}|${v.variant}`) ?? []).map((q) => [q.source, safeJSON(q.data, {})]));
-    const us = qs.tcgplayer?.market ?? qs.scryfall?.market ?? null;
+    const us = qs.tcgplayer?.market ?? null;
     const cm = qs.cardmarket;
     const eu = cm?.trend ? cm.trend * fx : null;
 

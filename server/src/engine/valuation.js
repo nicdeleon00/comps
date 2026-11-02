@@ -4,7 +4,7 @@
 import { median, clamp, day, daysAgo, safeJSON, groupBy } from '../lib/util.js';
 
 // How much we trust each source as an estimate of US raw near-mint value.
-const WEIGHTS = { tcgplayer: 1, scryfall: 1, pricecharting: 0.9, ygoprodeck: 0.7, cardmarket: 0.45 };
+const WEIGHTS = { tcgplayer: 1, pricecharting: 0.9, cardmarket: 0.4 };
 
 /** Pure: quotes (for one card variant) + fx -> valuation fields. */
 export function valuate(quotes, fx, linkedPc) {
@@ -15,10 +15,6 @@ export function valuate(quotes, fx, linkedPc) {
     const v = tp.market ?? tp.mid;
     if (v > 0) cand.push({ src: 'tcgplayer', v, w: tp.market ? WEIGHTS.tcgplayer : 0.5 });
   }
-  const sf = by.scryfall?.data;
-  if (sf?.market > 0) cand.push({ src: 'scryfall', v: sf.market, w: WEIGHTS.scryfall });
-  const yg = by.ygoprodeck?.data;
-  if (yg?.market > 0) cand.push({ src: 'ygoprodeck', v: yg.market, w: WEIGHTS.ygoprodeck });
   const cm = by.cardmarket?.data;
   const cmv = cm ? cm.trend ?? cm.avgSell : null;
   if (cmv > 0) cand.push({ src: 'cardmarket', v: cmv * fx, w: WEIGHTS.cardmarket });
@@ -63,7 +59,7 @@ export function valuate(quotes, fx, linkedPc) {
 const r2 = (x) => (x == null || !Number.isFinite(x) ? null : Math.round(x * 100) / 100);
 
 /** Rebuilds the valuations table and appends today's history point. */
-export function rebuildValuations(db, fx) {
+export function rebuildValuations(db, fx, { historyMinUsd = 0 } = {}) {
   const quotes = db.all('SELECT card_id, variant, source, currency, data FROM quotes').map((q) => ({ ...q, data: safeJSON(q.data, {}) }));
   const pcQuotes = new Map(quotes.filter((q) => q.source === 'pricecharting').map((q) => [q.card_id, q]));
   const links = new Map(db.all('SELECT * FROM links').map((l) => [`${l.card_id}|${l.variant}`, l.pc_id]));
@@ -101,7 +97,7 @@ export function rebuildValuations(db, fx) {
       const change30 = c30 > 0 && v.raw ? v.raw / c30 - 1 : null;
       db.run(ins, cardId, variant, v.raw, v.raw_low, v.confidence, v.sources, v.g7, v.g8, v.g9, v.g95, v.psa10, v.bgs10, v.cgc10, v.sgc10, v.volume,
         r4(change7), r4(change30), t);
-      db.run(hist, cardId, variant, today, v.raw, v.g9, v.psa10);
+      if ((v.raw ?? 0) >= historyMinUsd || v.psa10) db.run(hist, cardId, variant, today, v.raw, v.g9, v.psa10);
       n++;
     }
   });

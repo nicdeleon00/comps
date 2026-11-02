@@ -124,52 +124,52 @@ export async function searchPriceCharting(settings, q) {
 // ---------------------------------------------------------------------------
 // Linking PriceCharting products to catalog cards (images, variants, FMV).
 
-const SET_NOISE = /\b(pokemon|magic|yugioh|set|the|tcg|cards?|and|promos?)\b/g;
+const SET_NOISE = /\b(pokemon|set|the|tcg|cards?|and)\b/g;
 const setNorm = (s) => norm(s).replace(SET_NOISE, ' ').replace(/\s+/g, ' ').trim();
 const numNorm = (n) => String(n ?? '').toLowerCase().replace(/-(en|eu|na|de|fr|it|sp|pt)(?=\d)/, '').replace(/[^a-z0-9]/g, '').replace(/^0+(?=\d)/, '');
 const nameNorm = (s) => norm(s).replace(/\b(holo|rare|card)\b/g, '').replace(/\s+/g, ' ').trim();
 
 function variantFor(tags, available) {
   const t = tags.map((x) => x.toLowerCase());
-  if (t.some((x) => x.includes('shadowless') || x.includes('japanese') || x.includes('error'))) return null;
+  if (t.some((x) => x.includes('japanese') || x.includes('error') || x.includes('misprint'))) return null;
   if (t.some((x) => x.includes('reverse'))) return available.includes('reverseHolofoil') ? 'reverseHolofoil' : null;
   if (t.some((x) => x.includes('1st edition'))) {
     return ['1stEditionHolofoil', '1stEditionNormal'].find((v) => available.includes(v)) ?? null;
   }
-  if (t.some((x) => x.includes('foil') && !x.includes('non'))) return available.includes('foil') ? 'foil' : null;
-  if (t.length) return null; // unknown printing tag — don't guess
-  return ['holofoil', 'normal', 'unlimitedHolofoil', 'nonfoil', 'default'].find((v) => available.includes(v)) ?? available[0] ?? null;
+  // Shadowless is its own TCGplayer set; the set match handles it.
+  const known = t.filter((x) => !x.includes('shadowless') && !x.includes('holo'));
+  if (known.length) return null; // unknown printing tag — don't guess
+  return ['holofoil', 'unlimitedHolofoil', 'normal', 'default'].find((v) => available.includes(v)) ?? available.find((v) => v !== 'reverseHolofoil') ?? null;
 }
 
 export function linkPriceCharting(db) {
-  const pcs = db.all(`SELECT id, game, name, set_code, number, ext FROM cards WHERE id LIKE 'pc:%' AND game IN ('pokemon','mtg','yugioh')`);
+  const pcs = db.all(`SELECT id, game, name, set_code, number, ext FROM cards WHERE id LIKE 'pc:%' AND game = 'pokemon'`);
   if (!pcs.length) return 0;
-  const catalog = db.all(`SELECT c.id, c.game, c.name, c.set_name, c.number, c.ext,
+  const catalog = db.all(`SELECT c.id, c.base_name, c.name, c.set_name, c.number, c.ext,
       (SELECT group_concat(DISTINCT variant) FROM quotes q WHERE q.card_id = c.id) AS variants
-    FROM cards c WHERE c.id NOT LIKE 'pc:%'`);
-  const byKey = groupBy(catalog, (c) => `${c.game}|${nameNorm(c.name)}|${numNorm(c.number)}`);
-  const byTcgId = new Map();
-  for (const c of catalog) {
-    const tid = c.game === 'mtg' ? JSON.parse(c.ext ?? '{}').tcgplayerId : null;
-    if (tid) byTcgId.set(String(tid), c);
-  }
+    FROM cards c WHERE c.id LIKE 'tcg:%'`);
+  const byKey = groupBy(catalog, (c) => `${nameNorm(c.base_name || c.name)}|${numNorm(c.number)}`);
+  const byProduct = new Map(catalog.map((c) => [c.id.slice(4), c]));
   const links = [];
   for (const pc of pcs) {
     if (/japanese|chinese|korean/i.test(pc.set_code ?? '')) continue;
     const ext = JSON.parse(pc.ext ?? '{}');
     const tags = ext.tags ?? [];
+    const shadowless = tags.some((x) => /shadowless/i.test(x));
     let best = null;
     let bestScore = 0;
-    if (ext.tcgId && byTcgId.has(String(ext.tcgId))) {
-      best = byTcgId.get(String(ext.tcgId));
+    // PriceCharting carries the TCGplayer product id for many cards: exact match.
+    if (ext.tcgId && byProduct.has(String(ext.tcgId))) {
+      best = byProduct.get(String(ext.tcgId));
       bestScore = 1;
     } else {
-      const candidates = byKey.get(`${pc.game}|${nameNorm(pc.name)}|${numNorm(pc.number)}`) ?? [];
+      const candidates = byKey.get(`${nameNorm(pc.name)}|${numNorm(pc.number)}`) ?? [];
       const pcSet = setNorm(pc.set_code);
       for (const c of candidates) {
-        const cs = setNorm(c.set_name);
+        if (shadowless !== /shadowless/i.test(c.set_name ?? '')) continue;
+        const cs = setNorm(String(c.set_name ?? '').replace(/\(shadowless\)/i, ''));
         let s = similarity(pcSet, cs);
-        if (cs && pcSet.includes(cs)) s = Math.max(s, 0.85);
+        if (cs && (pcSet.includes(cs) || cs.includes(pcSet))) s = Math.max(s, 0.85);
         if (s > bestScore) { bestScore = s; best = c; }
       }
       if (!pc.number) bestScore *= 0.9;

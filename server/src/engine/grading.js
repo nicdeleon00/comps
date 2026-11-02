@@ -13,16 +13,22 @@ import { clamp, yearOf } from '../lib/util.js';
  * they can be overridden per card and why we always show the break-even rate.
  */
 export const ERA_RATES = {
-  vintage: { p10: 0.06, p9: 0.3, p8: 0.4 }, // ≤ 2002: WotC era, centering & edge wear
-  mid: { p10: 0.2, p9: 0.45, p8: 0.25 }, //    2003–2016
-  modern: { p10: 0.45, p9: 0.42, p8: 0.1 }, //  2017+: better print quality
+  wotc: { p10: 0.05, p9: 0.28, p8: 0.38 }, //   1999–2003: centering, edge wear, print lines
+  ex: { p10: 0.12, p9: 0.4, p8: 0.3 }, //       2003–2010: EX, DP, HGSS
+  bwxy: { p10: 0.25, p9: 0.45, p8: 0.2 }, //    2011–2016: BW, XY
+  sm: { p10: 0.35, p9: 0.45, p8: 0.14 }, //     2017–2019
+  modern: { p10: 0.45, p9: 0.42, p8: 0.1 }, //  2020+: SWSH, SV, ME — mostly pack-fresh
 };
+
+export const ERA_LABEL = { wotc: 'WotC era', ex: 'EX to HGSS era', bwxy: 'Black & White / XY era', sm: 'Sun & Moon era', modern: 'modern' };
 
 export function eraOf(releaseDate) {
   const y = yearOf(releaseDate);
   if (!y) return 'modern';
-  if (y <= 2002) return 'vintage';
-  if (y <= 2016) return 'mid';
+  if (y <= 2003) return 'wotc';
+  if (y <= 2010) return 'ex';
+  if (y <= 2016) return 'bwxy';
+  if (y <= 2019) return 'sm';
   return 'modern';
 }
 
