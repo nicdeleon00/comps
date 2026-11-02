@@ -62,7 +62,7 @@ export const GRADE_LABEL: Record<string, string> = {
 export function cardLine(c: { set?: string | null; number?: string | null; total?: string | null; year?: number | null; game?: string }) {
   const parts: string[] = [];
   if (c.set) parts.push(c.set);
-  if (c.number) parts.push(c.game === 'pokemon' && c.total && !/^[A-Z]/.test(c.number) ? `${c.number}/${c.total}` : `#${c.number}`);
+  if (c.number) parts.push(c.total ? `${c.number}/${c.total}` : `#${c.number}`);
   return parts.join(' · ');
 }
 

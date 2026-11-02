@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'preact/hooks';
-import { useData, token } from '../lib/api';
+import { useData, token, STATIC, invalidate } from '../lib/api';
 import { Link, setHero } from '../lib/router';
 import { money, pct, signedMoney, GAME_LABEL, cardHref, cardApi } from '../lib/format';
 import type { Holding, CollectionSummary, Game } from '../lib/types';
@@ -9,6 +9,7 @@ import { Segmented, Delta, Counter, GradeBadge, Empty, SkRows } from '../compone
 import { HoldingSheet } from '../components/HoldingSheet';
 import { openPalette } from '../components/Palette';
 import { IconPlus, IconStack, IconDown, IconPencil } from '../components/icons';
+import { toast } from '../components/ui';
 import { Header } from './shared';
 
 type Res = { items: Holding[]; summary: CollectionSummary };
@@ -49,21 +50,36 @@ export function CollectionPage() {
   const shown = scrub?.v ?? s?.value ?? null;
   const games = s ? GAMES.filter((g) => (s.byGame[g] ?? 0) > 0) : [];
   const add = () => openPalette({ placeholder: 'Find a card to add', onPick: (c) => setSheet({ cardId: c.id }) });
+  const importFile = async (f: File | undefined) => {
+    if (!f) return;
+    const { importCsv } = await import('../lib/static');
+    const n = await importCsv(await f.text());
+    invalidate('/api/');
+    toast(`Imported ${n} card${n === 1 ? '' : 's'}`);
+  };
+  const importButton = STATIC && (
+    <label class="btn" style={{ cursor: 'pointer' }}>
+      Import CSV
+      <input type="file" accept=".csv,text/csv" hidden onChange={(e) => importFile((e.target as HTMLInputElement).files?.[0])} />
+    </label>
+  );
 
   return (
     <div class="page">
       <Header title="Collection" actions={<>
+        {importButton}
         {data && data.items.length > 0 && <button class="btn" onClick={() => exportCsv(data.items)}><IconDown size={16} />Export</button>}
         <button class="btn primary" onClick={add}><IconPlus size={17} />Add card</button>
       </>}>
         {s && <span>{s.count} card{s.count === 1 ? '' : 's'} · {s.unique} unique{token() ? '' : ''}</span>}
+        {STATIC && <span class="faint">· saved in this browser</span>}
       </Header>
 
       {loading && !data && <SkRows n={6} />}
 
       {data && !data.items.length && (
         <Empty icon={<IconStack size={26} />} title="Your collection is empty" action={<button class="btn primary" onClick={add}><IconPlus size={17} />Add your first card</button>}>
-          Scan cards with the iPhone app (they sync here), or add them by name.
+          {STATIC ? 'Add cards by name, or export a CSV from the iPhone app (Collection → menu → Export CSV) and import it here.' : 'Scan cards with the iPhone app (they sync here), or add them by name.'}
         </Empty>
       )}
 

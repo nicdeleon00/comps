@@ -65,7 +65,7 @@ jobs:
         run: |
           npm --prefix web ci --no-audit --no-fund
           REPO="${GITHUB_REPOSITORY#*/}"
-          VITE_STATIC=1 VITE_BASE="/${REPO}/" npm --prefix web run build
+          VITE_STATIC=1 VITE_BASE="/${REPO}/" VITE_REPO="${GITHUB_REPOSITORY}" npm --prefix web run build
 
       - name: Export data
         run: node --disable-warning=ExperimentalWarning server/src/cli.js export web/dist/data && du -sh web/dist/data

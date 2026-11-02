@@ -24,6 +24,8 @@ export interface Card {
   grades?: Grades | null;
   volume?: number | null;
   spark?: number[];
+  series?: string | null;
+  setId?: string | null;
 }
 
 export type DealKind = 'listing' | 'dip' | 'momentum' | 'ask' | 'xmarket';
@@ -159,6 +161,7 @@ export interface CardDetail {
   holdings: Holding[];
   watch: { variant: string; target: number | null }[];
   links: Record<string, string | null>;
+  set?: { id: string; name: string; series: string; released?: string | null } | null;
 }
 
 export interface Costs { fee: number; shipping: number; sellFeePct: number; sellFixed: number }

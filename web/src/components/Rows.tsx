@@ -9,7 +9,7 @@ export function dealReason(d: Deal): string {
   const x = d.data ?? {};
   switch (d.kind) {
     case 'listing': return x.title ? `eBay: ${x.title}` : 'eBay Buy It Now';
-    case 'ask': return `Lowest TCGplayer ask is ${pct(d.discount, { signed: false })} under market`;
+    case 'ask': return `${d.data?.source === 'direct' ? 'TCGplayer Direct' : 'Lowest TCGplayer'} ask is ${pct(d.discount, { signed: false })} under market — check condition`;
     case 'xmarket': return `Cardmarket trend €${Number(x.eur).toFixed(2)} ≈ ${money(d.price)}, before shipping and import`;
     case 'momentum': return `EU 7-day average up ${pct((x.accel ?? 1) - 1, { signed: false })} on the month; US price hasn't followed`;
     case 'dip': return `Down ${pct(d.discount, { signed: false })} from its 30-day median of ${money(x.median30)}`;

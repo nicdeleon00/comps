@@ -3,21 +3,23 @@ import { useData, get } from '../lib/api';
 import { useLocation, setQuery, Link } from '../lib/router';
 import { money } from '../lib/format';
 import type { Spread, Status } from '../lib/types';
-import { Chips, Empty, SkRows } from '../components/ui';
+import { Empty, SkRows } from '../components/ui';
 import { SpreadRow } from '../components/Rows';
 import { IconSlab } from '../components/icons';
-import { Header, GAME_OPTIONS } from './shared';
+import { Header, PokemonFilters } from './shared';
 
 type Res = { items: Spread[]; total: number };
 
 export function GradingPage() {
   const { query } = useLocation();
-  const game = query.get('game') ?? 'all';
+  const series = query.get('series') ?? 'all';
+  const rarity = query.get('rarity') ?? '';
   const sort = query.get('sort') ?? 'profit';
   const maxRaw = query.get('maxRaw') ?? '';
   const minVolume = query.get('minVolume') ?? '';
   const params = new URLSearchParams({ limit: '40', sort, minProfit: query.get('all') ? '' : '0' });
-  if (game !== 'all') params.set('game', game);
+  if (series !== 'all') params.set('series', series);
+  if (rarity) params.set('rarity', rarity);
   if (maxRaw) params.set('maxRaw', maxRaw);
   if (minVolume) params.set('minVolume', minVolume);
   const url = `/api/spreads?${params}`;
@@ -51,7 +53,9 @@ export function GradingPage() {
       )}
 
       <div class="toolbar">
-        <Chips value={game} options={GAME_OPTIONS} onChange={(v) => setQuery({ game: v })} />
+        <PokemonFilters series={series} rarity={rarity} onSeries={(v) => setQuery({ series: v })} onRarity={(v) => setQuery({ rarity: v })} />
+      </div>
+      <div class="toolbar">
         <span class="spacer" />
         <div class="input-wrap" style={{ width: 128 }}>
           <span class="prefix" style={{ fontSize: 13 }}>$</span>

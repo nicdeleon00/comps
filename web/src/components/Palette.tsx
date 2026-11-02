@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { get, prefetch } from '../lib/api';
 import { navigate } from '../lib/router';
-import { money, cardLine, cardHref, cardApi, GAME_LABEL } from '../lib/format';
+import { money, cardLine, cardHref, cardApi } from '../lib/format';
 import type { Card } from '../lib/types';
 import { Thumb } from './Thumb';
 import { IconSearch } from './icons';
@@ -84,7 +84,7 @@ export function Palette({ opts, onClose }: { opts: PaletteOpts; onClose: () => v
               <Thumb card={c} />
               <div class="row-main" style={{ textAlign: 'left' }}>
                 <div class="row-title"><span class="t">{c.name}</span></div>
-                <div class="row-sub">{cardLine(c)} · {GAME_LABEL[c.game]}</div>
+                <div class="row-sub">{cardLine(c)}{c.series ? ` · ${c.series}` : ''}</div>
               </div>
               <div class="row-right"><div class="row-value">{money(c.price)}</div></div>
             </button>

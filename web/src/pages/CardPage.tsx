@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import { useData, put, del, invalidate } from '../lib/api';
 import { getHero, setHero, Link } from '../lib/router';
-import { money, pct, multiple, signedMoney, cardApi, GAME_LABEL, GRADE_LABEL, longDate, ago } from '../lib/format';
+import { money, pct, multiple, signedMoney, cardApi, GRADE_LABEL, longDate, ago } from '../lib/format';
 import { gradeEV } from '../lib/grading';
 import type { CardDetail, Grades, VariantDetail } from '../lib/types';
 import { TiltCard } from '../components/Thumb';
@@ -202,9 +202,12 @@ export function CardPage({ id }: { id: string }) {
         <div class="card-main">
           {c ? (
             <div class="title-block fade">
-              <div class="eyebrow">{GAME_LABEL[c.game]}{c.year ? ` · ${c.year}` : ''}{c.rarity ? ` · ${c.rarity}` : ''}</div>
+              <div class="eyebrow">{c.series ?? d?.set?.series ?? 'Pokémon'}{c.year ? ` · ${c.year}` : ''}{c.rarity ? ` · ${c.rarity}` : ''}</div>
               <h1>{c.name}</h1>
-              <div class="muted">{c.set}{c.number ? ` · ${c.game === 'pokemon' && c.total && !/^[A-Z]/.test(c.number) ? `${c.number}/${c.total}` : `#${c.number}`}` : ''}{c.tags?.length ? ` · ${c.tags.join(', ')}` : ''}</div>
+              <div class="muted">
+                {d?.set ? <Link href={`/sets/${d.set.id}`} style={{ color: 'var(--accent)' }}>{c.set}</Link> : c.set}
+                {c.number ? ` · ${c.total ? `${c.number}/${c.total}` : `#${c.number}`}` : ''}
+              </div>
             </div>
           ) : (
             <div><div class="sk" style={{ width: 120, height: 12, marginBottom: 12 }} /><div class="sk" style={{ width: '60%', height: 32, marginBottom: 10 }} /><div class="sk" style={{ width: '40%', height: 14 }} /></div>

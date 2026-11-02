@@ -12,6 +12,7 @@ export const IconMarket = make(<><path d="M3.5 19.5h17" /><path d="M5 15.5l4.2-4
 export const IconTag = make(<><path d="M3.8 12.7V5.3c0-.8.7-1.5 1.5-1.5h7.4c.4 0 .8.2 1.1.4l6.4 6.4c.6.6.6 1.5 0 2.1l-7.4 7.4c-.6.6-1.5.6-2.1 0l-6.4-6.4c-.3-.3-.5-.7-.5-1z" /><circle cx="8.3" cy="8.3" r="1.4" /></>);
 export const IconSlab = make(<><rect x="6" y="2.8" width="12" height="18.4" rx="2.2" /><path d="M8.6 6.2h6.8" /><rect x="8.6" y="9" width="6.8" height="9" rx="1" /></>);
 export const IconStack = make(<><rect x="4" y="7" width="12" height="14" rx="2" /><path d="M8 4.2h9.8c1.2 0 2.2 1 2.2 2.2V17" /></>);
+export const IconBinder = make(<><rect x="3.5" y="4" width="17" height="16" rx="2.2" /><path d="M12 4v16" /><rect x="6" y="7" width="3.5" height="4.6" rx=".6" /><rect x="14.5" y="7" width="3.5" height="4.6" rx=".6" /><rect x="6" y="13.2" width="3.5" height="4.6" rx=".6" /><rect x="14.5" y="13.2" width="3.5" height="4.6" rx=".6" /></>);
 export const IconStar = make(<path d="M12 3.6l2.5 5.2 5.7.8-4.1 4 1 5.6L12 16.5l-5.1 2.7 1-5.6-4.1-4 5.7-.8z" />);
 export const IconStarFill = make(<path d="M12 3.2l2.7 5.4 6 .9-4.3 4.2 1 5.9L12 16.8l-5.4 2.8 1-5.9-4.3-4.2 6-.9z" />, true);
 export const IconGear = make(<><circle cx="12" cy="12" r="3" /><path d="M19.4 13.5a7.7 7.7 0 0 0 0-3l2-1.6-2-3.4-2.4 1a7.6 7.6 0 0 0-2.6-1.5L14 2.5h-4l-.4 2.5A7.6 7.6 0 0 0 7 6.5l-2.4-1-2 3.4 2 1.6a7.7 7.7 0 0 0 0 3l-2 1.6 2 3.4 2.4-1a7.6 7.6 0 0 0 2.6 1.5l.4 2.5h4l.4-2.5a7.6 7.6 0 0 0 2.6-1.5l2.4 1 2-3.4z" /></>);

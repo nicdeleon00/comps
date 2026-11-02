@@ -1,7 +1,7 @@
 // Undervalued-card signals. Each signal says: "here's a price you can buy at
 // (or the market is at) and here's why we think the card is worth more."
 
-import { clamp, median, safeJSON, daysAgo, groupBy } from '../lib/util.js';
+import { clamp, median, safeJSON, daysAgo, groupBy, yearOf } from '../lib/util.js';
 import { gradeEV, eraOf, ERA_RATES } from './grading.js';
 import { gradeKey } from './valuation.js';
 
@@ -9,7 +9,7 @@ export const KINDS = {
   listing: { label: 'Live listing', weight: 1 },
   dip: { label: 'Price dip', weight: 0.85 },
   momentum: { label: 'Momentum lag', weight: 0.8 },
-  ask: { label: 'Low ask', weight: 0.72 },
+  ask: { label: 'Low ask', weight: 0.6 },
   xmarket: { label: 'Cross-market', weight: 0.7 },
 };
 
@@ -47,24 +47,32 @@ export function computeSignals(db, { fx, costs }) {
     const cm = qs.cardmarket;
     const eu = cm?.trend ? cm.trend * fx : null;
 
-    // 1. Lowest ask far under market. TCGplayer "low" can be a played copy, so
-    //    confidence is capped.
-    const low = qs.tcgplayer?.low;
-    if (low > 0 && v.raw >= 8 && low / v.raw <= 0.72) {
-      push('ask', v, low, v.raw, Math.min(0.6, v.confidence), { source: 'tcgplayer', market: us });
+    // Cardmarket's matching is only dependable for modern sets (old sets mix
+    // holo / reverse / 1st edition printings), so EU signals are 2017+ only.
+    const modern = (yearOf(v.release_date) ?? 0) >= 2017;
+    const tp = qs.tcgplayer;
+
+    // 1. Asks well under market. TCGplayer Direct listings first (condition-checked);
+    //    the plain lowest ask is often a damaged copy, so it needs a sane band.
+    if (tp && v.raw >= 20) {
+      // Far-below-market asks are nearly always played or damaged copies; a
+      // 20–40% gap on a liquid card is the plausible mispricing.
+      const band = (x) => x > 0 && x >= v.raw * 0.6 && x <= v.raw * 0.8;
+      if (band(tp.directLow)) push('ask', v, tp.directLow, v.raw, Math.min(0.6, v.confidence), { source: 'direct', market: us });
+      else if (band(tp.low)) push('ask', v, tp.low, v.raw, Math.min(0.45, v.confidence), { source: 'tcgplayer', market: us });
     }
 
-    // 2. Cross-market: EU trend well under US market (buy on Cardmarket).
-    if (us >= 15 && eu > 0 && eu <= us * 0.65) {
-      push('xmarket', v, eu, us, Math.min(0.7, v.confidence), { direction: 'eu', eur: cm.trend, fx, note: 'before shipping and import' });
+    // 2. Cross-market: EU trend under US market (buy on Cardmarket), within a believable band.
+    if (modern && us >= 15 && eu > 0 && eu >= us * 0.35 && eu <= us * 0.7) {
+      push('xmarket', v, eu, us, Math.min(0.65, v.confidence), { direction: 'eu', eur: cm.trend, fx, note: 'before shipping and import' });
     }
 
     // 3. Momentum lag: EU rolling averages climbing, US price hasn't followed.
-    if (cm?.avg7 && cm?.avg30 && cm.avg1 && us >= 5 && eu) {
+    if (modern && cm?.avg7 && cm?.avg30 && cm.avg1 && us >= 5 && eu && eu <= us * 1.6) {
       const accel = cm.avg7 / cm.avg30;
-      if (accel >= 1.2 && cm.avg1 >= cm.avg7 * 0.97 && us <= eu * 0.95) {
-        const target = Math.max(eu, us * accel);
-        push('momentum', v, us, target, Math.min(0.65, v.confidence * 0.9), { avg1: cm.avg1, avg7: cm.avg7, avg30: cm.avg30, fx, accel: r2(accel) });
+      if (accel >= 1.2 && accel <= 2.5 && cm.avg1 >= cm.avg7 * 0.97 && us <= eu * 0.95) {
+        const target = Math.min(Math.max(eu, us * accel), us * 1.6);
+        push('momentum', v, us, target, Math.min(0.6, v.confidence * 0.9), { avg1: cm.avg1, avg7: cm.avg7, avg30: cm.avg30, fx, accel: r2(accel) });
       }
     }
   }

@@ -24,15 +24,17 @@ export function valuate(quotes, fx, linkedPc) {
   let raw = null;
   let confidence = 0;
   if (cand.length) {
-    // Reject outliers around the median, then weighted mean.
-    const m = median(cand.map((c) => c.v));
-    const kept = cand.filter((c) => c.v <= m * 2.5 && c.v >= m * 0.4);
+    // Anchor on the US market (TCGplayer, else PriceCharting); other sources only
+    // count when they broadly agree, so a mismatched EU printing can't drag it.
+    const anchor = cand.find((c) => c.src === 'tcgplayer') ?? cand.find((c) => c.src === 'pricecharting') ?? null;
+    const m = anchor ? anchor.v : median(cand.map((c) => c.v));
+    const kept = cand.filter((c) => c === anchor || (c.v <= m * 1.5 && c.v >= m * 0.65));
     const W = kept.reduce((s, c) => s + c.w, 0);
     raw = kept.reduce((s, c) => s + c.v * c.w, 0) / W;
-    // Confidence: number/quality of sources and how well they agree.
-    const spread = kept.length > 1 ? (Math.max(...kept.map((c) => c.v)) - Math.min(...kept.map((c) => c.v))) / raw : 0.35;
-    const breadth = clamp(W / 2);
-    confidence = clamp(0.25 + 0.5 * breadth + 0.25 * (1 - clamp(spread)));
+    // Confidence: number/quality of agreeing sources and how tightly they agree.
+    const spread = kept.length > 1 ? (Math.max(...kept.map((c) => c.v)) - Math.min(...kept.map((c) => c.v))) / raw : 0.3;
+    const breadth = clamp(W / 1.8);
+    confidence = clamp(0.3 + 0.45 * breadth + 0.25 * (1 - clamp(spread)));
     if (pc?.volume != null) confidence = clamp(confidence * (pc.volume >= 12 ? 1 : 0.75 + pc.volume / 48));
   }
 
@@ -93,7 +95,7 @@ export function rebuildValuations(db, fx, { historyMinUsd = 0 } = {}) {
       if (v.raw == null && v.psa10 == null) continue;
       const c7 = at7.get(key);
       const c30 = at30.get(key);
-      const change7 = c7 > 0 && v.raw ? v.raw / c7 - 1 : v.cm_change_7d;
+      const change7 = c7 > 0 && v.raw ? v.raw / c7 - 1 : null;
       const change30 = c30 > 0 && v.raw ? v.raw / c30 - 1 : null;
       db.run(ins, cardId, variant, v.raw, v.raw_low, v.confidence, v.sources, v.g7, v.g8, v.g9, v.g95, v.psa10, v.bgs10, v.cgc10, v.sgc10, v.volume,
         r4(change7), r4(change30), t);

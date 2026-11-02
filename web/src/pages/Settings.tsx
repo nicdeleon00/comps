@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'preact/hooks';
-import { useData, put, post, invalidate, token, setToken } from '../lib/api';
+import { useData, put, post, invalidate, token, setToken, STATIC } from '../lib/api';
+import { BASE } from '../lib/router';
 import { ago, num } from '../lib/format';
 import type { Status } from '../lib/types';
 import { Field, MoneyInput, Segmented, toast } from '../components/ui';
@@ -57,7 +58,100 @@ function Qr({ text }: { text: string }) {
   return <div class="qr" dangerouslySetInnerHTML={{ __html: svg }} />;
 }
 
+const REPO = (import.meta.env.VITE_REPO as string | undefined) ?? '';
+
+/** Settings on the GitHub Pages site: prices are refreshed by GitHub Actions. */
+function HostedSettings() {
+  const { data: st } = useData<Status & { exportedAt?: number }>('/api/status');
+  const { data: s, reload } = useData<S>('/api/settings');
+  const [g, setG] = useState<S>({});
+  const [theme, setTheme] = useState(() => { try { return localStorage.getItem('comps.theme') ?? 'system'; } catch { return 'system'; } });
+  useEffect(() => { if (s) setG({ gradingFee: s.gradingFee, gradingShipping: s.gradingShipping, sellFeePct: s.sellFeePct, sellFixed: s.sellFixed }); }, [s]);
+  const applyTheme = (t: string) => {
+    setTheme(t);
+    try { t === 'system' ? localStorage.removeItem('comps.theme') : localStorage.setItem('comps.theme', t); } catch {}
+    if (t === 'system') delete document.documentElement.dataset.theme;
+    else document.documentElement.dataset.theme = t;
+  };
+  const site = `${location.origin}${BASE}/`;
+  const gh = REPO ? `https://github.com/${REPO}` : '';
+  const pc = st?.providers.pricecharting?.on;
+  const eb = st?.providers.ebay?.on;
+  const jobOk = (name: string) => st?.jobs.find((j) => j.name === name);
+  return (
+    <div class="page settings">
+      <Header title="Settings" />
+      <Group title="Prices" note={st ? `Updated ${ago(st.exportedAt ?? null)}. GitHub refreshes everything every 6 hours — nothing runs on your computer.` : undefined}>
+        <div class="g-row">
+          <div class="g-main"><div class="g-title">TCGplayer prices <span class="status-pill on">Daily</span></div><div class="g-desc">Every English Pokémon card and printing{st ? ` · ${num(st.counts.valued)} prices` : ''}.</div></div>
+          {jobOk('pokemon') && <span class={`dot ${jobOk('pokemon')!.status === 'error' ? 'err' : ''}`} />}
+        </div>
+        <div class="g-row">
+          <div class="g-main"><div class="g-title">Cardmarket (EU) prices <span class="status-pill on">Daily</span></div><div class="g-desc">For cards worth $15+, via TCGdex. Powers cross-market and momentum deals.</div></div>
+        </div>
+        <div class="g-row">
+          <div class="g-main">
+            <div class="g-title">PriceCharting <span class={`status-pill ${pc ? 'on' : 'off'}`}>{pc ? 'Connected' : 'Not set'}</span></div>
+            <div class="g-desc">Graded prices (PSA 9/10, BGS, CGC, SGC) for Raw to Graded. Paid. Add your token as the repository secret <code>PRICECHARTING_TOKEN</code>.</div>
+          </div>
+          {gh && !pc && <a class="btn sm" href={`${gh}/settings/secrets/actions/new`} target="_blank" rel="noopener noreferrer">Add secret</a>}
+        </div>
+        <div class="g-row">
+          <div class="g-main">
+            <div class="g-title">eBay listings <span class={`status-pill ${eb ? 'on' : 'off'}`}>{eb ? 'Connected' : 'Not set'}</span></div>
+            <div class="g-desc">Free developer keyset; finds live listings under value. Add <code>EBAY_CLIENT_ID</code> and <code>EBAY_CLIENT_SECRET</code> as repository secrets.</div>
+          </div>
+          {gh && !eb && <a class="btn sm" href="https://developer.ebay.com/my/keys" target="_blank" rel="noopener noreferrer">Get keys</a>}
+        </div>
+        {gh && (
+          <div class="g-foot">
+            <a class="btn sm" href={`${gh}/actions/workflows/data.yml`} target="_blank" rel="noopener noreferrer"><IconRefresh size={15} />Refresh now on GitHub</a>
+          </div>
+        )}
+      </Group>
+
+      <Group id="grading" title="Grading costs" note="Used for expected value on Raw to Graded and card pages. Saved in this browser.">
+        <div class="g-grid">
+          <Field label="Grading fee per card"><MoneyInput value={g.gradingFee ?? ''} onValue={(x) => setG({ ...g, gradingFee: x })} /></Field>
+          <Field label="Shipping & insurance per card"><MoneyInput value={g.gradingShipping ?? ''} onValue={(x) => setG({ ...g, gradingShipping: x })} /></Field>
+          <Field label="Selling fee (%)"><input class="input num" inputMode="decimal" value={g.sellFeePct ?? ''} onInput={(e) => setG({ ...g, sellFeePct: (e.target as HTMLInputElement).value })} /></Field>
+          <Field label="Fixed fee per sale"><MoneyInput value={g.sellFixed ?? ''} onValue={(x) => setG({ ...g, sellFixed: x })} /></Field>
+        </div>
+        <div class="g-foot"><button class="btn primary sm" onClick={async () => { await put('/api/settings', g); invalidate('/api/'); reload(); toast('Saved'); }}>Save and recalculate</button></div>
+      </Group>
+
+      <Group title="iPhone app" note="Install the app with Sideloadly, AltStore or SideStore. It reads prices from this site, so it works anywhere.">
+        <div class="pair">
+          <Qr text={`comps://connect?url=${encodeURIComponent(site)}`} />
+          <div>
+            <div class="pair-url num" style={{ fontSize: 14 }}>{site}</div>
+            <p class="g-desc" style={{ marginTop: 10, maxWidth: 380 }}>The app is already set to this site. If you ever move it, scan this code from the app's Settings.</p>
+            {gh && (
+              <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+                <a class="btn primary sm" href={`${gh}/releases/download/ios-latest/Comps.ipa`}>Download app (.ipa)</a>
+                <a class="btn sm" href={`${gh}/releases/tag/ios-latest`} target="_blank" rel="noopener noreferrer">AltStore source</a>
+              </div>
+            )}
+          </div>
+        </div>
+      </Group>
+
+      <Group title="Appearance">
+        <div class="g-row">
+          <div class="g-main"><div class="g-title">Theme</div></div>
+          <Segmented value={theme} onChange={applyTheme} label="Theme" options={[{ value: 'system', label: 'System' }, { value: 'light', label: 'Light' }, { value: 'dark', label: 'Dark' }]} />
+        </div>
+      </Group>
+      <p class="faint" style={{ fontSize: 12, marginTop: 28 }}>Prices: TCGplayer via TCGCSV, Cardmarket via TCGdex. Your collection, watchlist and settings stay in this browser.</p>
+    </div>
+  );
+}
+
 export function SettingsPage() {
+  return STATIC ? <HostedSettings /> : <ServerSettings />;
+}
+
+function ServerSettings() {
   const { data: s, reload } = useData<S>('/api/settings');
   const { data: st, reload: reloadStatus } = useData<Status>('/api/status', { refresh: 5000 });
   const [g, setG] = useState<S>({});

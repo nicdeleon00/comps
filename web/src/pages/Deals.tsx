@@ -2,10 +2,10 @@ import { useEffect, useState } from 'preact/hooks';
 import { useData, get } from '../lib/api';
 import { useLocation, setQuery } from '../lib/router';
 import type { Deal } from '../lib/types';
-import { Segmented, Chips, Empty, SkRows } from '../components/ui';
+import { Segmented, Empty, SkRows } from '../components/ui';
 import { DealRow } from '../components/Rows';
 import { IconTag } from '../components/icons';
-import { Header, GAME_OPTIONS } from './shared';
+import { Header, PokemonFilters } from './shared';
 
 type Res = { items: Deal[]; total: number; counts: Record<string, number> };
 
@@ -21,12 +21,14 @@ const KINDS = [
 export function DealsPage() {
   const { query } = useLocation();
   const kind = query.get('kind') ?? 'all';
-  const game = query.get('game') ?? 'all';
+  const series = query.get('series') ?? 'all';
+  const rarity = query.get('rarity') ?? '';
   const sort = query.get('sort') ?? 'score';
   const max = query.get('max') ?? '';
   const params = new URLSearchParams({ limit: '40', sort });
   if (kind !== 'all') params.set('kind', kind);
-  if (game !== 'all') params.set('game', game);
+  if (series !== 'all') params.set('series', series);
+  if (rarity) params.set('rarity', rarity);
   if (max) params.set('max', max);
   const url = `/api/deals?${params}`;
   const { data, loading } = useData<Res>(url);
@@ -62,7 +64,9 @@ export function DealsPage() {
           options={KINDS.map((k) => ({ ...k, count: k.value === 'all' ? all || undefined : counts[k.value] }))} />
       </div>
       <div class="toolbar">
-        <Chips value={game} options={GAME_OPTIONS} onChange={(v) => setQuery({ game: v })} />
+        <PokemonFilters series={series} rarity={rarity} onSeries={(v) => setQuery({ series: v })} onRarity={(v) => setQuery({ rarity: v })} />
+      </div>
+      <div class="toolbar">
         <span class="spacer" />
         <div class="input-wrap" style={{ width: 130 }}>
           <span class="prefix" style={{ fontSize: 13 }}>$</span>

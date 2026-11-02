@@ -6,7 +6,7 @@ import { useLocation, Link } from './lib/router';
 import { useData, setToken, invalidate } from './lib/api';
 import { ago, num } from './lib/format';
 import type { Status } from './lib/types';
-import { Mark, IconMarket, IconTag, IconSlab, IconStack, IconStar, IconGear, IconSearch } from './components/icons';
+import { Mark, IconMarket, IconTag, IconSlab, IconStack, IconStar, IconGear, IconSearch, IconBinder } from './components/icons';
 import { Palette, openPalette, type PaletteOpts } from './components/Palette';
 import { Sheet, Field } from './components/ui';
 import { MarketPage, lastRefresh } from './pages/Market';
@@ -16,13 +16,15 @@ import { CardPage } from './pages/CardPage';
 import { CollectionPage } from './pages/Collection';
 import { WatchlistPage } from './pages/Watchlist';
 import { SettingsPage } from './pages/Settings';
+import { SetsPage, SetPage } from './pages/Sets';
 
 const NAV = [
-  { href: '/', label: 'Market', short: 'Market', icon: IconMarket },
-  { href: '/deals', label: 'Deals', short: 'Deals', icon: IconTag, count: 'deals' as const },
-  { href: '/grading', label: 'Raw to Graded', short: 'Grading', icon: IconSlab, count: 'spreads' as const },
-  { href: '/collection', label: 'Collection', short: 'Collection', icon: IconStack, count: 'holdings' as const },
-  { href: '/watchlist', label: 'Watchlist', short: 'Watchlist', icon: IconStar },
+  { href: '/', label: 'Market', short: 'Market', icon: IconMarket, tab: true },
+  { href: '/deals', label: 'Deals', short: 'Deals', icon: IconTag, count: 'deals' as const, tab: true },
+  { href: '/grading', label: 'Raw to Graded', short: 'Grading', icon: IconSlab, count: 'spreads' as const, tab: true },
+  { href: '/sets', label: 'Sets', short: 'Sets', icon: IconBinder, tab: true },
+  { href: '/collection', label: 'Collection', short: 'Collection', icon: IconStack, count: 'holdings' as const, tab: true },
+  { href: '/watchlist', label: 'Watchlist', short: 'Watchlist', icon: IconStar, tab: false },
 ];
 
 function route(path: string) {
@@ -32,6 +34,9 @@ function route(path: string) {
   if (path === '/collection') return { title: 'Collection', el: <CollectionPage /> };
   if (path === '/watchlist') return { title: 'Watchlist', el: <WatchlistPage /> };
   if (path === '/settings') return { title: 'Settings', el: <SettingsPage /> };
+  if (path === '/sets') return { title: 'Sets', el: <SetsPage /> };
+  const set = /^\/sets\/([^/]+)$/.exec(path);
+  if (set) return { title: 'Set', el: <SetPage id={decodeURIComponent(set[1])} key={set[1]} /> };
   const m = /^\/card\/(.+)$/.exec(path);
   if (m) { const id = decodeURIComponent(m[1]); return { title: '', el: <CardPage id={id} key={id} /> }; }
   return { title: 'Not found', el: <div class="page"><h1>Not found</h1></div> };
@@ -98,7 +103,7 @@ function App() {
   return (
     <div class="shell">
       <aside class="sidebar">
-        <Link href="/" class="brand"><span class="brand-mark-wrap" style={{ color: 'var(--label)' }}><Mark /></span>Comps</Link>
+        <Link href="/" class="brand"><span class="brand-mark-wrap" style={{ color: 'var(--label)' }}><Mark /></span>Comps<span class="brand-sub">Pokémon</span></Link>
         <button class="search-trigger" onClick={() => openPalette()}><IconSearch size={15} />Search<kbd>⌘K</kbd></button>
         {NAV.map((n) => (
           <Link href={n.href} class="nav-item" aria-current={isActive(n.href, path) ? 'page' : undefined}>
@@ -118,6 +123,7 @@ function App() {
           <span class="mt-title">{r.title}</span>
           <div style={{ display: 'flex', gap: 4 }}>
             <button class="btn icon sm" style={{ background: 'none' }} onClick={() => openPalette()} aria-label="Search"><IconSearch size={19} /></button>
+            <Link href="/watchlist" class="btn icon sm" style={{ background: 'none' }} aria-label="Watchlist"><IconStar size={19} /></Link>
             <Link href="/settings" class="btn icon sm" style={{ background: 'none' }} aria-label="Settings"><IconGear size={19} /></Link>
           </div>
         </div>
@@ -125,7 +131,7 @@ function App() {
       </main>
 
       <nav class="tabbar" aria-label="Sections">
-        {NAV.map((n) => (
+        {NAV.filter((n) => n.tab).map((n) => (
           <Link href={n.href} class="tab" aria-current={isActive(n.href, path) ? 'page' : undefined}>
             <n.icon size={23} />{n.short}
           </Link>
