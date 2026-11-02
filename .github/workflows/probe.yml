@@ -1,6 +1,6 @@
-name: Probe data sources
+name: Check live site
 
-# One-off check of live data shapes used to build the providers.
+# Fetches the published website and data from outside, as a phone would.
 on:
   workflow_dispatch:
   push:
@@ -8,30 +8,20 @@ on:
     paths: [".github/workflows/probe.yml"]
 
 jobs:
-  probe:
+  check:
     runs-on: ubuntu-latest
     steps:
-      - name: TCGCSV groups
+      - name: Live site
         run: |
-          curl -sS https://tcgcsv.com/tcgplayer/3/groups -o groups.json
-          jq -r '.results[] | [.groupId, .publishedOn[0:10], (.isSupplemental|tostring), .abbreviation, .name] | @tsv' groups.json
-      - name: Modern set product names and numbers
-        run: |
-          for name in "Evolving Skies" "Scarlet & Violet 151" "Prismatic Evolutions" "Hidden Fates" "Crown Zenith"; do
-            gid=$(jq -r --arg n "$name" '[.results[] | select(.name | contains($n))][0].groupId' <(curl -sS https://tcgcsv.com/tcgplayer/3/groups))
-            echo "::group::$name ($gid)"
-            curl -sS "https://tcgcsv.com/tcgplayer/3/$gid/products" | jq -r '.results[] | [.productId, .name, ((.extendedData // []) | map(select(.name=="Number" or .name=="Rarity")) | map(.value) | join(" | "))] | @tsv' | head -60
-            curl -sS "https://tcgcsv.com/tcgplayer/3/$gid/prices" | jq -r '[.results[].subTypeName] | group_by(.) | map({(.[0]): length}) | add'
-            echo "::endgroup::"
+          SITE="https://${GITHUB_REPOSITORY_OWNER,,}.github.io/${GITHUB_REPOSITORY#*/}"
+          for path in / /sets /card/tcg:42382 /data/status.json /data/index.json /data/deals.json /data/cards/14.json /data/sets.json; do
+            echo "$(curl -s -o /tmp/b -w '%{http_code} %{size_download}B %{time_total}s' --compressed "$SITE$path")  $path"
           done
-      - name: Image sizes
-        run: |
-          for suffix in _200w.jpg _400w.jpg _in_1000x1000.jpg _1000x1000.jpg; do
-            echo "$suffix $(curl -s -o /dev/null -w '%{http_code} %{size_download}' https://tcgplayer-cdn.tcgplayer.com/product/42382$suffix)"
-          done
-      - name: TCGdex sets
-        run: |
-          curl -sS https://api.tcgdex.net/v2/en/sets | jq -r '.[] | [.id, .name, (.cardCount.official|tostring)] | @tsv' | head -400
-          echo "::group::set detail sv03.5"
-          curl -sS https://api.tcgdex.net/v2/en/sets/sv03.5 | jq -c '{id, name, releaseDate, serie, cards: (.cards[0:5])}'
-          echo "::endgroup::"
+          echo "--- status.json"
+          curl -s "$SITE/data/status.json" | jq -c '{exportedAt, counts, providers}'
+          echo "--- top deals"
+          curl -s --compressed "$SITE/data/deals.json" | jq -r '.counts, (.items[0:8][] | [.kindLabel, .card.name, .card.set, (.price|tostring), (.value|tostring), (.score|tostring)] | @tsv)'
+          echo "--- index.json gzip size"
+          curl -s -H 'Accept-Encoding: gzip' -o /tmp/i.gz -w '%{size_download}\n' "$SITE/data/index.json"
+          echo "--- card image"
+          curl -s -o /dev/null -w '%{http_code} %{content_type}\n' https://tcgplayer-cdn.tcgplayer.com/product/42382_400w.jpg
