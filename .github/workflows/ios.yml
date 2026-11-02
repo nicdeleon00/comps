@@ -7,13 +7,19 @@ on:
     branches: [main]
     paths: ["ios/**", ".github/workflows/ios.yml"]
   workflow_dispatch:
+    inputs:
+      runner:
+        description: "Mac runner label (macos-15 is Apple silicon; macos-15-intel uses a separate, often shorter queue)"
+        default: macos-15-intel
+        type: string
 
 permissions:
   contents: write
 
 jobs:
   build:
-    runs-on: macos-15
+    # GitHub's Apple-silicon Mac pool is often congested; the Intel pool builds the same IPA.
+    runs-on: ${{ inputs.runner || 'macos-15-intel' }}
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
