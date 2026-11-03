@@ -254,8 +254,6 @@ async function main() {
       http: res.status, bytes: html.length, title: html.match(/<title[^>]*>([^<]*)/i)?.[1],
       ldJson: (html.match(/application\/ld\+json/g) ?? []).length,
       availability: uniq(/"availability(?:Status|_status)?\\?"\s*:\s*\\?"([^"\\]+)/gi),
-      apiEndpoints: uniq(/(redsky_aggregations\/v\d\/[a-z_]+\/[a-z0-9_]+)/gi),
-      apiKeyFound: /apiKey\\?"\s*:\s*\\?"[0-9a-f]{40}/.test(html),
       dataScripts: uniq(/(__[A-Z_]{4,}__)/g),
     }, null, 2));
     return;

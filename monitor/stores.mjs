@@ -162,7 +162,9 @@ export async function checkProduct(url, { bestBuyKey, fetchImpl = fetch } = {}) 
       ...parsed,
       http: res.status,
       store,
-      note: parsed.state === 'unknown' ? "Couldn't find stock info on the page (the store may load it in the browser)" : undefined,
+      note: parsed.state !== 'unknown' ? undefined
+        : store === 'target' ? "Target doesn't put stock on its product pages, so the monitor can't read it"
+        : "Couldn't find stock info on the page (the store may load it in the browser)",
     };
   } catch (e) {
     return { state: 'error', price: null, title: null, via: null, http: 0, store, note: e.name === 'TimeoutError' ? 'Timed out' : e.message };
