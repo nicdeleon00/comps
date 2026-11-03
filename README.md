@@ -13,7 +13,7 @@ Everything runs on GitHub — nothing to host or keep running on your computer:
 - **Deals** — cards priced under what they're worth: live eBay Buy It Now listings under fair value, price dips against 30-day history, TCGplayer asks 20–40% under market, and modern cards cheaper on Cardmarket than in the US.
 - **Raw to Graded** — cards that are cheap raw but sell for a multiple graded. Expected profit after grading and selling fees, and the **break-even gem rate**: the share of PSA 10s you need to not lose money. Gem rates start from Pokémon-era defaults (WotC, EX–HGSS, BW/XY, Sun & Moon, modern) and you can set your own per card.
 - **Sets** — every set by era with its total value, and a binder view of each set.
-- **Collection** — on the phone (scan to add) and in the browser (CSV import from the app).
+- **Collection** — scan to add on the phone; see it on the website too. Turn on **Sync with iPhone** in the website's Settings (one GitHub key with the “gist” permission, then scan the code it shows from the app) and both stay in step automatically. The collection lives in a secret gist on your GitHub account.
 
 ## Unlock more (optional, 2 minutes each)
 

@@ -228,3 +228,9 @@ code { font: 12.5px var(--mono); background: var(--fill-2); padding: 1px 5px; bo
 @media (max-width: 520px) { .binder { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 12px; } .set-grid { grid-template-columns: minmax(0, 1fr); } }
 .binder.chase { grid-template-columns: repeat(6, minmax(0, 1fr)); }
 @media (max-width: 1100px) { .binder.chase { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+/* Sync setup steps */
+.sync-steps { list-style: none; counter-reset: step; margin: 0; padding: 4px 0; }
+.sync-steps li { counter-increment: step; position: relative; padding: 14px 0 14px 40px; border-top: 0.5px solid var(--sep); }
+.sync-steps li:first-child { border-top: 0; }
+.sync-steps li::before { content: counter(step); position: absolute; left: 0; top: 13px; width: 26px; height: 26px; border-radius: 50%; background: var(--accent-fill); color: var(--accent); font-weight: 650; font-size: 13px; display: grid; place-items: center; }

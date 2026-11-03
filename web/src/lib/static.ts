@@ -3,6 +3,7 @@
 // browser's own collection, watchlist and settings in localStorage.
 
 import { gradeEV } from './grading';
+import { syncSoon } from './sync';
 import type { Card, Costs, Deal, Holding, Spread } from './types';
 
 const BASE = import.meta.env.BASE_URL;
@@ -89,9 +90,11 @@ async function search(q: string, limit = 24) {
 }
 
 // ---------------------------------------------------------------- collection
-type LocalHolding = Omit<Holding, 'value' | 'basis' | 'total' | 'change7d' | 'variantResolved' | 'imageUrl'>;
-const holdings = () => LS.get<LocalHolding[]>('holdings', []);
-const saveHoldings = (h: LocalHolding[]) => LS.set('holdings', h);
+type LocalHolding = Omit<Holding, 'value' | 'basis' | 'total' | 'change7d' | 'variantResolved' | 'imageUrl'> & { deleted?: boolean };
+/** Everything stored, including deletions kept for sync. */
+const allHoldings = () => LS.get<LocalHolding[]>('holdings', []);
+const holdings = () => allHoldings().filter((h) => !h.deleted);
+const saveHoldings = (h: LocalHolding[]) => { LS.set('holdings', h); syncSoon(); };
 const COND: Record<string, number> = { NM: 1, LP: 0.82, MP: 0.62, HP: 0.42, DMG: 0.25 };
 
 async function valued(): Promise<Holding[]> {
@@ -273,16 +276,20 @@ export async function staticRequest(method: string, url: string, body?: any): Pr
       condition: body.condition ?? 'NM', quantity: Math.max(1, Number(body.quantity) || 1), costBasis: body.costBasis ?? null,
       acquiredAt: body.acquiredAt ?? null, notes: body.notes ?? null, createdAt: now, updatedAt: now,
     };
-    saveHoldings([h, ...holdings()]);
+    saveHoldings([h, ...allHoldings()]);
     return (await valued()).find((x) => x.id === h.id);
   }
   if ((r = m(/^\/api\/collection\/([^/]+)$/))) {
     const id = decodeURIComponent(r[1]);
     if (method === 'PATCH') {
-      saveHoldings(holdings().map((h) => (h.id === id ? { ...h, ...body, id, updatedAt: Date.now() } : h)));
+      saveHoldings(allHoldings().map((h) => (h.id === id ? { ...h, ...body, id, updatedAt: Date.now() } : h)));
       return (await valued()).find((x) => x.id === id);
     }
-    if (method === 'DELETE') { saveHoldings(holdings().filter((h) => h.id !== id)); return { ok: true }; }
+    if (method === 'DELETE') {
+      // Kept as a deletion so it also disappears from the phone.
+      saveHoldings(allHoldings().map((h) => (h.id === id ? { ...h, deleted: true, updatedAt: Date.now() } : h)));
+      return { ok: true };
+    }
   }
   if (path === '/api/watchlist' && method === 'PUT') {
     const list = LS.get<any[]>('watchlist', []).filter((w) => !(w.cardId === body.cardId && (w.variant ?? null) === (body.variant ?? null)));

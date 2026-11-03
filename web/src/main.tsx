@@ -3,7 +3,8 @@ import { useEffect, useState } from 'preact/hooks';
 import './styles.css';
 import './pages.css';
 import { useLocation, Link } from './lib/router';
-import { useData, setToken, invalidate } from './lib/api';
+import { useData, setToken, invalidate, STATIC } from './lib/api';
+import { startSync } from './lib/sync';
 import { ago, num } from './lib/format';
 import type { Status } from './lib/types';
 import { Mark, IconMarket, IconTag, IconSlab, IconStack, IconStar, IconGear, IconSearch, IconBinder } from './components/icons';
@@ -145,3 +146,5 @@ function App() {
 }
 
 render(<App />, document.getElementById('app')!);
+// Keep the collection in step with the iPhone app (when sync is set up in Settings).
+if (STATIC) startSync();

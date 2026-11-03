@@ -10,7 +10,13 @@ enum Portfolio {
         return (try? context.fetch(descriptor)) ?? []
     }
 
+    /// Syncs with the website (when set up), then reprices everything.
     static func refreshPrices(context: ModelContext) async {
+        await CollectionSync.shared.sync(context, reprice: false)
+        await reprice(context: context)
+    }
+
+    static func reprice(context: ModelContext) async {
         await Catalog.shared.ensureLoaded()
         let holdings = activeHoldings(context)
         guard !holdings.isEmpty else { return }
@@ -45,9 +51,16 @@ enum Portfolio {
     }
 
     static func remove(_ h: Holding, context: ModelContext) {
-        context.delete(h)
+        if CollectionSync.shared.isConnected {
+            // Kept as a deletion so it also disappears from the website.
+            h.isTombstoned = true
+            h.touch()
+        } else {
+            context.delete(h)
+        }
         try? context.save()
         snapshot(context: context)
+        CollectionSync.shared.syncSoon(context)
     }
 
     /// CSV the website can import (Collection → Import CSV).

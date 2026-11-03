@@ -368,6 +368,7 @@ final class ScannerModel {
         }
         try? context.save()
         Portfolio.snapshot(context: context)
+        CollectionSync.shared.syncSoon(context)
         withAnimation(.snappy) { items.removeAll { item in list.contains { $0.id == item.id } } }
         return added
     }
