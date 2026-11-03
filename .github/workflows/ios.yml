@@ -40,6 +40,7 @@ jobs:
             -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
             COMPS_DATA_URL="https://${OWNER_LC}.github.io/${GITHUB_REPOSITORY#*/}/" \
+            MARKETING_VERSION="1.0.${GITHUB_RUN_NUMBER}" \
             CURRENT_PROJECT_VERSION="${GITHUB_RUN_NUMBER}" \
             build > build.log 2>&1
           status=$?
@@ -70,7 +71,8 @@ jobs:
           SIZE=$(stat -f%z Comps.ipa)
           VERSION=$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" build/Build/Products/Release-iphoneos/Comps.app/Info.plist)
           BUILD="${GITHUB_RUN_NUMBER}"
-          BASE="https://github.com/${GITHUB_REPOSITORY}/releases/download/ios-latest"
+          # Each build has its own permanent release, so the download never disappears mid-install.
+          BASE="https://github.com/${GITHUB_REPOSITORY}/releases/download/ios-v${VERSION}"
           RAW="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${GITHUB_SHA}"
           OWNER_LC=$(echo "$GITHUB_REPOSITORY_OWNER" | tr '[:upper:]' '[:lower:]')
           cat > altstore-source.json <<JSON
@@ -99,13 +101,29 @@ jobs:
           JSON
           cat altstore-source.json
 
-      - name: Publish "ios-latest" release
+      - name: Publish release
         if: github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release delete ios-latest --yes --cleanup-tag 2>/dev/null || true
-          gh release create ios-latest Comps.ipa altstore-source.json \
-            --title "Comps for iOS (build ${GITHUB_RUN_NUMBER})" \
-            --notes "Unsigned IPA built from ${GITHUB_SHA::7}. Install with Sideloadly, AltStore or SideStore — they sign it with your Apple ID. To get updates automatically, add this source in AltStore/SideStore: https://github.com/${GITHUB_REPOSITORY}/releases/download/ios-latest/altstore-source.json" \
-            --prerelease
+          VERSION=$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" build/Build/Products/Release-iphoneos/Comps.app/Info.plist)
+          SOURCE="https://github.com/${GITHUB_REPOSITORY}/releases/download/ios-latest/altstore-source.json"
+          # A permanent release for this build (what AltStore downloads).
+          gh release create "ios-v${VERSION}" Comps.ipa \
+            --title "Comps for iOS ${VERSION} (build ${GITHUB_RUN_NUMBER})" \
+            --notes "Built from ${GITHUB_SHA::7}. Install with AltStore / SideStore (source: ${SOURCE}) or Sideloadly — they sign it with your Apple ID." \
+            --latest
+          # The rolling "ios-latest" release keeps the same links working: the newest IPA and the AltStore source.
+          # Assets are replaced in place rather than deleting the release, so the source URL never 404s.
+          if gh release view ios-latest >/dev/null 2>&1; then
+            gh release upload ios-latest Comps.ipa altstore-source.json --clobber
+            gh release edit ios-latest --title "Comps for iOS — latest (${VERSION})" --prerelease \
+              --notes "Always the newest build (now ${VERSION}). AltStore / SideStore source: ${SOURCE}"
+          else
+            gh release create ios-latest Comps.ipa altstore-source.json --prerelease \
+              --title "Comps for iOS — latest (${VERSION})" --notes "Always the newest build (now ${VERSION}). AltStore / SideStore source: ${SOURCE}"
+          fi
+          # Keep only the five newest versioned releases.
+          gh release list --limit 100 --json tagName --jq '.[].tagName' | grep '^ios-v' | sort -t. -k3 -n -r | tail -n +6 | while read -r t; do
+            gh release delete "$t" --yes --cleanup-tag || true
+          done
