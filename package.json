@@ -4,12 +4,15 @@
   "private": true,
   "description": "Self-hosted card price tracker: undervalued finder, raw-to-graded spread engine, collection sync for the iOS app.",
   "type": "module",
-  "engines": { "node": ">=22.13" },
+  "engines": {
+    "node": ">=22.13"
+  },
   "scripts": {
     "start": "node --disable-warning=ExperimentalWarning server/src/index.js",
     "demo": "COMPS_DEMO=1 DATA_DIR=./data-demo node --disable-warning=ExperimentalWarning server/src/index.js",
     "dev": "npm --prefix web run dev",
     "build": "npm --prefix web install && npm --prefix web run build",
-    "test": "node --disable-warning=ExperimentalWarning --test server/test/*.test.js"
+    "test": "node --disable-warning=ExperimentalWarning --test server/test/*.test.js",
+    "monitor": "node monitor/monitor.mjs"
   }
 }

@@ -1,0 +1,37 @@
+name: Probe store pages
+
+# Runs the drop monitor's one-off check on some product links, to see what each
+# store's page exposes. GitHub's servers are blocked more often than a home PC.
+on:
+  workflow_dispatch:
+    inputs:
+      urls:
+        description: "Product links, separated by spaces"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check each link
+        env:
+          URLS: ${{ inputs.urls }}
+        run: |
+          for u in $URLS; do
+            echo "=== $u"
+            node monitor/monitor.mjs --check "$u" || true
+            curl -s -L -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36" --max-time 20 "$u" -o page.html -w "curl: %{http_code} %{size_download} bytes\n" || true
+            echo "ld+json blocks: $(grep -o 'application/ld+json' page.html | wc -l)"
+            grep -o '"availability"[^,}]*' page.html | sort | uniq -c | head -5 || true
+            grep -oE 'availability_status"?:"?[A-Z_]+' page.html | sort | uniq -c | head -5 || true
+            grep -oE '"(availabilityStatus|availability_status|inventoryStatus|stockStatus|buttonState)":"[A-Za-z_ ]+"' page.html | sort | uniq -c | head -8 || true
+          done
