@@ -83,7 +83,7 @@ private struct ReviewRow: View {
                             Image(systemName: "questionmark.circle.fill").foregroundStyle(.orange)
                         }
                     }
-                    Text(c.card.subtitle).font(.footnote).foregroundStyle(.secondary).lineLimit(1)
+                    Text([item.pocket, c.card.subtitle].compactMap { $0 }.joined(separator: " · ")).font(.footnote).foregroundStyle(.secondary).lineLimit(1)
                     GradeBadge(grader: item.grader, grade: item.grade, condition: item.condition)
                 }
                 Spacer()
@@ -115,14 +115,37 @@ struct ScanItemEditor: View {
 
     var body: some View {
         Form {
-            Section("Match") {
-                ForEach(Array(item.candidates.prefix(8).enumerated()), id: \.element.id) { i, c in
-                    Button {
-                        withAnimation(.snappy) {
-                            item.selected = i
-                            item.variant = c.card.variant ?? c.variants.first?.variant
-                            item.status = .matched
+            Section {
+                HStack(alignment: .top, spacing: 14) {
+                    compare(title: item.pocket.map { "Your scan · \($0)" } ?? "Your scan") {
+                        Image(uiImage: item.photo)
+                            .resizable()
+                            .aspectRatio(63.0 / 88.0, contentMode: .fill)
+                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    }
+                    compare(title: item.choice == nil ? "No match" : "Match") {
+                        if let c = item.choice {
+                            CardImage(url: c.card.largeImageURL, name: c.card.name, game: c.card.gameKind, corner: 8)
+                                .id(c.id)
+                                .transition(.opacity)
+                        } else {
+                            RoundedRectangle(cornerRadius: 8, style: .continuous).fill(.quaternary)
+                                .aspectRatio(63.0 / 88.0, contentMode: .fit)
                         }
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 4)
+            } footer: {
+                if item.status == .review {
+                    Text("Close call — compare the artwork and the number in the bottom corner, then tap the right card.")
+                }
+            }
+
+            Section("Match") {
+                ForEach(Array(item.candidates.prefix(10).enumerated()), id: \.element.id) { i, c in
+                    Button {
+                        withAnimation(.snappy) { item.choose(i) }
                     } label: {
                         CardRow(card: c.card) {
                             VStack(alignment: .trailing, spacing: 2) {
@@ -182,6 +205,15 @@ struct ScanItemEditor: View {
         }
         .navigationTitle(item.choice?.card.name ?? "Fix match")
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func compare<Content: View>(title: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(spacing: 6) {
+            content()
+                .frame(width: 128, height: 179)
+                .shadow(color: .black.opacity(0.15), radius: 6, y: 3)
+            Text(title).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+        }
     }
 
     private func search() {

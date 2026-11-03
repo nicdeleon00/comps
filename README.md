@@ -32,10 +32,18 @@ Install `Comps.ipa` with [Sideloadly](https://sideloadly.io) (Windows/Mac) or [A
 
 Every push to `ios/` rebuilds the IPA on a Mac runner (**Actions → iOS app**).
 
-**Scanning.** Point the camera at a card. It finds the card outline, waits until it's steady, flattens it, and reads the collector number and set size (`025/198`, `TG05/TG30`, `SWSH050`) and the name, then matches against the on-phone catalog. Slab labels are read too (`GEM MT 10` → PSA 10).
+**Scanning.** Point the camera at a card. It finds the card outline, waits until it's steady, flattens it, and reads the name, the collector number and set size (`025/198`, `TG05/TG30`, `SWSH050`) and, on Scarlet & Violet-era and later cards, the printed set code (`PAL EN`). Slab labels are read too (`GEM MT 10` → PSA 10). Then:
 
-- **Continuous:** keep feeding cards — each new card lands in the tray with a haptic tick. A fingerprint of the card face stops it re-reading the card that's still there, so you can flip through a stack. Close matches are marked **?** for review.
+- **Matching** scores every plausible card on name, number, set size and set code, and prefers the original printing over reprint products that share its number (Prize Pack, Jumbo, World Championship decks, Trick or Trade, Celebrations Classic Collection…) and over pattern variants (Poké Ball / Master Ball reverse holos), unless the stamp's words are read off the card.
+- **Art check:** close calls are settled by comparing the scan with each candidate's official image (Apple's Vision feature prints), so a different artwork with the same name and number loses.
+- **Second look:** if a read is unsure and the card is still under the camera, it re-reads a fresh frame with different crops and pools both reads.
+- **It learns:** when you pick a different match, the same read resolves to your pick next time. Lock the scanner to a set (top of the screen) when scanning a stack or binder from one set.
+
+Modes:
+
+- **Continuous:** keep feeding cards — each new card lands in the tray with a haptic tick. A fingerprint of the card face stops it re-reading the card that's still there, so you can flip through a stack. Close matches are marked **?** for review, with your scan and the match side by side.
 - **Single:** tap the shutter, confirm, add.
+- **Binder:** fit a 4-, 9- or 12-pocket page inside the guide and tap the shutter. It takes a full-resolution photo, finds each card (inferring any pocket it can't outline from the page grid), reads and matches every pocket, and shows the page with a ✓ / ? on each card. Add the whole page at once, or fix a pocket first. Tips: lay the page flat, avoid overhead glare on the sleeves, and fill the frame.
 
 ## How the numbers work
 

@@ -10,6 +10,7 @@ import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { setImageMode } from './store.js';
 import { safeJSON, log } from './lib/util.js';
+import { reprintGroups } from './engine/printings.js';
 
 export const SHARDS = 128;
 export const shardOf = (id) => {
@@ -66,8 +67,10 @@ export async function exportStatic({ db, api, outDir, minDetailUsd = 1 }) {
   shards.forEach((cards, i) => write(outDir, `cards/${i}.json`, { cards }));
 
   // Compact catalog: [productId, name, setId, number, total, rarity, [[variant, raw, g9, psa10, change7d], ...]]
+  // Sets: [name, code, series, released, reprint (1 = reprint product; the scanner prefers originals)]
   const setRows = db.all('SELECT * FROM sets WHERE cards > 0');
-  const setsMap = Object.fromEntries(setRows.map((s) => [s.id, [s.name, s.code, s.series, s.released]]));
+  const reprints = reprintGroups(db);
+  const setsMap = Object.fromEntries(setRows.map((s) => [s.id, [s.name, s.code, s.series, s.released, reprints.has(String(s.id)) ? 1 : 0]]));
   const vals = new Map();
   for (const v of db.all(`SELECT card_id, variant, raw, g9, psa10, change_7d FROM valuations WHERE card_id LIKE 'tcg:%'`)) {
     if (!vals.has(v.card_id)) vals.set(v.card_id, []);

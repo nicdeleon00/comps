@@ -9,21 +9,29 @@ struct ScannerView: View {
     @State private var showReview = false
     @State private var flashOpacity = 0.0
     @State private var toast: String?
+    @State private var pickingSet = false
 
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
-            CameraPreview(session: model.camera.session) { point in model.camera.focus(at: point) }
+            CameraPreview(session: model.camera.session, fill: model.mode != .binder) { point in model.camera.focus(at: point) }
                 .ignoresSafeArea()
-            DetectionOverlay(quad: model.quad, frameSize: model.frameSize, tint: outlineTint)
-                .ignoresSafeArea()
+            if model.mode == .binder {
+                BinderOverlay(layout: model.layout, quads: model.pageQuads, frameSize: model.frameSize)
+                    .ignoresSafeArea()
+                    .transition(.opacity)
+            } else {
+                DetectionOverlay(quad: model.quad, frameSize: model.frameSize, tint: outlineTint)
+                    .ignoresSafeArea()
+                    .transition(.opacity)
+            }
             Color.white.opacity(flashOpacity).ignoresSafeArea().allowsHitTesting(false)
 
             VStack(spacing: 0) {
                 topBar
                 Spacer()
                 statusPill.padding(.bottom, 14)
-                if model.mode == .continuous && !model.items.isEmpty { tray.transition(.move(edge: .bottom).combined(with: .opacity)) }
+                if model.mode != .single && !model.items.isEmpty { tray.transition(.move(edge: .bottom).combined(with: .opacity)) }
                 controls
             }
 
@@ -62,6 +70,16 @@ struct ScannerView: View {
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
         }
+        .sheet(item: $model.page, onDismiss: { model.closePage() }) { page in
+            BinderPageView(page: page, model: model) { added in
+                model.page = nil
+                show("Added \(added) card\(added == 1 ? "" : "s")")
+            }
+            .presentationDetents([.large])
+        }
+        .sheet(isPresented: $pickingSet) {
+            SetPickerView(selection: $model.lockedSet)
+        }
     }
 
     private var outlineTint: Color {
@@ -87,11 +105,23 @@ struct ScannerView: View {
         HStack {
             CircleButton(system: "xmark") { dismiss() }
             Spacer()
-            Text("Pokémon")
+            Button { pickingSet = true } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: model.lockedSet == nil ? "square.stack.3d.up" : "lock.fill")
+                        .font(.system(size: 12, weight: .semibold))
+                    Text(model.lockedSet?.name ?? "All sets")
+                        .lineLimit(1)
+                    Image(systemName: "chevron.down").font(.system(size: 10, weight: .bold)).opacity(0.7)
+                }
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(model.lockedSet == nil ? .white : .black)
                 .padding(.horizontal, 14).frame(height: 36)
-                .background(.ultraThinMaterial, in: Capsule())
+                .background(model.lockedSet == nil ? AnyShapeStyle(.ultraThinMaterial) : AnyShapeStyle(Color(red: 1, green: 0.84, blue: 0.04)), in: Capsule())
+                .contentTransition(.opacity)
+            }
+            .pressable()
+            .frame(maxWidth: 230)
+            .accessibilityLabel(model.lockedSet.map { "Locked to \($0.name)" } ?? "Lock to a set")
             Spacer()
             CircleButton(system: model.torch ? "flashlight.on.fill" : "flashlight.off.fill", active: model.torch) { model.setTorch(!model.torch) }
         }
@@ -100,7 +130,19 @@ struct ScannerView: View {
     }
 
     private var statusText: String {
-        switch model.phase {
+        if model.mode == .binder {
+            if model.readingPage { return "Reading page…" }
+            switch model.phase {
+            case .starting: return "Starting camera"
+            case .denied: return "Camera access is off"
+            case .reading: return "Taking photo…"
+            case .noMatch: return "No cards found — fill the frame"
+            default:
+                let n = model.pageQuads.count
+                return n == 0 ? "Fit the page inside the guide" : "\(n) card\(n == 1 ? "" : "s") in view · tap to read"
+            }
+        }
+        return switch model.phase {
         case .starting: "Starting camera"
         case .denied: "Camera access is off"
         case .searching: model.paused ? "Paused" : "Point at a card"
@@ -113,7 +155,7 @@ struct ScannerView: View {
 
     private var statusPill: some View {
         HStack(spacing: 8) {
-            if model.phase == .reading { ProgressView().controlSize(.small).tint(.white) }
+            if model.phase == .reading || model.readingPage { ProgressView().controlSize(.small).tint(.white) }
             Text(statusText)
                 .font(.subheadline.weight(.semibold))
                 .contentTransition(.opacity)
@@ -153,6 +195,23 @@ struct ScannerView: View {
 
     private var controls: some View {
         VStack(spacing: 16) {
+            if model.mode == .binder {
+                HStack(spacing: 6) {
+                    ForEach(BinderLayout.allCases) { l in
+                        Button {
+                            withAnimation(.snappy) { model.setLayout(l) }
+                        } label: {
+                            Text("\(l.count)-pocket")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(model.layout == l ? .black : .white)
+                                .padding(.horizontal, 12).frame(height: 28)
+                                .background(model.layout == l ? AnyShapeStyle(Color.white) : AnyShapeStyle(.ultraThinMaterial), in: Capsule())
+                        }
+                        .pressable()
+                    }
+                }
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
             HStack(spacing: 22) {
                 ForEach(ScannerModel.Mode.allCases, id: \.self) { m in
                     Button {
@@ -182,8 +241,9 @@ struct ScannerView: View {
                 .frame(width: 80)
 
                 Spacer()
-                ShutterButton(mode: model.mode, paused: model.paused, ready: model.phase == .steady || model.phase == .searching) {
-                    if model.mode == .single { model.shutter() } else { model.setPaused(!model.paused) }
+                ShutterButton(mode: model.mode, paused: model.paused, busy: model.readingPage,
+                              ready: model.mode == .binder ? !model.pageQuads.isEmpty : model.phase == .steady || model.phase == .searching) {
+                    model.shutter()
                 }
                 Spacer()
 
@@ -240,6 +300,7 @@ private struct CircleButton: View {
 private struct ShutterButton: View {
     var mode: ScannerModel.Mode
     var paused: Bool
+    var busy = false
     var ready: Bool
     var action: () -> Void
 
@@ -247,7 +308,16 @@ private struct ShutterButton: View {
         Button(action: action) {
             ZStack {
                 Circle().strokeBorder(.white, lineWidth: 4).frame(width: 78, height: 78)
-                if mode == .single {
+                if mode == .binder {
+                    Circle().fill(.white).frame(width: 64, height: 64).opacity(ready ? 1 : 0.7)
+                    if busy {
+                        ProgressView().tint(.black)
+                    } else {
+                        Image(systemName: "square.grid.3x3.fill")
+                            .font(.system(size: 22, weight: .semibold))
+                            .foregroundStyle(.black)
+                    }
+                } else if mode == .single {
                     Circle().fill(.white).frame(width: 64, height: 64).opacity(ready ? 1 : 0.6)
                 } else {
                     Circle().fill(paused ? Color.white : Color(red: 1, green: 0.84, blue: 0.04)).frame(width: 64, height: 64)
@@ -260,7 +330,8 @@ private struct ShutterButton: View {
         }
         .pressable()
         .sensoryFeedback(.impact(weight: .medium), trigger: paused)
-        .accessibilityLabel(mode == .single ? "Capture" : paused ? "Resume scanning" : "Pause scanning")
+        .disabled(busy)
+        .accessibilityLabel(mode == .binder ? "Read page" : mode == .single ? "Capture" : paused ? "Resume scanning" : "Pause scanning")
     }
 }
 

@@ -109,3 +109,24 @@ test('sets endpoint groups cards by set with values', async () => {
   const filtered = await api('GET', '/api/deals', { series: 'Wizards of the Coast', limit: '100' });
   assert.ok(filtered.items.every((d) => d.card.series === 'Wizards of the Coast'));
 });
+
+test('reprint products are flagged so the scanner prefers the original printing', async () => {
+  const { reprintGroups } = await import('../src/engine/printings.js');
+  const db = openDatabase(':memory:');
+  const set = (id, name, released) => db.run('INSERT INTO sets (id, name, code, series, released, supplemental, modified, cards) VALUES (?,?,?,?,?,?,?,?)', id, name, null, 'Scarlet & Violet', released, 0, null, 12);
+  set('1', 'Obsidian Flames', '2023-08-11');
+  set('2', 'Holiday Reprints', '2024-11-01');
+  set('3', 'Prize Pack Series Cards', '2022-01-01');
+  const card = (gid, i, name) => ({ id: `tcg:${gid}${String(i).padStart(3, '0')}`, game: 'pokemon', name, number: String(i).padStart(3, '0'), printedTotal: '197', ext: { groupId: gid, baseName: name } });
+  const cards = [];
+  for (let i = 1; i <= 12; i++) {
+    cards.push(card('1', i, `Mon ${i}`));
+    cards.push(card('2', i, i <= 9 ? `Mon ${i}` : `New ${i}`)); // 9 of 12 repeat Obsidian Flames
+  }
+  cards.push(card('3', 1, 'Mon 1'));
+  upsertCards(db, cards);
+  const alt = reprintGroups(db);
+  assert.ok(alt.has('2'), 'mostly repeats an earlier set');
+  assert.ok(alt.has('3'), 'known reprint product, by name');
+  assert.ok(!alt.has('1'), 'the original set');
+});

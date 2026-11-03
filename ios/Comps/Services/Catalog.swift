@@ -12,6 +12,10 @@ struct CatalogCard {
     let productId: Int
     let name: String
     let baseName: String
+    /// Normalized base name, for fast fuzzy matching.
+    let key: String
+    /// Words in brackets that mark a special printing ("poke ball pattern", "cosmos holo").
+    let variantTag: String?
     let setId: String
     let number: String
     let total: String?
@@ -25,6 +29,17 @@ struct CatalogSet {
     let code: String?
     let series: String
     let released: String?
+    /// Reprint products (Prize Pack, Jumbo, World Championship decks…) that share
+    /// numbers with the original set. The scanner prefers the original.
+    let alt: Bool
+}
+
+struct SetOption: Identifiable, Hashable {
+    let id: String
+    let name: String
+    let series: String
+    let released: String?
+    let count: Int
 }
 
 /// Every English Pokémon card with today's prices, downloaded from the price
@@ -38,6 +53,7 @@ actor Catalog {
     private(set) var updatedAt: Date?
     private var byId: [String: Int] = [:]
     private var byNumber: [String: [Int]] = [:]
+    private var byKey: [String: [Int]] = [:]
     private var imageBase = "https://tcgplayer-cdn.tcgplayer.com/product/"
     private var loading: Task<Void, Never>?
 
@@ -80,9 +96,22 @@ actor Catalog {
         return String(letters) + String(digits)
     }
 
+    /// "Pikachu - 025/165 (Pokemon Together)" → "Pikachu"
     static func baseName(_ name: String) -> String {
-        name.replacingOccurrences(of: #"\s*\([^)]*\)\s*"#, with: " ", options: .regularExpression)
-            .trimmingCharacters(in: .whitespaces)
+        var s = name.replacingOccurrences(of: #"\s*[\(\[][^\)\]]*[\)\]]"#, with: " ", options: .regularExpression)
+        if let r = s.range(of: #"\s+-\s+.*$"#, options: .regularExpression) { s.removeSubrange(r) }
+        return s.split(separator: " ").joined(separator: " ")
+    }
+
+    private static let bracketed = try! NSRegularExpression(pattern: #"[\(\[]([^\)\]]*)[\)\]]"#)
+
+    /// Bracketed words that mark a special printing; plain numbers ("Raichu (25)") don't count.
+    static func variantTag(_ name: String) -> String? {
+        let ns = name as NSString
+        let tags = bracketed.matches(in: name, range: NSRange(location: 0, length: ns.length))
+            .map { ns.substring(with: $0.range(at: 1)) }
+            .filter { $0.rangeOfCharacter(from: .letters) != nil && $0.count > 1 }
+        return tags.isEmpty ? nil : Similarity.normalize(tags.joined(separator: " "))
     }
 
     private func parse(_ data: Data) throws {
@@ -92,7 +121,8 @@ actor Catalog {
         var newSets: [String: CatalogSet] = [:]
         for (gid, value) in root["sets"] as? [String: [Any]] ?? [:] {
             newSets[gid] = CatalogSet(name: value[safe: 0] as? String ?? "", code: value[safe: 1] as? String,
-                                      series: value[safe: 2] as? String ?? "", released: value[safe: 3] as? String)
+                                      series: value[safe: 2] as? String ?? "", released: value[safe: 3] as? String,
+                                      alt: (value[safe: 4] as? NSNumber)?.boolValue ?? false)
         }
         var list: [CatalogCard] = []
         list.reserveCapacity(rows.count)
@@ -103,17 +133,21 @@ actor Catalog {
                 func num(_ i: Int) -> Double? { (p[safe: i] as? NSNumber)?.doubleValue }
                 return CatalogPrice(variant: v, raw: num(1), g9: num(2), psa10: num(3), change7d: num(4))
             }
-            list.append(CatalogCard(productId: pid, name: name, baseName: Self.baseName(name), setId: r[safe: 2] as? String ?? "",
-                                    number: r[safe: 3] as? String ?? "", total: r[safe: 4] as? String, rarity: r[safe: 5] as? String, prices: prices))
+            let base = Self.baseName(name)
+            list.append(CatalogCard(productId: pid, name: name, baseName: base, key: Similarity.normalize(base), variantTag: Self.variantTag(name),
+                                    setId: r[safe: 2] as? String ?? "", number: r[safe: 3] as? String ?? "", total: r[safe: 4] as? String,
+                                    rarity: r[safe: 5] as? String, prices: prices))
         }
         guard !list.isEmpty else { return }
         cards = list
         sets = newSets
         byId = [:]
         byNumber = [:]
+        byKey = [:]
         for (i, c) in list.enumerated() {
             byId[c.id] = i
             byNumber[Self.numberKey(c.number), default: []].append(i)
+            byKey[c.key, default: []].append(i)
         }
         let ms = (root["updatedAt"] as? NSNumber)?.doubleValue
         updatedAt = ms.map { Date(millis: $0) } ?? Date()
@@ -194,44 +228,130 @@ actor Catalog {
         return scored.sorted { $0.1 > $1.1 }.prefix(limit).map { summary(cards[$0.0]) }
     }
 
-    /// Scanner matching: collector number + set size, then name.
-    func match(_ f: CardFeatures) -> [ScanCandidate] {
-        let names = ([f.name].compactMap { $0 } + f.nameCandidates)
-        func nameScore(_ c: CatalogCard) -> Double {
-            guard !names.isEmpty else { return 0.5 }
-            let best = names.map { max(Similarity.score($0, c.baseName), Similarity.score($0, c.name)) }.max() ?? 0
-            return 0.25 + 0.75 * best
+    /// Sets that have priced cards, newest first (for the scanner's set lock).
+    func setOptions() -> [SetOption] {
+        var counts: [String: Int] = [:]
+        for c in cards { counts[c.setId, default: 0] += 1 }
+        return sets.compactMap { id, s in
+            guard let n = counts[id], n > 0 else { return nil }
+            return SetOption(id: id, name: s.name, series: s.series, released: s.released, count: n)
         }
-        var results: [(Int, Double, String)] = []
-        if let n = f.number {
-            var ranked = (byNumber[Self.numberKey(n)] ?? []).map { ($0, nameScore(cards[$0]), "Number") }
-            if let t = f.total {
-                let exact = ranked.filter { Self.numberKey(cards[$0.0].total ?? "") == Self.numberKey(t) }
-                if !exact.isEmpty { ranked = exact.map { ($0.0, min(1, $0.1 + 0.1), "Number and set size") } }
-            }
-            results += ranked
-        }
-        if results.count < 3, let name = f.name, name.count >= 3 {
-            let target = Similarity.normalize(name)
-            let first = String(target.prefix(2))
-            var byName: [(Int, Double, String)] = []
-            for (i, c) in cards.enumerated() where Similarity.normalize(c.baseName).hasPrefix(first) {
-                let s = nameScore(c)
-                if s >= 0.8 { byName.append((i, s * 0.85, "Name")) }
-            }
-            // Same name across many sets: prefer the valuable printings.
-            byName.sort { $0.1 != $1.1 ? $0.1 > $1.1 : (cards[$0.0].prices.first?.raw ?? 0) > (cards[$1.0].prices.first?.raw ?? 0) }
-            results += byName.prefix(20)
-        }
-        var seen = Set<Int>()
-        return results
-            .filter { seen.insert($0.0).inserted }
-            .sorted { $0.1 > $1.1 }
-            .prefix(10)
-            .map { i, score, reason in
-                ScanCandidate(card: summary(cards[i]), variants: variants(id: cards[i].id), score: score, reason: reason)
-            }
+        .sorted { ($0.released ?? "") != ($1.released ?? "") ? ($0.released ?? "") > ($1.released ?? "") : $0.name < $1.name }
     }
+
+    /// Scanner matching. Every candidate is scored on the evidence printed on the
+    /// card — name, collector number, set size, set code — then nudged by what
+    /// we know about printings (reprint products and pattern variants share the
+    /// original's number) and by the session (set lock, recent sets, past corrections).
+    func match(_ f: CardFeatures, context: MatchContext = MatchContext()) -> [ScanCandidate] {
+        let names = Array(([f.name].compactMap { $0 } + f.nameCandidates).map(Similarity.normalize).filter { $0.count >= 3 }.prefix(5))
+        var nameCache: [String: Double] = [:]
+        func nameSim(_ c: CatalogCard) -> Double {
+            if let s = nameCache[c.key] { return s }
+            let s = names.map { Similarity.normalizedScore($0, c.key) }.max() ?? 0
+            nameCache[c.key] = s
+            return s
+        }
+
+        // Candidate pool: every card with a plausible number, plus every card with a plausible name.
+        var numberEvidence: [Int: Double] = [:]
+        for r in f.numbers.prefix(8) {
+            for i in byNumber[Self.numberKey(r.number)] ?? [] {
+                let c = cards[i]
+                let total: Double
+                if let t = r.total {
+                    if let ct = c.total { total = Self.numberKey(ct) == Self.numberKey(t) ? 1 : 0 } else { total = 0.3 }
+                } else {
+                    total = c.total == nil ? 0.8 : 0.5
+                }
+                let e = r.weight * 0.35 + total * 0.15
+                numberEvidence[i] = max(numberEvidence[i] ?? 0, e)
+            }
+        }
+        var pool = Set(numberEvidence.keys)
+        if !names.isEmpty {
+            // Only fall back to name search when the number didn't produce a convincing name match.
+            let bestNumbered = pool.map { nameSim(cards[$0]) }.max() ?? 0
+            if bestNumbered < 0.85 || pool.count < 2 {
+                var nameHits: [(Int, Double)] = []
+                for (key, idx) in byKey {
+                    let s = names.map { Similarity.normalizedScore($0, key) }.max() ?? 0
+                    guard s >= 0.72 else { continue }
+                    nameCache[key] = s
+                    for i in idx { nameHits.append((i, s)) }
+                }
+                // Same name in dozens of sets (Pikachu): keep the best name matches, originals first, newest first.
+                nameHits.sort { a, b in
+                    if a.1 != b.1 { return a.1 > b.1 }
+                    let sa = sets[cards[a.0].setId], sb = sets[cards[b.0].setId]
+                    if (sa?.alt ?? false) != (sb?.alt ?? false) { return !(sa?.alt ?? false) }
+                    return (sa?.released ?? "") > (sb?.released ?? "")
+                }
+                for (i, _) in nameHits.prefix(context.lockedSet == nil ? 60 : 400) { pool.insert(i) }
+            }
+        }
+
+        let recentTotal = context.recentSets.values.reduce(0, +)
+        var scored: [(Int, Double, String)] = []
+        for i in pool {
+            let c = cards[i]
+            let set = sets[c.setId]
+            let sim = names.isEmpty ? 0.5 : nameSim(c)
+            var s = 0.40 * sim * sim
+            let numbered = numberEvidence[i]
+            if let numbered {
+                s += numbered
+            } else {
+                // A digit off ("126" for "125") still counts for something; the art check settles it.
+                let cn = Self.numberKey(c.number)
+                if let near = f.numbers.prefix(3).first(where: { r in
+                    let rn = Self.numberKey(r.number)
+                    return rn.count == cn.count && Similarity.levenshtein(Array(rn), Array(cn)) == 1
+                }) {
+                    s += 0.2 * near.weight
+                }
+                if let t = f.total, let ct = c.total, Self.numberKey(ct) == Self.numberKey(t) {
+                    s += 0.15 * 0.8   // misread number, right set size
+                }
+            }
+            if let code = f.setCode {
+                if let sc = set?.code?.uppercased(), sc == code { s += 0.10 }
+            } else {
+                s += 0.05
+            }
+            if set?.alt == true { s -= 0.12 }
+            if let tag = c.variantTag {
+                // Pattern/stamp variants share the plain card's number: prefer the plain card
+                // unless the stamp's words were actually read off the card.
+                let words = tag.split(separator: " ").filter { $0.count >= 4 }
+                s += !words.isEmpty && words.allSatisfy({ f.text.contains($0) }) ? 0.03 : -0.10
+            }
+            if let locked = context.lockedSet { s += c.setId == locked ? 0.15 : -0.05 }
+            if recentTotal > 0, let name = set?.name, let n = context.recentSets[name] {
+                s += min(0.06, 0.02 * Double(n))
+            }
+            if context.learned == c.id { s += 0.25 }
+
+            var why: [String] = []
+            if numbered != nil { why.append(f.total != nil ? "Number and set size" : "Number") }
+            if sim >= 0.8 && !names.isEmpty { why.append("name") }
+            if f.setCode != nil, set?.code?.uppercased() == f.setCode { why.append("set code") }
+            if context.learned == c.id { why.append("your earlier pick") }
+            scored.append((i, s, why.isEmpty ? "Name" : why.joined(separator: ", ").capitalizedFirst))
+        }
+
+        scored.sort { a, b in
+            if abs(a.1 - b.1) > 0.0001 { return a.1 > b.1 }
+            return (sets[cards[a.0].setId]?.released ?? "") > (sets[cards[b.0].setId]?.released ?? "")
+        }
+        return scored.prefix(12).map { i, score, reason in
+            ScanCandidate(card: summary(cards[i]), variants: variants(id: cards[i].id), score: max(0, min(1, score)), reason: reason)
+        }
+    }
+}
+
+extension String {
+    var capitalizedFirst: String { self.prefix(1).uppercased() + String(self.dropFirst()) }
 }
 
 enum VariantName {

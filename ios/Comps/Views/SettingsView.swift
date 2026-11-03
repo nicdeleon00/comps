@@ -118,7 +118,7 @@ struct SettingsView: View {
 struct PairingScanner: View {
     var onPair: (String, String?) -> Void
     @Environment(\.dismiss) private var dismiss
-    @State private var camera = CameraController()
+    @State private var camera = CameraController(preset: .hd1920x1080)
     @State private var found = false
 
     var body: some View {

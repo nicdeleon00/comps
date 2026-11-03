@@ -15,6 +15,8 @@ final class PreviewView: UIView {
 
 struct CameraPreview: UIViewRepresentable {
     let session: AVCaptureSession
+    /// Binder pages show the whole 4:3 frame (aspect fit) so the page can fill the photo.
+    var fill = true
     var onTap: ((CGPoint) -> Void)?
 
     func makeUIView(context: Context) -> PreviewView {
@@ -29,6 +31,8 @@ struct CameraPreview: UIViewRepresentable {
 
     func updateUIView(_ uiView: PreviewView, context: Context) {
         context.coordinator.onTap = onTap
+        let gravity: AVLayerVideoGravity = fill ? .resizeAspectFill : .resizeAspect
+        if uiView.previewLayer.videoGravity != gravity { uiView.previewLayer.videoGravity = gravity }
     }
 
     func makeCoordinator() -> Coordinator { Coordinator() }
@@ -43,16 +47,27 @@ struct CameraPreview: UIViewRepresentable {
     }
 }
 
-/// Maps normalized frame coordinates onto an aspect-fill preview.
+/// Maps normalized frame coordinates onto an aspect-fill (or aspect-fit) preview.
 struct FrameMapper {
     var frame: CGSize
     var view: CGSize
+    var fill = true
+
+    private var displayed: CGRect {
+        guard frame.width > 0, frame.height > 0 else { return .zero }
+        let scale = fill ? max(view.width / frame.width, view.height / frame.height) : min(view.width / frame.width, view.height / frame.height)
+        let w = frame.width * scale, h = frame.height * scale
+        return CGRect(x: (view.width - w) / 2, y: (view.height - h) / 2, width: w, height: h)
+    }
 
     func point(_ p: CGPoint) -> CGPoint {
-        guard frame.width > 0, frame.height > 0 else { return .zero }
-        let scale = max(view.width / frame.width, view.height / frame.height)
-        let w = frame.width * scale, h = frame.height * scale
-        return CGPoint(x: p.x * w + (view.width - w) / 2, y: p.y * h + (view.height - h) / 2)
+        let d = displayed
+        return CGPoint(x: d.minX + p.x * d.width, y: d.minY + p.y * d.height)
+    }
+
+    func rect(_ r: CGRect) -> CGRect {
+        let a = point(CGPoint(x: r.minX, y: r.minY)), b = point(CGPoint(x: r.maxX, y: r.maxY))
+        return CGRect(x: a.x, y: a.y, width: b.x - a.x, height: b.y - a.y)
     }
 }
 
