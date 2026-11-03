@@ -245,6 +245,21 @@ async function main() {
   const args = process.argv.slice(2);
   let config = loadConfig();
 
+  if (args[0] === '--inspect') {
+    // Diagnostics for tuning a store: what the page exposes.
+    const res = await fetch(args[1], { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36', Accept: 'text/html', 'Accept-Language': 'en-US,en;q=0.9' } });
+    const html = await res.text();
+    const uniq = (re) => [...new Set([...html.matchAll(re)].map((m) => m[1] ?? m[0]))].slice(0, 15);
+    console.log(JSON.stringify({
+      http: res.status, bytes: html.length, title: html.match(/<title[^>]*>([^<]*)/i)?.[1],
+      ldJson: (html.match(/application\/ld\+json/g) ?? []).length,
+      availability: uniq(/"availability(?:Status|_status)?\\?"\s*:\s*\\?"([^"\\]+)/gi),
+      apiEndpoints: uniq(/(redsky_aggregations\/v\d\/[a-z_]+\/[a-z0-9_]+)/gi),
+      apiKeyFound: /apiKey\\?"\s*:\s*\\?"[0-9a-f]{40}/.test(html),
+      dataScripts: uniq(/(__[A-Z_]{4,}__)/g),
+    }, null, 2));
+    return;
+  }
   if (args[0] === '--check') {
     if (!args[1]) { console.log('Usage: node monitor.mjs --check <product link>'); return; }
     const r = await checkProduct(args[1], { bestBuyKey: config.bestBuyKey });

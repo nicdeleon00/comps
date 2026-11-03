@@ -29,6 +29,7 @@ jobs:
           for u in $URLS; do
             echo "=== $u"
             node monitor/monitor.mjs --check "$u" || true
+            node monitor/monitor.mjs --inspect "$u" || true
             curl -s -L -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36" --max-time 20 "$u" -o page.html -w "curl: %{http_code} %{size_download} bytes\n" || true
             echo "ld+json blocks: $(grep -o 'application/ld+json' page.html | wc -l)"
             grep -o '"availability"[^,}]*' page.html | sort | uniq -c | head -5 || true

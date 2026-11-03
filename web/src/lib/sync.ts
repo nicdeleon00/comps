@@ -60,7 +60,8 @@ class SyncError extends Error {
   constructor(public kind: 'auth' | 'http' | 'network' | 'missing', message: string) { super(message); }
 }
 
-async function gh<T>(token: string, path: string, init: RequestInit = {}): Promise<T> {
+/** GitHub REST call with the sync key (also used by the Drops page). */
+export async function gh<T>(token: string, path: string, init: RequestInit = {}): Promise<T> {
   let res: Response;
   try {
     res = await fetch(API + path, {
