@@ -88,6 +88,15 @@ actor Catalog {
         }
     }
 
+    /// The regular printing comes first: it's what a scanned or added card defaults to.
+    /// Reverse holo and 1st edition are only used when picked.
+    static let printingRank = ["normal": 0, "holofoil": 1, "unlimitedHolofoil": 2, "reverseHolofoil": 3, "1stEditionNormal": 4, "1stEditionHolofoil": 5]
+
+    static func regularFirst(_ a: CatalogPrice, _ b: CatalogPrice) -> Bool {
+        let ra = printingRank[a.variant] ?? 9, rb = printingRank[b.variant] ?? 9
+        return ra != rb ? ra < rb : (a.raw ?? 0) > (b.raw ?? 0)
+    }
+
     static func numberKey(_ n: String) -> String {
         let up = n.uppercased().trimmingCharacters(in: .whitespaces)
         let letters = up.prefix { $0.isLetter }
@@ -133,6 +142,7 @@ actor Catalog {
                 func num(_ i: Int) -> Double? { (p[safe: i] as? NSNumber)?.doubleValue }
                 return CatalogPrice(variant: v, raw: num(1), g9: num(2), psa10: num(3), change7d: num(4))
             }
+            .sorted(by: Self.regularFirst)
             let base = Self.baseName(name)
             list.append(CatalogCard(productId: pid, name: name, baseName: base, key: Similarity.normalize(base), variantTag: Self.variantTag(name),
                                     setId: r[safe: 2] as? String ?? "", number: r[safe: 3] as? String ?? "", total: r[safe: 4] as? String,

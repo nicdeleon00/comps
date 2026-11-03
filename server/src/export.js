@@ -29,6 +29,11 @@ function write(dir, file, data) {
   writeFileSync(path, JSON.stringify(data));
 }
 
+// The regular printing comes first: it's what a scanned or added card defaults to.
+// Reverse holo and 1st edition are only used when picked.
+const PRINTING_RANK = { normal: 0, holofoil: 1, unlimitedHolofoil: 2, reverseHolofoil: 3, '1stEditionNormal': 4, '1stEditionHolofoil': 5 };
+export const byPrinting = (a, b) => (PRINTING_RANK[a[0]] ?? 9) - (PRINTING_RANK[b[0]] ?? 9) || (b[1] ?? 0) - (a[1] ?? 0);
+
 export async function exportStatic({ db, api, outDir, minDetailUsd = 1 }) {
   setImageMode('direct');
   rmSync(outDir, { recursive: true, force: true });
@@ -66,7 +71,7 @@ export async function exportStatic({ db, api, outDir, minDetailUsd = 1 }) {
   }
   shards.forEach((cards, i) => write(outDir, `cards/${i}.json`, { cards }));
 
-  // Compact catalog: [productId, name, setId, number, total, rarity, [[variant, raw, g9, psa10, change7d], ...]]
+  // Compact catalog: [productId, name, setId, number, total, rarity, [[variant, raw, g9, psa10, change7d], ...]] (regular printing first)
   // Sets: [name, code, series, released, reprint (1 = reprint product; the scanner prefers originals)]
   const setRows = db.all('SELECT * FROM sets WHERE cards > 0');
   const reprints = reprintGroups(db);
@@ -80,7 +85,7 @@ export async function exportStatic({ db, api, outDir, minDetailUsd = 1 }) {
   for (const c of db.all(`SELECT id, name, group_id, number, printed_total, rarity FROM cards WHERE id LIKE 'tcg:%'`)) {
     const pv = vals.get(c.id);
     if (!pv) continue;
-    pv.sort((a, b) => (b[1] ?? 0) - (a[1] ?? 0));
+    pv.sort(byPrinting);
     cards.push([Number(c.id.slice(4)), c.name, String(c.group_id ?? ''), c.number, c.printed_total, c.rarity, pv]);
   }
   write(outDir, 'index.json', { v: 1, updatedAt: Date.now(), imageBase: 'https://tcgplayer-cdn.tcgplayer.com/product/', sets: setsMap, cards });

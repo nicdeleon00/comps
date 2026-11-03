@@ -9,6 +9,7 @@ import { parseProductName, mapRow } from '../src/providers/pricecharting.js';
 import { mapProduct, mapPrice, prepareGroups, cleanSetName, seriesFor, variantKey } from '../src/providers/tcgcsv.js';
 import { matchSets, quotesFromCard } from '../src/providers/tcgdex.js';
 import { parseCSV, similarity, money } from '../src/lib/util.js';
+import { byPrinting } from '../src/export.js';
 
 const costs = { fee: 25, shipping: 5, sellFeePct: 0.13, sellFixed: 0 };
 
@@ -189,4 +190,12 @@ test('utils', () => {
   assert.equal(rows[1]['product-name'], 'Say "hi"');
   assert.equal(money('$1,234.56'), 1234.56);
   assert.ok(similarity('Charizard', 'Charizrd') > 0.85);
+});
+
+test('catalog lists the regular printing first, not the priciest', () => {
+  const order = (vs) => vs.slice().sort(byPrinting).map((v) => v[0]);
+  assert.deepEqual(order([['reverseHolofoil', 0.25], ['normal', 0.16]]), ['normal', 'reverseHolofoil']);
+  assert.deepEqual(order([['reverseHolofoil', 0.4], ['holofoil', 0.24]]), ['holofoil', 'reverseHolofoil']);
+  assert.deepEqual(order([['1stEditionHolofoil', 9000], ['unlimitedHolofoil', 400]]), ['unlimitedHolofoil', '1stEditionHolofoil']);
+  assert.deepEqual(order([['1stEditionNormal', 30], ['normal', 2]]), ['normal', '1stEditionNormal']);
 });

@@ -35,6 +35,29 @@ enum Portfolio {
         snapshot(context: context)
     }
 
+    /// One-time fix: early builds defaulted scanned cards to their priciest printing
+    /// (usually reverse holo). Cards that still carry that automatic pick and were
+    /// never edited move to the regular printing.
+    static func migrateDefaultPrintings(context: ModelContext) async {
+        let key = "migrated.regularPrinting.v1"
+        guard !UserDefaults.standard.bool(forKey: key) else { return }
+        await Catalog.shared.ensureLoaded()
+        guard await Catalog.shared.isLoaded else { return } // try again next launch
+        var changed = false
+        for h in activeHoldings(context) {
+            guard let current = h.variant, abs(h.updatedAt.timeIntervalSince(h.createdAt)) < 2 else { continue }
+            let options = await Catalog.shared.variants(id: h.cardID)
+            guard let regular = options.first?.variant, regular != current,
+                  let priciest = options.max(by: { ($0.price ?? 0) < ($1.price ?? 0) })?.variant, priciest == current else { continue }
+            h.variant = regular
+            h.unitValue = nil
+            h.touch()
+            changed = true
+        }
+        if changed { try? context.save() }
+        UserDefaults.standard.set(true, forKey: key)
+    }
+
     static func snapshot(context: ModelContext) {
         let holdings = activeHoldings(context)
         let value = holdings.reduce(0) { $0 + ($1.totalValue ?? 0) }

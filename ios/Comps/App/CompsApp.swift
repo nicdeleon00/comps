@@ -74,6 +74,7 @@ struct RootView: View {
         }
         .task {
             await Catalog.shared.ensureLoaded()
+            await Portfolio.migrateDefaultPrintings(context: context)
             await Portfolio.refreshPrices(context: context)
         }
         .onChange(of: scenePhase) { _, phase in
