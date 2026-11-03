@@ -16,15 +16,15 @@ struct ScanReviewView: View {
             List {
                 if model.items.contains(where: { $0.status == .review }) {
                     Section {
-                        Label("Cards marked with ? had a close second match. Tap to check them.", systemImage: "questionmark.circle.fill")
+                        Label("Cards marked with ? had a close second match. Tap one to check it, then swipe to the next.", systemImage: "questionmark.circle.fill")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     }
                 }
                 Section {
-                    ForEach(model.items) { item in
+                    ForEach(Array(model.items.enumerated()), id: \.element.id) { i, item in
                         NavigationLink {
-                            ScanItemEditor(item: item)
+                            ScanPager(items: model.items, start: i)
                         } label: {
                             ReviewRow(item: item)
                         }
@@ -106,137 +106,301 @@ private struct ReviewRow: View {
     }
 }
 
+/// Swipe through scanned cards, fixing each one.
+@MainActor
+struct ScanPager: View {
+    let items: [ScanItem]
+    @State private var index: Int
+
+    init(items: [ScanItem], start: Int) {
+        self.items = items
+        _index = State(initialValue: min(max(0, start), max(0, items.count - 1)))
+    }
+
+    var body: some View {
+        TabView(selection: $index) {
+            ForEach(Array(items.enumerated()), id: \.element.id) { i, item in
+                ScanItemEditor(item: item, embedded: true).tag(i)
+            }
+        }
+        .tabViewStyle(.page(indexDisplayMode: .never))
+        .background(Color(.systemGroupedBackground))
+        .navigationTitle(items.isEmpty ? "" : "\(index + 1) of \(items.count)")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                Button { withAnimation(.snappy) { index = max(0, index - 1) } } label: { Image(systemName: "chevron.left") }
+                    .disabled(index == 0)
+                    .accessibilityLabel("Previous card")
+                Button { withAnimation(.snappy) { index = min(items.count - 1, index + 1) } } label: { Image(systemName: "chevron.right") }
+                    .disabled(index >= items.count - 1)
+                    .accessibilityLabel("Next card")
+            }
+        }
+        .sensoryFeedback(.selection, trigger: index)
+    }
+}
+
 /// Fix a scan: choose the right card/printing, grade, condition and quantity.
+/// The scan and the current match stay pinned at the top while the list scrolls.
 @MainActor
 struct ScanItemEditor: View {
     @Bindable var item: ScanItem
+    var embedded = false
     @State private var query = ""
+    @State private var setFilter: SetOption?
+    @State private var results: [ScanCandidate]?
     @State private var searching = false
+    @State private var pickingSet = false
+    @State private var quickSets: [SetOption] = []
+    @State private var searchTask: Task<Void, Never>?
+    @FocusState private var typing: Bool
+
+    private var shown: [ScanCandidate] { results ?? item.candidates }
 
     var body: some View {
-        Form {
-            Section {
-                HStack(alignment: .top, spacing: 14) {
-                    compare(title: item.pocket.map { "Your scan · \($0)" } ?? "Your scan") {
-                        Image(uiImage: item.photo)
-                            .resizable()
-                            .aspectRatio(63.0 / 88.0, contentMode: .fill)
-                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        VStack(spacing: 0) {
+            header
+            List {
+                Section {
+                    if shown.isEmpty && !searching {
+                        Text(results == nil ? "No match yet — search by name or number above." : "No cards found.")
+                            .foregroundStyle(.secondary)
                     }
-                    compare(title: item.choice == nil ? "No match" : "Match") {
-                        if let c = item.choice {
-                            CardImage(url: c.card.largeImageURL, name: c.card.name, game: c.card.gameKind, corner: 8)
-                                .id(c.id)
-                                .transition(.opacity)
-                        } else {
-                            RoundedRectangle(cornerRadius: 8, style: .continuous).fill(.quaternary)
-                                .aspectRatio(63.0 / 88.0, contentMode: .fit)
-                        }
+                    ForEach(shown) { c in
+                        Button { pick(c) } label: { CandidateRow(candidate: c, selected: c.id == item.choice?.id) }
+                            .tint(.primary)
                     }
+                } header: {
+                    Text(listTitle)
                 }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 4)
-            } footer: {
-                if item.status == .review {
-                    Text("Close call — compare the artwork and the number in the bottom corner, then tap the right card.")
-                }
-            }
 
-            Section("Match") {
-                ForEach(Array(item.candidates.prefix(10).enumerated()), id: \.element.id) { i, c in
-                    Button {
-                        withAnimation(.snappy) { item.choose(i) }
-                    } label: {
-                        CardRow(card: c.card) {
-                            VStack(alignment: .trailing, spacing: 2) {
-                                Text(Fmt.money(c.card.price)).font(.subheadline.weight(.semibold).monospacedDigit())
-                                if i == item.selected { Image(systemName: "checkmark").font(.footnote.weight(.bold)).foregroundStyle(.tint) }
+                if let c = item.choice, c.variants.count > 1 {
+                    Section("Printing") {
+                        Picker("Printing", selection: Binding(get: { item.variant ?? c.variants[0].variant }, set: { item.variant = $0 })) {
+                            ForEach(c.variants, id: \.variant) { v in
+                                Text("\(v.label.isEmpty ? "Standard" : v.label) · \(Fmt.money(v.price))").tag(v.variant)
                             }
                         }
+                        .pickerStyle(.inline)
+                        .labelsHidden()
                     }
-                    .tint(.primary)
                 }
-                HStack {
-                    TextField("Search by name", text: $query).submitLabel(.search).onSubmit(search)
-                    if searching { ProgressView() }
-                }
-            }
 
-            if let c = item.choice, c.variants.count > 1 {
-                Section("Printing") {
-                    Picker("Printing", selection: Binding(get: { item.variant ?? c.variants[0].variant }, set: { item.variant = $0 })) {
-                        ForEach(c.variants, id: \.variant) { v in
-                            Text("\(v.label.isEmpty ? "Standard" : v.label) · \(Fmt.money(v.price))").tag(v.variant)
+                Section("Condition") {
+                    Toggle("Graded", isOn: Binding(get: { item.grader != nil }, set: { on in
+                        item.grader = on ? (item.grader ?? "PSA") : nil
+                        item.grade = on ? (item.grade ?? "10") : nil
+                    }))
+                    if item.grader != nil {
+                        Picker("Grader", selection: Binding(get: { item.grader ?? "PSA" }, set: { item.grader = $0 })) {
+                            ForEach(Grader.allCases) { Text($0.rawValue).tag($0.rawValue) }
                         }
+                        Picker("Grade", selection: Binding(get: { item.grade ?? "10" }, set: { item.grade = $0 })) {
+                            ForEach(gradeOptions, id: \.self) { Text($0).tag($0) }
+                        }
+                    } else {
+                        Picker("Condition", selection: $item.condition) {
+                            ForEach(CardCondition.allCases) { Text($0.rawValue).tag($0.rawValue) }
+                        }
+                        .pickerStyle(.segmented)
                     }
-                    .pickerStyle(.inline)
-                    .labelsHidden()
+                    Stepper("Quantity: \(item.quantity)", value: $item.quantity, in: 1...99)
+                }
+
+                Section {
+                    HStack {
+                        Text("Value")
+                        Spacer()
+                        Text(Fmt.money(item.unitValue.map { $0 * Double(item.quantity) })).monospacedDigit().foregroundStyle(.secondary)
+                    }
                 }
             }
+            .listStyle(.insetGrouped)
+            .scrollDismissesKeyboard(.immediately)
+        }
+        .background(Color(.systemGroupedBackground))
+        .navigationTitle(embedded ? "" : (item.choice?.card.name ?? "Fix match"))
+        .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $pickingSet) { SetPickerView(selection: $setFilter) }
+        .onChange(of: query) { runSearch() }
+        .onChange(of: setFilter) { runSearch() }
+        .task { await loadQuickSets() }
+    }
 
-            Section("Condition") {
-                Toggle("Graded", isOn: Binding(get: { item.grader != nil }, set: { on in
-                    item.grader = on ? (item.grader ?? "PSA") : nil
-                    item.grade = on ? (item.grade ?? "10") : nil
-                }))
-                if item.grader != nil {
-                    Picker("Grader", selection: Binding(get: { item.grader ?? "PSA" }, set: { item.grader = $0 })) {
-                        ForEach(Grader.allCases) { Text($0.rawValue).tag($0.rawValue) }
-                    }
-                    Picker("Grade", selection: Binding(get: { item.grade ?? "10" }, set: { item.grade = $0 })) {
-                        ForEach(gradeOptions, id: \.self) { Text($0).tag($0) }
-                    }
-                } else {
-                    Picker("Condition", selection: $item.condition) {
-                        ForEach(CardCondition.allCases) { Text($0.rawValue).tag($0.rawValue) }
-                    }
-                    .pickerStyle(.segmented)
+    // MARK: Pinned header
+
+    private var header: some View {
+        VStack(spacing: 10) {
+            HStack(alignment: .top, spacing: 12) {
+                compare(title: item.pocket.map { "Your scan · \($0)" } ?? "Your scan") {
+                    Image(uiImage: item.photo)
+                        .resizable()
+                        .aspectRatio(63.0 / 88.0, contentMode: .fill)
                 }
-                Stepper("Quantity: \(item.quantity)", value: $item.quantity, in: 1...99)
+                compare(title: item.choice.map { "\($0.card.subtitle) · \(Fmt.money(item.unitValue))" } ?? "No match") {
+                    if let c = item.choice {
+                        CardImage(url: c.card.largeImageURL, name: c.card.name, game: c.card.gameKind, corner: 8)
+                            .id(c.id)
+                            .transition(.opacity)
+                    } else {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous).fill(.quaternary)
+                    }
+                }
             }
+            .frame(height: typing ? 118 : 196)
+            .frame(maxWidth: .infinity)
 
-            Section {
-                HStack {
-                    Text("Value")
-                    Spacer()
-                    Text(Fmt.money(item.unitValue.map { $0 * Double(item.quantity) })).monospacedDigit().foregroundStyle(.secondary)
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                TextField(setFilter.map { "Search \($0.name)" } ?? "Name or number", text: $query)
+                    .focused($typing)
+                    .submitLabel(.search)
+                    .autocorrectionDisabled()
+                    .textInputAutocapitalization(.never)
+                if searching {
+                    ProgressView().controlSize(.small)
+                } else if !query.isEmpty {
+                    Button { query = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Clear search")
+                }
+            }
+            .padding(.horizontal, 12)
+            .frame(height: 40)
+            .background(.fill.tertiary, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    chip("All sets", on: setFilter == nil) { setFilter = nil }
+                    if let s = setFilter, !quickSets.contains(s) {
+                        chip(s.name, on: true) { setFilter = nil }
+                    }
+                    ForEach(quickSets) { s in
+                        chip(s.name, on: setFilter == s) { setFilter = setFilter == s ? nil : s }
+                    }
+                    chip("Choose set…", on: false, icon: "line.3.horizontal.decrease") { pickingSet = true }
                 }
             }
         }
-        .navigationTitle(item.choice?.card.name ?? "Fix match")
-        .navigationBarTitleDisplayMode(.inline)
+        .padding(.horizontal, 16)
+        .padding(.top, 10)
+        .padding(.bottom, 10)
+        .background(.bar)
+        .overlay(alignment: .bottom) { Divider() }
+        .animation(.snappy, value: typing)
     }
 
     private func compare<Content: View>(title: String, @ViewBuilder content: () -> Content) -> some View {
-        VStack(spacing: 6) {
+        VStack(spacing: 5) {
             content()
-                .frame(width: 128, height: 179)
-                .shadow(color: .black.opacity(0.15), radius: 6, y: 3)
-            Text(title).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                .aspectRatio(63.0 / 88.0, contentMode: .fit)
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .shadow(color: .black.opacity(0.15), radius: 5, y: 2)
+                .frame(maxHeight: .infinity)
+            Text(title).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
         }
+        .frame(maxWidth: .infinity)
     }
 
-    private func search() {
-        let q = query.trimmingCharacters(in: .whitespaces)
-        guard q.count >= 2 else { return }
-        searching = true
-        Task {
-            await Catalog.shared.ensureLoaded()
-            let cards = await Catalog.shared.search(q, limit: 20)
-            var results: [ScanCandidate] = []
-            for c in cards {
-                results.append(ScanCandidate(card: c, variants: await Catalog.shared.variants(id: c.id), score: 0.5, reason: "Search"))
+    private func chip(_ label: String, on: Bool, icon: String? = nil, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 4) {
+                if let icon { Image(systemName: icon).font(.caption2.weight(.bold)) }
+                Text(label).lineLimit(1)
             }
+            .font(.footnote.weight(.semibold))
+            .foregroundStyle(on ? Color.white : Color.primary)
+            .padding(.horizontal, 12)
+            .frame(height: 30)
+            .background(on ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.fill.tertiary), in: Capsule())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var listTitle: String {
+        let q = query.trimmingCharacters(in: .whitespaces)
+        if let s = setFilter { return q.isEmpty ? "\(s.name) · \(shown.count) cards" : "Results in \(s.name)" }
+        if !q.isEmpty { return "Results" }
+        return item.status == .review ? "Close call — tap the right card" : "Best matches"
+    }
+
+    // MARK: Actions
+
+    private func pick(_ c: ScanCandidate) {
+        withAnimation(.snappy) {
+            if let i = item.candidates.firstIndex(where: { $0.id == c.id }) {
+                item.choose(i)
+            } else {
+                item.candidates.insert(c, at: 0)
+                item.choose(0)
+            }
+        }
+        typing = false
+    }
+
+    private func runSearch() {
+        searchTask?.cancel()
+        let q = query.trimmingCharacters(in: .whitespaces)
+        let set = setFilter?.id
+        guard q.count >= 2 || (q.isEmpty && set != nil) || (set != nil && !q.isEmpty) else {
+            results = nil
+            searching = false
+            return
+        }
+        searching = true
+        searchTask = Task {
+            if !q.isEmpty { try? await Task.sleep(for: .milliseconds(220)) }
+            guard !Task.isCancelled else { return }
+            await Catalog.shared.ensureLoaded()
+            let found = await Catalog.shared.lookup(q, setId: set, limit: q.isEmpty ? 500 : 80)
+            guard !Task.isCancelled else { return }
             withAnimation(.snappy) {
-                if !results.isEmpty {
-                    item.candidates = results
-                    item.selected = 0
-                    item.variant = results[0].card.variant
-                    item.status = .matched
-                }
+                results = found
                 searching = false
             }
         }
+    }
+
+    /// Chips for the sets the likely matches come from.
+    private func loadQuickSets() async {
+        await Catalog.shared.ensureLoaded()
+        let all = await Catalog.shared.setOptions()
+        var seen = Set<String>()
+        var picks: [SetOption] = []
+        for c in item.candidates {
+            guard let name = c.card.setName, seen.insert(name).inserted, let s = all.first(where: { $0.name == name }) else { continue }
+            picks.append(s)
+            if picks.count == 5 { break }
+        }
+        quickSets = picks
+    }
+}
+
+/// A candidate in the fix list: big enough art to tell printings apart at a glance.
+private struct CandidateRow: View {
+    let candidate: ScanCandidate
+    let selected: Bool
+
+    var body: some View {
+        HStack(spacing: 12) {
+            CardImage(url: candidate.card.imageURL, name: candidate.card.name, game: candidate.card.gameKind, corner: 4)
+                .frame(width: 50)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(candidate.card.name).font(.body.weight(.semibold)).lineLimit(2)
+                Text(candidate.card.subtitle).font(.footnote).foregroundStyle(.secondary).lineLimit(1)
+                if let r = candidate.card.rarity { Text(r).font(.caption).foregroundStyle(.tertiary).lineLimit(1) }
+            }
+            Spacer(minLength: 8)
+            VStack(alignment: .trailing, spacing: 4) {
+                Text(Fmt.money(candidate.card.price)).font(.subheadline.weight(.semibold).monospacedDigit())
+                if selected {
+                    Image(systemName: "checkmark.circle.fill").font(.body).foregroundStyle(Color.accentColor)
+                }
+            }
+        }
+        .padding(.vertical, 2)
+        .contentShape(Rectangle())
     }
 }
 

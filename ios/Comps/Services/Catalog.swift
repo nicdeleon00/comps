@@ -208,6 +208,35 @@ actor Catalog {
 
     /// Name / set / number search, ranked by match quality then value.
     func search(_ q: String, limit: Int = 40) -> [CardSummary] {
+        searchIndices(q, setId: nil, limit: limit).map { summary(cards[$0]) }
+    }
+
+    /// Scan review lookups: search (optionally inside one set), or with only a set,
+    /// every card in it in collector-number order.
+    func lookup(_ q: String, setId: String?, limit: Int) -> [ScanCandidate] {
+        let trimmed = q.trimmingCharacters(in: .whitespaces)
+        let found: [Int]
+        if trimmed.isEmpty, let setId {
+            found = cards.indices.filter { cards[$0].setId == setId }.sorted { numberOrder(cards[$0], cards[$1]) }
+        } else {
+            found = searchIndices(trimmed, setId: setId, limit: limit)
+        }
+        return found.prefix(limit).map { i in
+            ScanCandidate(card: summary(cards[i]), variants: variants(id: cards[i].id), score: 0.5, reason: "Search")
+        }
+    }
+
+    private func numberOrder(_ a: CatalogCard, _ b: CatalogCard) -> Bool {
+        let ka = Self.numberKey(a.number), kb = Self.numberKey(b.number)
+        let pa = String(ka.prefix { $0.isLetter }), pb = String(kb.prefix { $0.isLetter })
+        if pa != pb { return pa < pb }
+        let na = Int(ka.dropFirst(pa.count).prefix { $0.isNumber }) ?? 0
+        let nb = Int(kb.dropFirst(pb.count).prefix { $0.isNumber }) ?? 0
+        if na != nb { return na < nb }
+        return a.name < b.name
+    }
+
+    private func searchIndices(_ q: String, setId: String?, limit: Int) -> [Int] {
         let numberPattern = #"([A-Za-z]*\d+[a-z]?)\s*/\s*([A-Za-z]*\d+)"#
         var number: String?
         var text = q
@@ -217,7 +246,8 @@ actor Catalog {
         }
         let words = Similarity.normalize(text).split(separator: " ").map(String.init)
         guard !words.isEmpty || number != nil else { return [] }
-        let candidates: [Int] = number.map { byNumber[$0] ?? [] } ?? Array(cards.indices)
+        var candidates: [Int] = number.map { byNumber[$0] ?? [] } ?? Array(cards.indices)
+        if let setId { candidates = candidates.filter { cards[$0].setId == setId } }
         var scored: [(Int, Double)] = []
         for i in candidates {
             let c = cards[i]
@@ -235,7 +265,7 @@ actor Catalog {
             s += min(1.5, log10((c.prices.first?.raw ?? 0) + 1) / 2)
             scored.append((i, s))
         }
-        return scored.sorted { $0.1 > $1.1 }.prefix(limit).map { summary(cards[$0.0]) }
+        return scored.sorted { $0.1 > $1.1 }.prefix(limit).map(\.0)
     }
 
     /// Sets that have priced cards, newest first (for the scanner's set lock).

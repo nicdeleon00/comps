@@ -77,9 +77,9 @@ struct BinderPageView: View {
                 }
                 if !page.pockets.isEmpty {
                     Section {
-                        ForEach(page.pockets) { pocket in
+                        ForEach(Array(page.pockets.enumerated()), id: \.element.id) { i, pocket in
                             NavigationLink {
-                                ScanItemEditor(item: pocket.item)
+                                ScanPager(items: page.items, start: i)
                             } label: {
                                 PocketRow(item: pocket.item)
                             }
