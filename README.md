@@ -45,6 +45,30 @@ Modes:
 - **Single:** tap the shutter, confirm, add.
 - **Binder:** fit a 4-, 9- or 12-pocket page inside the guide and tap the shutter. It takes a full-resolution photo, finds each card (inferring any pocket it can't outline from the page grid), reads and matches every pocket, and shows the page with a ✓ / ? on each card. Add the whole page at once, or fix a pocket first. Tips: lay the page flat, avoid overhead glare on the sleeves, and fill the frame.
 
+## Drops (monitor on your PC)
+
+Get a notification the moment a product you're watching can be bought — an Elite Trainer Box, a booster bundle, a pre-order page.
+
+- **The monitor runs on your computer** (`monitor/`). It checks each link about every 30 seconds while the computer is on, spaces out requests to each store, and backs off when a store pushes back. It only reads pages: no logins, no auto-checkout, no getting around bot protection.
+- **Alerts go straight from your PC to your phone** as web push notifications. On iPhone they arrive through Comps added to your Home Screen (iPhone only allows instant alerts for sideloaded apps that way). Desktop Chrome/Edge/Firefox can get them too.
+- **Watch list, live status and recent drops** show on the website's **Drops** page and in the app's **Drops** tab. Everything is shared through your sync gist, using the same GitHub key as collection sync.
+
+Set up once:
+
+1. Turn on collection sync (website **Settings → Sync with iPhone**).
+2. Install [Node.js](https://nodejs.org) (LTS), download this repository as a ZIP, open the `monitor` folder and double-click `start-monitor.cmd` (Windows) or `start-monitor.command` (Mac). Paste your sync key when asked. Leave the window open.
+3. Add product links on the Drops page (website or app).
+4. On your iPhone: open the site in Safari → Share → **Add to Home Screen** → open Comps from the Home Screen → paste your sync key (copy it in the app: **Settings → Sync with computer → Copy sync key**) → **Drops → Turn on alerts**. A test alert confirms it works.
+
+| Store | How it's checked |
+|---|---|
+| Best Buy | Official Products API — reliable. Add a free key from [developer.bestbuy.com](https://developer.bestbuy.com) with `node monitor.mjs --setup`. |
+| Walmart, GameStop, Amazon, Sam's Club, Costco, most shops | The product data stores publish on the page for search engines. Works when the page loads normally from your connection. |
+| Pokémon Center | Same, but it often shows a bot check; the monitor reports "Blocked" and backs off rather than trying to get around it. |
+| Target | Not supported: Target doesn't put stock on its product pages. |
+
+`node monitor.mjs --check <link>` checks one link once and prints what it sees.
+
 ## How the numbers work
 
 **Fair value** anchors on TCGplayer's market price; Cardmarket and PriceCharting only count when they broadly agree (within −35% / +50%), so a mismatched printing can't drag it.

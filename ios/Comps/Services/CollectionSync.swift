@@ -351,6 +351,33 @@ final class CollectionSync {
         }
     }
 
+    // MARK: Shared files (Drops)
+
+    /// Raw contents of every file in the sync gist, by name.
+    func gistFiles() async throws -> [String: Data] {
+        guard let token, let gist else { throw Failure.notConnected }
+        let data = try await request("GET", "/gists/\(gist)", token: token)
+        let g = try JSONDecoder().decode(Gist.self, from: data)
+        var out: [String: Data] = [:]
+        for (name, f) in g.files {
+            if f.truncated == true, let raw = f.raw_url.flatMap(URL.init(string:)) {
+                var r = URLRequest(url: raw)
+                r.cachePolicy = .reloadIgnoringLocalCacheData
+                out[name] = try await URLSession.shared.data(for: r).0
+            } else {
+                out[name] = Data((f.content ?? "").utf8)
+            }
+        }
+        return out
+    }
+
+    /// Replaces one file in the sync gist; the other files are untouched.
+    func writeGistFile(_ name: String, data: Data) async throws {
+        guard let token, let gist else { throw Failure.notConnected }
+        let content = String(data: data, encoding: .utf8) ?? "{}"
+        _ = try await request("PATCH", "/gists/\(gist)", token: token, json: ["files": [name: ["content": content]]])
+    }
+
     // MARK: GitHub
 
     private struct GistFile: Decodable {

@@ -60,6 +60,11 @@ struct SettingsView: View {
                             HStack { Text("Sync now"); if sync.syncing { Spacer(); ProgressView() } }
                         }
                         .disabled(sync.syncing)
+                        Button {
+                            UIPasteboard.general.string = sync.token
+                            syncMessage = "Key copied — paste it into Comps on your Home Screen for drop alerts."
+                        } label: { Label("Copy sync key", systemImage: "doc.on.doc") }
+                        if let syncMessage { Text(syncMessage).font(.footnote).foregroundStyle(.secondary) }
                         Button("Stop syncing", role: .destructive) { sync.disconnect() }
                     } else {
                         Button { showPairing = true } label: { Label("Scan code from website", systemImage: "qrcode.viewfinder") }
