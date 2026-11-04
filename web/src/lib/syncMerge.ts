@@ -26,7 +26,7 @@ export const keyOf = (i: SyncItem) => [i.cardId, i.variant ?? '', i.grader ?? ''
 
 /**
  * Newest change wins per card. On a device's first sync, the same card that exists
- * on both sides under different ids (an earlier CSV import) is kept once.
+ * on both sides under different ids (added on each before signing in) is kept once.
  */
 export function merge(local: SyncItem[], remote: SyncItem[], opts: { firstSync: boolean; preferLocal: boolean; now?: number }): SyncItem[] {
   const now = opts.now ?? Date.now();

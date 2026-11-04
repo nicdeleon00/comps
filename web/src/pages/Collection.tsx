@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'preact/hooks';
-import { useData, token, STATIC, invalidate } from '../lib/api';
+import { useData, token, STATIC } from '../lib/api';
 import { Link, setHero } from '../lib/router';
 import { money, pct, signedMoney, GAME_LABEL, cardHref, cardApi } from '../lib/format';
 import type { Holding, CollectionSummary, Game } from '../lib/types';
@@ -8,26 +8,13 @@ import { AreaChart, type Pt } from '../components/Chart';
 import { Segmented, Delta, Counter, GradeBadge, Empty, SkRows } from '../components/ui';
 import { HoldingSheet } from '../components/HoldingSheet';
 import { openPalette } from '../components/Palette';
-import { IconPlus, IconStack, IconDown, IconPencil } from '../components/icons';
-import { toast } from '../components/ui';
+import { IconPlus, IconStack, IconPencil } from '../components/icons';
 import { Header } from './shared';
 import { useAccount } from '../components/Account';
 import { accountsEnabled } from '../lib/supabase';
 
 type Res = { items: Holding[]; summary: CollectionSummary };
 const GAMES: Game[] = ['pokemon', 'mtg', 'yugioh', 'sports', 'other'];
-
-function exportCsv(items: Holding[]) {
-  const head = ['name', 'set', 'number', 'game', 'variant', 'grader', 'grade', 'condition', 'quantity', 'cost_each', 'value_each', 'total', 'acquired', 'notes', 'card_id'];
-  const esc = (v: unknown) => (v == null ? '' : /[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v));
-  const rows = items.map((h) => [h.name, h.setName, h.number, h.game, h.variantResolved, h.grader, h.grade, h.condition, h.quantity, h.costBasis, h.value, h.total, h.acquiredAt, h.notes, h.cardId].map(esc).join(','));
-  const blob = new Blob([[head.join(','), ...rows].join('\n')], { type: 'text/csv' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `comps-collection-${new Date().toISOString().slice(0, 10)}.csv`;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-}
 
 export function CollectionPage() {
   const user = useAccount();
@@ -53,25 +40,10 @@ export function CollectionPage() {
   const shown = scrub?.v ?? s?.value ?? null;
   const games = s ? GAMES.filter((g) => (s.byGame[g] ?? 0) > 0) : [];
   const add = () => openPalette({ placeholder: 'Find a card to add', onPick: (c) => setSheet({ cardId: c.id }) });
-  const importFile = async (f: File | undefined) => {
-    if (!f) return;
-    const { importCsv } = await import('../lib/static');
-    const n = await importCsv(await f.text());
-    invalidate('/api/');
-    toast(`Imported ${n} card${n === 1 ? '' : 's'}`);
-  };
-  const importButton = STATIC && (
-    <label class="btn" style={{ cursor: 'pointer' }}>
-      Import CSV
-      <input type="file" accept=".csv,text/csv" hidden onChange={(e) => importFile((e.target as HTMLInputElement).files?.[0])} />
-    </label>
-  );
 
   return (
     <div class="page">
       <Header title="Collection" actions={<>
-        {importButton}
-        {data && data.items.length > 0 && <button class="btn" onClick={() => exportCsv(data.items)}><IconDown size={16} />Export</button>}
         <button class="btn primary" onClick={add}><IconPlus size={17} />Add card</button>
       </>}>
         {s && <span>{s.count} card{s.count === 1 ? '' : 's'} · {s.unique} unique{token() ? '' : ''}</span>}

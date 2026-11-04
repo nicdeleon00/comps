@@ -46,7 +46,7 @@ struct SignInSheet: View {
                         Text(error).foregroundStyle(Color.down)
                     } else {
                         Text(creating
-                             ? "Your collection, watchlist and drop alerts follow you to the website and any phone. Cards already on this phone are added to your new account."
+                             ? "Your collection, watchlist and settings follow you to the website and any phone. Cards already on this phone are added to your new account."
                              : "Use the same email and password as on the website.")
                     }
                 }
@@ -142,7 +142,7 @@ struct AccountSection: View {
         } footer: {
             if account.isEnabled {
                 Text(account.isSignedIn
-                     ? "Your collection, watchlist and drop alerts stay in step with the website and any phone signed in to this account."
+                     ? "Your collection, watchlist and settings stay in step with the website and any phone signed in to this account."
                      : "Sign in to keep your collection in your account and see it on the website.")
             }
         }

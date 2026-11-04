@@ -254,7 +254,7 @@ final class CollectionSync {
             }
             let remote = rows.map(\.item)
 
-            // 2. Merge with the phone's cards (on the first sync, copies made earlier by CSV are kept once).
+            // 2. Merge with the phone's cards (on the first sync, the same card added on both before signing in is kept once).
             let all = (try? context.fetch(FetchDescriptor<Holding>())) ?? []
             let now = Date().millis.rounded()
             let merged = SyncMerge.merge(local: all.map(\.syncItem), remote: remote, firstSync: !state.synced, preferLocal: true, now: now)

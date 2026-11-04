@@ -64,7 +64,7 @@ const REPO = (import.meta.env.VITE_REPO as string | undefined) ?? '';
 /** One account for the website and the app. */
 function AccountGroup() {
   return (
-    <Group id="account" title="Account" note="One account for the website and the iPhone app: your collection, watchlist, settings and drop alerts stay in step everywhere.">
+    <Group id="account" title="Account" note="One account for the website and the iPhone app: your collection, watchlist and settings stay in step everywhere.">
       <AccountPanel />
     </Group>
   );

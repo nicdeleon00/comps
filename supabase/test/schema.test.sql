@@ -39,36 +39,21 @@ do $$ begin if (select min(synced_at) from public.holdings) <= 0 then raise exce
 insert into public.user_data (watchlist, settings) values ('[{"cardId":"tcg:1"}]', '{"gradingFee":20}');
 do $$ begin if (select settings->>'gradingFee' from public.user_data) <> '20' then raise exception 'user_data'; end if; end $$;
 
--- Drop watch list: limited to 20 links per person, own rows only.
+-- Drop alerts were removed: their tables are gone.
+reset role;
 do $$ begin
-  for i in 1..20 loop insert into public.watch_items (url) values ('https://www.walmart.com/ip/' || i); end loop;
-  begin
-    insert into public.watch_items (url) values ('https://www.walmart.com/ip/21');
-    raise exception 'limit not enforced';
+  if to_regclass('public.watch_items') is not null or to_regclass('public.monitor_state') is not null then raise exception 'drop tables should be removed'; end if;
+end $$;
+
+-- The per-person cap still applies (shown on a small temporary table).
+create table public.cap_test (user_id uuid, n int);
+create trigger cap_test_limit before insert on public.cap_test for each row execute function public.limit_per_user('2');
+insert into public.cap_test values ('00000000-0000-0000-0000-00000000000a', 1), ('00000000-0000-0000-0000-00000000000a', 2);
+do $$ begin
+  begin insert into public.cap_test values ('00000000-0000-0000-0000-00000000000a', 3); raise exception 'limit not enforced';
   exception when check_violation then null; end;
 end $$;
-insert into public.push_devices (name, endpoint, p256dh, auth) values ('iPhone', 'https://web.push.apple.com/abc', 'k', 'a');
-do $$ begin
-  begin insert into public.drop_status (watch_id, user_id, state) select id, user_id, 'in_stock' from public.watch_items limit 1;
-        raise exception 'people must not write stock status';
-  exception when insufficient_privilege then null; end;
-end $$;
-reset role;
-
--- The monitor (service role) sees everyone's links and writes status; each person reads only theirs.
-set role service_role;
-do $$ begin if (select count(*) from public.watch_items) <> 20 then raise exception 'monitor should see all links'; end if; end $$;
-insert into public.drop_status (watch_id, user_id, state, price) select id, user_id, 'in_stock', 49.99 from public.watch_items order by added_at limit 1;
-insert into public.drop_events (user_id, watch_id, at, state, url) select user_id, id, 1, 'in_stock', url from public.watch_items limit 1;
-insert into public.monitor_state (id, seen_at, vapid_public_key) values (1, 1, 'BKey') on conflict (id) do update set seen_at = excluded.seen_at;
-reset role;
-select pg_temp.as_user('00000000-0000-0000-0000-00000000000b');
-do $$ begin if (select count(*) from public.drop_status) + (select count(*) from public.drop_events) + (select count(*) from public.watch_items) <> 0 then raise exception 'B sees A''s drops'; end if; end $$;
-do $$ begin if (select vapid_public_key from public.monitor_state) <> 'BKey' then raise exception 'monitor key should be readable'; end if; end $$;
-reset role;
-select pg_temp.as_user('00000000-0000-0000-0000-00000000000a');
-do $$ begin if (select count(*) from public.drop_status) <> 1 then raise exception 'A should see their status'; end if; end $$;
-reset role;
+drop table public.cap_test;
 
 -- Signed-out visitors see nothing.
 set role anon;

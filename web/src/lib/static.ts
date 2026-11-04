@@ -315,36 +315,3 @@ export async function staticRequest(method: string, url: string, body?: any): Pr
   }
   throw Object.assign(new Error('Not available on the hosted site'), { status: 404 });
 }
-
-/** Imports the iPhone app's CSV export into this browser's collection. */
-export async function importCsv(text: string) {
-  const lines = text.split(/\r?\n/).filter(Boolean);
-  const head = lines.shift()?.split(',') ?? [];
-  const col = (name: string) => head.indexOf(name);
-  const parse = (line: string) => {
-    const out: string[] = [];
-    let cur = '';
-    let quoted = false;
-    for (let i = 0; i < line.length; i++) {
-      const ch = line[i];
-      if (quoted) { if (ch === '"' && line[i + 1] === '"') { cur += '"'; i++; } else if (ch === '"') quoted = false; else cur += ch; }
-      else if (ch === '"') quoted = true;
-      else if (ch === ',') { out.push(cur); cur = ''; }
-      else cur += ch;
-    }
-    out.push(cur);
-    return out;
-  };
-  let n = 0;
-  for (const line of lines) {
-    const f = parse(line);
-    const cardId = f[col('card_id')];
-    if (!cardId) continue;
-    await staticRequest('POST', '/api/collection', {
-      cardId, variant: f[col('variant')] || null, grader: f[col('grader')] || null, grade: f[col('grade')] || null, condition: f[col('condition')] || 'NM',
-      quantity: Number(f[col('quantity')]) || 1, costBasis: f[col('cost_each')] ? Number(f[col('cost_each')]) : null,
-    });
-    n++;
-  }
-  return n;
-}

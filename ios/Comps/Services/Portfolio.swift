@@ -85,24 +85,4 @@ enum Portfolio {
         snapshot(context: context)
         CollectionSync.shared.syncSoon(context)
     }
-
-    /// CSV the website can import (Collection → Import CSV).
-    static func csv(_ holdings: [Holding]) -> URL? {
-        func esc(_ v: String?) -> String {
-            guard let v else { return "" }
-            return v.contains(where: { $0 == "," || $0 == "\"" || $0 == "\n" }) ? "\"\(v.replacingOccurrences(of: "\"", with: "\"\""))\"" : v
-        }
-        var lines = ["name,set,number,game,variant,grader,grade,condition,quantity,cost_each,value_each,card_id"]
-        for h in holdings {
-            lines.append([esc(h.name), esc(h.setName), esc(h.number), h.game, esc(h.variant), esc(h.grader), esc(h.grade), h.condition,
-                          String(h.quantity), h.costBasis.map { String(format: "%.2f", $0) } ?? "", h.unitValue.map { String(format: "%.2f", $0) } ?? "", esc(h.cardID)].joined(separator: ","))
-        }
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("comps-collection-\(Fmt.day()).csv")
-        do {
-            try lines.joined(separator: "\n").write(to: url, atomically: true, encoding: .utf8)
-            return url
-        } catch {
-            return nil
-        }
-    }
 }

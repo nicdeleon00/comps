@@ -7,7 +7,7 @@ import { useData, setToken, invalidate, STATIC } from './lib/api';
 import { startSync } from './lib/sync';
 import { ago, num } from './lib/format';
 import type { Status } from './lib/types';
-import { Mark, IconMarket, IconTag, IconSlab, IconStack, IconStar, IconGear, IconSearch, IconBinder, IconBolt, IconX, IconBack } from './components/icons';
+import { Mark, IconMarket, IconTag, IconSlab, IconStack, IconStar, IconGear, IconSearch, IconBinder, IconX, IconBack } from './components/icons';
 import { Palette, openPalette, type PaletteOpts } from './components/Palette';
 import { Sheet, Field } from './components/ui';
 import { MarketPage, lastRefresh } from './pages/Market';
@@ -18,8 +18,6 @@ import { CollectionPage } from './pages/Collection';
 import { WatchlistPage } from './pages/Watchlist';
 import { SettingsPage } from './pages/Settings';
 import { SetsPage, SetPage } from './pages/Sets';
-import { DropsPage } from './pages/Drops';
-import { registerWorker } from './lib/drops';
 import { useAccount } from './components/Account';
 import { accountsEnabled } from './lib/supabase';
 
@@ -27,7 +25,6 @@ const NAV = [
   { href: '/', label: 'Market', short: 'Market', icon: IconMarket, tab: true },
   { href: '/deals', label: 'Deals', short: 'Deals', icon: IconTag, count: 'deals' as const, tab: true },
   { href: '/grading', label: 'Raw to Graded', short: 'Grading', icon: IconSlab, count: 'spreads' as const, tab: false },
-  { href: '/drops', label: 'Drops', short: 'Drops', icon: IconBolt, tab: true },
   { href: '/sets', label: 'Sets', short: 'Sets', icon: IconBinder, tab: true },
   { href: '/collection', label: 'Collection', short: 'Collection', icon: IconStack, count: 'holdings' as const, tab: true },
   { href: '/watchlist', label: 'Watchlist', short: 'Watchlist', icon: IconStar, tab: false },
@@ -39,7 +36,6 @@ function route(path: string, panel = false) {
   if (path === '/grading') return { title: 'Raw to Graded', el: <GradingPage /> };
   if (path === '/collection') return { title: 'Collection', el: <CollectionPage /> };
   if (path === '/watchlist') return { title: 'Watchlist', el: <WatchlistPage /> };
-  if (path === '/drops') return { title: 'Drops', el: <DropsPage /> };
   if (path === '/settings') return { title: 'Settings', el: <SettingsPage /> };
   if (path === '/sets') return { title: 'Sets', el: <SetsPage /> };
   const set = /^\/sets\/([^/]+)$/.exec(path);
@@ -107,7 +103,7 @@ function CardPanel({ children }: { children: preact.ComponentChildren }) {
   );
 }
 
-const TOP_LEVEL = new Set(['/', '/deals', '/grading', '/drops', '/sets', '/collection']);
+const TOP_LEVEL = new Set(['/', '/deals', '/grading', '/sets', '/collection']);
 const parentOf = (path: string) => (path.startsWith('/sets/') ? '/sets' : '/');
 
 function App() {
@@ -195,6 +191,6 @@ render(<App />, document.getElementById('app')!);
 // Keep the collection in step with the iPhone app (when sync is set up in Settings).
 if (STATIC) {
   startSync();
-  // Shows drop alerts from the monitor on your PC (Drops → Turn on alerts).
-  registerWorker();
+  // Drop alerts were removed; retire the service worker they used (and its push subscription).
+  navigator.serviceWorker?.getRegistrations().then((rs) => rs.forEach((r) => r.unregister())).catch(() => {});
 }

@@ -48,39 +48,15 @@ Modes:
 
 ## Accounts
 
-Anyone can create an account (email + password) on the website or in the app. Each person's collection, card watchlist, settings, drop links and alert devices are their own and follow them everywhere. Accounts run on a free [Supabase](https://supabase.com) project; set it up once:
+Anyone can create an account (email + password) on the website or in the app. Each person's collection, card watchlist and settings are their own and follow them everywhere. Accounts run on a free [Supabase](https://supabase.com) project; set it up once:
 
 1. Create a free project at supabase.com.
 2. **Authentication → Sign In / Providers → Email:** turn off **Confirm email** (Supabase's free email sender only reaches project members).
 3. **Authentication → URL Configuration:** Site URL = your site (e.g. `https://you.github.io/comps/`).
 4. **SQL Editor:** paste [`supabase/schema.sql`](supabase/schema.sql) and run it (safe to run again after updates).
-5. **Project Settings → API:** add the **Project URL** and **anon public** key to this repository as Actions **variables** `SUPABASE_URL` and `SUPABASE_ANON_KEY`. Both are public by design; row-level security keeps each person's data private. Keep the **service_role** key secret — only the drop monitor uses it.
+5. **Project Settings → API:** add the **Project URL** and **anon public** key to this repository as Actions **variables** `SUPABASE_URL` and `SUPABASE_ANON_KEY`. Both are public by design; row-level security keeps each person's data private. Keep the **service_role** key secret; nothing here needs it.
 
 The next website build turns accounts on, and each price refresh keeps the free project from pausing.
-
-## Drops (monitor on your PC)
-
-Get a notification the moment a product you're watching can be bought — an Elite Trainer Box, a booster bundle, a pre-order page.
-
-- **One monitor serves everyone.** It runs on the site owner's computer (`monitor/`), reads every account's links (20 per person), checks each unique link about every 30 seconds while the computer is on, spaces out requests to each store, and backs off when a store pushes back. It only reads pages: no logins, no auto-checkout, no getting around bot protection.
-- **Alerts go straight from that PC to each person's devices** as web push notifications — only to the people watching that product, and only within their max price. On iPhone they arrive through Comps added to the Home Screen (iPhone only allows instant alerts for sideloaded apps that way). Desktop Chrome/Edge/Firefox can get them too.
-- **Watch list, live status and recent drops** show on the website's **Drops** page and in the app's **Drops** tab.
-
-Run the monitor (site owner):
-
-1. Install [Node.js](https://nodejs.org) (LTS), download this repository as a ZIP, open the `monitor` folder and double-click `start-monitor.cmd` (Windows) or `start-monitor.command` (Mac).
-2. Paste your Supabase **Project URL** and **service_role** key when asked. Leave the window open.
-
-Get alerts on an iPhone: open the site in Safari → Share → **Add to Home Screen** → open Comps from the Home Screen → sign in → **Drops → Turn on alerts**. A test alert confirms it works.
-
-| Store | How it's checked |
-|---|---|
-| Best Buy | Official Products API — reliable. Add a free key from [developer.bestbuy.com](https://developer.bestbuy.com) with `node monitor.mjs --setup`. |
-| Walmart, GameStop, Amazon, Sam's Club, Costco, most shops | The product data stores publish on the page for search engines. Works when the page loads normally from your connection. |
-| Pokémon Center | Same, but it often shows a bot check; the monitor reports "Blocked" and backs off rather than trying to get around it. |
-| Target | Not supported: Target doesn't put stock on its product pages. |
-
-`node monitor.mjs --check <link>` checks one link once and prints what it sees.
 
 ## How the numbers work
 

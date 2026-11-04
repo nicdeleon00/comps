@@ -57,7 +57,7 @@ function SignInForm() {
         <button type="button" role="tab" aria-selected={mode === 'up'} class={mode === 'up' ? 'on' : ''} onClick={() => { setMode('up'); setErr(''); }}>Create account</button>
       </div>
       <p class="g-desc">{mode === 'up'
-        ? 'Your collection, watchlist and drop alerts follow you to every device — the website and the iPhone app. Cards already in this browser are added to your new account.'
+        ? 'Your collection, watchlist and settings follow you to every device — the website and the iPhone app. Cards already in this browser are added to your new account.'
         : 'Use the same email and password as in the iPhone app.'}</p>
       <input class="input" type="email" autocomplete="email" placeholder="Email" value={email} required onInput={(e) => setEmail((e.target as HTMLInputElement).value)} aria-label="Email" />
       <input class="input" type="password" autocomplete={mode === 'up' ? 'new-password' : 'current-password'} placeholder={mode === 'up' ? 'Password (6+ characters)' : 'Password'} minLength={6} value={password} required

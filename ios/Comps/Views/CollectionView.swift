@@ -15,7 +15,6 @@ struct CollectionView: View {
     @State private var refreshing = false
     @State private var editing: Holding?
     @State private var showSettings = false
-    @State private var csvURL: URL?
     var onScan: () -> Void
 
     enum Filter: String, CaseIterable { case all = "All", raw = "Raw", graded = "Graded" }
@@ -81,9 +80,6 @@ struct CollectionView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
                         Picker("Sort", selection: $sort) { ForEach(Sort.allCases, id: \.self) { Text($0.rawValue).tag($0) } }
-                        if let csvURL {
-                            ShareLink(item: csvURL) { Label("Export CSV", systemImage: "square.and.arrow.up") }
-                        }
                     } label: { Image(systemName: "line.3.horizontal.decrease.circle") }
                 }
             }
@@ -199,7 +195,6 @@ struct CollectionView: View {
         refreshing = true
         defer { refreshing = false }
         await Portfolio.refreshPrices(context: context)
-        csvURL = Portfolio.csv(holdings)
     }
 }
 

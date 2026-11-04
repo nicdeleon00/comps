@@ -8,5 +8,5 @@ ios/build/
 xcuserdata/
 DerivedData/
 
-# Drop monitor settings (holds your GitHub key)
+# Settings from the old drop monitor held secret keys; never commit them
 monitor/config.json

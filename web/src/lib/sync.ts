@@ -127,7 +127,7 @@ export function syncNow(): Promise<void> {
       const localRaw = LS.get<Local[]>('holdings', []);
       const local = localRaw.map(toItem);
 
-      // 2. Merge (on the first sync, cards copied over earlier by CSV are kept once).
+      // 2. Merge (on the first sync, the same card added on both before signing in is kept once).
       const merged = merge(local, remote, { firstSync: !s.synced, preferLocal: false });
       const remoteById = new Map(remote.map((r) => [r.id.toLowerCase(), r]));
       const toPush = merged.filter((m) => {
@@ -199,27 +199,9 @@ async function syncUserData(s: State): Promise<boolean> {
   return false;
 }
 
-/** Earlier versions synced through a GitHub gist; bring its drop links over once, then forget it. */
+/** Earlier versions synced through a GitHub gist; forget its token. */
 async function migrateLegacyGist() {
-  const legacy = LS.get<{ token?: string; gist?: string }>('sync', {});
-  if (!legacy.token || !legacy.gist) return;
-  try {
-    const res = await fetch(`https://api.github.com/gists/${legacy.gist}`, { headers: { Authorization: `Bearer ${legacy.token}`, Accept: 'application/vnd.github+json' }, cache: 'no-store' });
-    if (res.ok) {
-      const g = await res.json();
-      const drops = JSON.parse(g.files?.['comps-drops.json']?.content ?? '{}');
-      const watch = (drops.watch ?? []).filter((w: any) => /^https?:\/\//.test(w.url ?? '')).slice(0, 20);
-      if (watch.length) {
-        await rest('watch_items?on_conflict=user_id,url', {
-          method: 'POST',
-          headers: { Prefer: 'resolution=ignore-duplicates,return=minimal' },
-          body: JSON.stringify(watch.map((w: any) => ({ url: w.url, name: w.name ?? null, max_price: w.maxPrice ?? null }))),
-        });
-      }
-    }
-  } finally {
-    LS.del('sync');
-  }
+  LS.del('sync');
 }
 
 /** Signing out removes this account's copy from the browser (it's safe in the account). */

@@ -66,7 +66,7 @@ enum SyncMerge {
     }
 
     /// On a device's first sync, the same card that exists on both sides under
-    /// different ids (an earlier CSV import) is kept once.
+    /// different ids (added on each before signing in) is kept once.
     static func merge(local: [SyncItem], remote: [SyncItem], firstSync: Bool, preferLocal: Bool, now: Double) -> [SyncItem] {
         func norm(_ i: SyncItem) -> SyncItem { var x = i; x.id = i.id.lowercased(); return x }
         let L = local.map(norm), R = remote.map(norm)

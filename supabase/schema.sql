@@ -1,10 +1,8 @@
 -- Comps accounts — paste this whole file into Supabase → SQL Editor → Run.
 -- Safe to run again (it only adds what's missing and refreshes functions/policies).
 --
--- Everyone who signs up gets their own collection, card watchlist, settings,
--- drop watch list and alert devices. Row-level security makes each row
--- visible only to its owner. The drop monitor on your PC uses the
--- service_role key to read everyone's watch lists and write stock status.
+-- Everyone who signs up gets their own collection, card watchlist and
+-- settings. Row-level security makes each row visible only to its owner.
 
 -- ---------------------------------------------------------------- helpers
 create or replace function public.now_ms() returns bigint
@@ -14,7 +12,7 @@ create or replace function public.now_ms() returns bigint
 create or replace function public.touch_synced_at() returns trigger
   language plpgsql as $$ begin new.synced_at := public.now_ms(); return new; end $$;
 
--- Per-person caps keep the free database small and the PC monitor fair.
+-- Per-person caps keep the free database small.
 create or replace function public.limit_per_user() returns trigger
   language plpgsql security definer set search_path = public as $$
 declare n integer;
@@ -99,87 +97,9 @@ drop policy if exists "own data" on public.user_data;
 create policy "own data" on public.user_data for all to authenticated
   using (user_id = auth.uid()) with check (user_id = auth.uid());
 
--- ---------------------------------------------------------------- drops
-create table if not exists public.watch_items (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid not null default auth.uid() references auth.users (id) on delete cascade,
-  url text not null check (url ~* '^https?://' and length(url) <= 1000),
-  name text check (name is null or length(name) <= 200),
-  max_price numeric check (max_price is null or max_price > 0),
-  added_at bigint not null default public.now_ms(),
-  unique (user_id, url)
-);
-drop trigger if exists watch_items_limit on public.watch_items;
-create trigger watch_items_limit before insert on public.watch_items
-  for each row execute function public.limit_per_user('20');
-alter table public.watch_items enable row level security;
-drop policy if exists "own watch items" on public.watch_items;
-create policy "own watch items" on public.watch_items for all to authenticated
-  using (user_id = auth.uid()) with check (user_id = auth.uid());
-
-create table if not exists public.push_devices (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid not null default auth.uid() references auth.users (id) on delete cascade,
-  name text,
-  endpoint text not null check (endpoint ~* '^https://'),
-  p256dh text not null,
-  auth text not null,
-  added_at bigint not null default public.now_ms(),
-  unique (user_id, endpoint)
-);
-drop trigger if exists push_devices_limit on public.push_devices;
-create trigger push_devices_limit before insert on public.push_devices
-  for each row execute function public.limit_per_user('10');
-alter table public.push_devices enable row level security;
-drop policy if exists "own devices" on public.push_devices;
-create policy "own devices" on public.push_devices for all to authenticated
-  using (user_id = auth.uid()) with check (user_id = auth.uid());
-
--- Written only by the PC monitor (service_role); each person reads their own.
-create table if not exists public.drop_status (
-  watch_id uuid primary key references public.watch_items (id) on delete cascade,
-  user_id uuid not null references auth.users (id) on delete cascade,
-  state text not null,
-  price numeric,
-  title text,
-  store text,
-  note text,
-  checked_at bigint,
-  changed_at bigint
-);
-alter table public.drop_status enable row level security;
-drop policy if exists "read own status" on public.drop_status;
-create policy "read own status" on public.drop_status for select to authenticated using (user_id = auth.uid());
-
-create table if not exists public.drop_events (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references auth.users (id) on delete cascade,
-  watch_id uuid references public.watch_items (id) on delete set null,
-  at bigint not null,
-  state text not null,
-  price numeric,
-  title text,
-  url text not null,
-  store text
-);
-create index if not exists drop_events_user_at on public.drop_events (user_id, at desc);
-alter table public.drop_events enable row level security;
-drop policy if exists "read own events" on public.drop_events;
-create policy "read own events" on public.drop_events for select to authenticated using (user_id = auth.uid());
-
--- The monitor's heartbeat and the public key phones subscribe to alerts with.
-create table if not exists public.monitor_state (
-  id integer primary key default 1 check (id = 1),
-  seen_at bigint,
-  started_at bigint,
-  interval_s integer,
-  vapid_public_key text,
-  version text,
-  watching integer
-);
-alter table public.monitor_state enable row level security;
-drop policy if exists "anyone signed in can read" on public.monitor_state;
-create policy "anyone signed in can read" on public.monitor_state for select to authenticated using (true);
+-- ---------------------------------------------------------------- removed features
+-- Drop alerts were taken out; running this file again clears what they stored.
+drop table if exists public.drop_events, public.drop_status, public.push_devices, public.watch_items, public.monitor_state;
 
 -- Lets the price-refresh job show the project is in use (free projects pause after a week idle).
 create or replace function public.keepalive() returns bigint language sql stable as $$ select public.now_ms() $$;

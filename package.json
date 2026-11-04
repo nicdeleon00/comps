@@ -12,7 +12,6 @@
     "demo": "COMPS_DEMO=1 DATA_DIR=./data-demo node --disable-warning=ExperimentalWarning server/src/index.js",
     "dev": "npm --prefix web run dev",
     "build": "npm --prefix web install && npm --prefix web run build",
-    "test": "node --disable-warning=ExperimentalWarning --test server/test/*.test.js",
-    "monitor": "node monitor/monitor.mjs"
+    "test": "node --disable-warning=ExperimentalWarning --test server/test/*.test.js"
   }
 }
