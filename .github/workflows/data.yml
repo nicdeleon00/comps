@@ -103,7 +103,10 @@ jobs:
         run: |
           curl -fsS -X POST "${SUPABASE_URL%/}/rest/v1/rpc/keepalive" -H "apikey: ${SUPABASE_ANON_KEY}" \
             -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" -H "Content-Type: application/json" -d '{}' -o /dev/null \
-            && echo "Supabase is awake" || echo "::warning::Couldn't reach Supabase (has supabase/schema.sql been run?)"
+            && echo "Supabase is awake (accounts database is set up)" || echo "::warning::Couldn't reach Supabase (has supabase/schema.sql been run?)"
+          # Sign-up settings, for a quick health check in the log.
+          curl -fsS "${SUPABASE_URL%/}/auth/v1/settings" -H "apikey: ${SUPABASE_ANON_KEY}" \
+            | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s);console.log(`Sign-ups ${j.disable_signup?"OFF":"open"} · email confirmation ${j.mailer_autoconfirm?"off (instant sign-up)":"ON — turn off Confirm email in Supabase"}`)})' || true
 
       - name: Keep the schedule alive
         # GitHub pauses scheduled workflows after 60 days without commits.
