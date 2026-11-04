@@ -32,7 +32,10 @@ async function main() {
     if (due) await jobs.runCatalog();
     else log.info(`catalog refreshed ${Math.round((Date.now() - last) / 3600_000)}h ago — skipping, recomputing only`);
     await jobs.runListings();
-    if (!due) jobs.recompute();
+    if (!due) {
+      await jobs.runGraded();
+      jobs.recompute();
+    }
     const failed = db.all(`SELECT name, message FROM jobs WHERE status = 'error'`);
     for (const f of failed) log.warn(`job ${f.name} failed: ${f.message}`);
     const n = db.get('SELECT COUNT(*) n FROM valuations').n;

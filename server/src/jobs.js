@@ -51,10 +51,16 @@ export function createJobs(db, settings) {
     if (s.pricechartingToken) await step('pricecharting', (p) => refreshPriceCharting(db, s, p));
     // Value first so the graded and EU steps know which cards matter most.
     await step('valuations', () => recompute());
-    if (s.pptApiKey) await step('graded', (p) => refreshGraded(db, settings.get(), p));
+    await runGraded();
     await step('europe', (p) => refreshTcgdex(db, settings.get(), p));
     await step('valuations', () => recompute());
     compactHistory(db);
+  }
+
+  /** Graded lookups have their own daily budget, so they run on every refresh (even when prices are fresh). */
+  async function runGraded() {
+    const s = settings.get();
+    if (s.pptApiKey) await step('graded', (p) => refreshGraded(db, settings.get(), p));
   }
 
   async function runListings() {
@@ -74,6 +80,7 @@ export function createJobs(db, settings) {
   return {
     recompute,
     runCatalog,
+    runGraded,
     runListings,
     get running() { return running; },
     trigger(what = 'all') {
