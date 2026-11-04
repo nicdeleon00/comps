@@ -1,29 +1,34 @@
-// Collection sync between this browser and the iPhone app, through a secret
-// gist on the owner's GitHub account. Both sides keep a full copy; each sync
-// pulls the gist, merges (newest change wins per card, deletions are kept as
-// tombstones for 90 days) and pushes back only when something changed.
+// Keeps this browser's collection, card watchlist and settings in step with your
+// account — and so with the iPhone app. Each sync downloads only what changed on
+// the server since last time, merges (newest change wins per card; deletions
+// travel as tombstones), and saves this browser's own changes back.
 
 import { invalidate } from './api';
-import { merge, differs, type SyncItem } from './syncMerge';
+import { merge, type SyncItem } from './syncMerge';
+import { accountsEnabled, currentUser, onAuth, rest, rpc } from './supabase';
 
 export type { SyncItem };
 
-type SyncFile = { v: 1; updatedAt: number; items: SyncItem[] };
-type State = { token?: string; gist?: string; last?: number; synced?: boolean; error?: string; count?: number };
+type State = {
+  userId?: string;
+  cursor?: number;      // newest server change time seen
+  synced?: boolean;     // first sync for this account done on this browser
+  last?: number;
+  error?: string;
+  count?: number;
+  dirty?: string[];     // cards changed here since the last sync
+  dataAt?: number;      // watchlist/settings last changed here
+  dataSyncedAt?: number;
+};
 
-export const SYNC_FILE = 'comps-collection.json';
-const API = 'https://api.github.com';
-export const TOKEN_URL = 'https://github.com/settings/tokens/new?scopes=gist&description=Comps%20collection%20sync';
-
-// ---------------------------------------------------------------- state
-const STATE_KEY = 'comps.sync';
+const STATE_KEY = 'comps.account.sync';
 const listeners = new Set<() => void>();
 
 export function syncState(): State {
   try { return JSON.parse(localStorage.getItem(STATE_KEY) ?? '{}') as State; } catch { return {}; }
 }
-function setState(patch: Partial<State>) {
-  const next = { ...syncState(), ...patch };
+function setState(patch: Partial<State> | null) {
+  const next = patch ? { ...syncState(), ...patch } : {};
   try { localStorage.setItem(STATE_KEY, JSON.stringify(next)); } catch {}
   listeners.forEach((l) => l());
 }
@@ -31,17 +36,30 @@ export function onSync(l: () => void) {
   listeners.add(l);
   return () => { listeners.delete(l); };
 }
-export const isConnected = () => Boolean(syncState().token && syncState().gist);
-export const pairLink = (s: State = syncState()) => `comps://sync?token=${encodeURIComponent(s.token ?? '')}&gist=${encodeURIComponent(s.gist ?? '')}`;
 
-// ---------------------------------------------------------------- this browser's collection (same storage as static.ts)
+/** Called by the collection store when cards are added, edited or removed here. */
+export function markDirty(ids: string[]) {
+  const s = syncState();
+  setState({ dirty: [...new Set([...(s.dirty ?? []), ...ids])] });
+  syncSoon();
+}
+/** Called when the card watchlist or settings change here. */
+export function markDataChanged() {
+  setState({ dataAt: Date.now() });
+  syncSoon();
+}
+
+// ---------------------------------------------------------------- local storage (shared with static.ts)
 type Local = {
   id: string; cardId: string; game: string; name: string; setName: string | null; number: string | null; image: string | null;
   variant: string | null; grader: string | null; grade: string | null; condition: string; quantity: number; costBasis: number | null;
   acquiredAt: string | null; notes: string | null; createdAt: number; updatedAt: number; deleted?: boolean;
 };
-const readLocal = (): Local[] => { try { return JSON.parse(localStorage.getItem('comps.holdings') ?? '[]'); } catch { return []; } };
-const writeLocal = (list: Local[]) => { try { localStorage.setItem('comps.holdings', JSON.stringify(list)); } catch {} };
+const LS = {
+  get<T>(k: string, d: T): T { try { const v = localStorage.getItem(`comps.${k}`); return v ? (JSON.parse(v) as T) : d; } catch { return d; } },
+  set(k: string, v: unknown) { try { localStorage.setItem(`comps.${k}`, JSON.stringify(v)); } catch {} },
+  del(k: string) { try { localStorage.removeItem(`comps.${k}`); } catch {} },
+};
 
 const toItem = (h: Local): SyncItem => ({
   id: h.id, cardId: h.cardId, name: h.name, set: h.setName, number: h.number, image: h.image, variant: h.variant, grader: h.grader, grade: h.grade,
@@ -55,120 +73,83 @@ const fromItem = (i: SyncItem): Local => ({
   ...(i.deleted ? { deleted: true } : {}),
 });
 
-// ---------------------------------------------------------------- GitHub
-class SyncError extends Error {
-  constructor(public kind: 'auth' | 'http' | 'network' | 'missing', message: string) { super(message); }
-}
+type Row = {
+  id: string; card_id: string; name: string; set_name: string | null; number: string | null; image: string | null; variant: string | null;
+  grader: string | null; grade: string | null; condition: string; quantity: number; cost: number | string | null; acquired_at: string | null;
+  notes: string | null; created_at: number | null; updated_at: number; deleted: boolean; synced_at: number;
+};
+const fromRow = (r: Row): SyncItem => ({
+  id: r.id, cardId: r.card_id, name: r.name, set: r.set_name, number: r.number, image: r.image, variant: r.variant, grader: r.grader, grade: r.grade,
+  condition: r.condition || 'NM', quantity: r.quantity, cost: r.cost == null ? null : Number(r.cost), acquiredAt: r.acquired_at, notes: r.notes,
+  createdAt: r.created_at == null ? undefined : Number(r.created_at), updatedAt: Number(r.updated_at), ...(r.deleted ? { deleted: true } : {}),
+});
+const toRow = (i: SyncItem) => ({
+  id: i.id, card_id: i.cardId, name: i.name, set_name: i.set ?? null, number: i.number ?? null, image: i.image ?? null, variant: i.variant ?? null,
+  grader: i.grader ?? null, grade: i.grade ?? null, condition: i.condition || 'NM', quantity: i.quantity || 1, cost: i.cost ?? null,
+  acquired_at: i.acquiredAt ?? null, notes: i.notes ?? null, created_at: i.createdAt ?? null, updated_at: i.updatedAt, deleted: Boolean(i.deleted),
+});
 
-/** GitHub REST call with the sync key (also used by the Drops page). */
-export async function gh<T>(token: string, path: string, init: RequestInit = {}): Promise<T> {
-  let res: Response;
-  try {
-    res = await fetch(API + path, {
-      ...init,
-      cache: 'no-store',
-      headers: {
-        Accept: 'application/vnd.github+json',
-        Authorization: `Bearer ${token}`,
-        'X-GitHub-Api-Version': '2022-11-28',
-        ...(init.body ? { 'Content-Type': 'application/json' } : {}),
-      },
-    });
-  } catch {
-    throw new SyncError('network', "Couldn't reach GitHub");
-  }
-  if (res.status === 401) throw new SyncError('auth', 'The GitHub key was revoked or expired. Connect again with a new key.');
-  if (res.status === 403 && res.headers.get('x-ratelimit-remaining') === '0') throw new SyncError('http', 'GitHub rate limit reached; trying again shortly.');
-  if (res.status === 403) throw new SyncError('auth', 'The GitHub key needs the “gist” permission.');
-  if (res.status === 404) throw new SyncError('missing', 'Not found');
-  if (!res.ok) throw new SyncError('http', `GitHub answered ${res.status}`);
-  return res.json() as Promise<T>;
-}
+const sameList = (a: SyncItem[], b: SyncItem[]) => {
+  if (a.length !== b.length) return false;
+  const m = new Map(b.map((x) => [x.id.toLowerCase(), x]));
+  return a.every((x) => { const y = m.get(x.id.toLowerCase()); return y && y.updatedAt === x.updatedAt && Boolean(y.deleted) === Boolean(x.deleted); });
+};
 
-type Gist = { id: string; files: Record<string, { content?: string; truncated?: boolean; raw_url?: string }> };
-
-const emptyFile = (): SyncFile => ({ v: 1, updatedAt: Date.now(), items: [] });
-
-async function findOrCreateGist(token: string): Promise<string> {
-  for (let page = 1; page <= 5; page++) {
-    const list = await gh<Gist[]>(token, `/gists?per_page=100&page=${page}`);
-    const hit = list.find((g) => g.files && SYNC_FILE in g.files);
-    if (hit) return hit.id;
-    if (list.length < 100) break;
-  }
-  const created = await gh<Gist>(token, '/gists', {
-    method: 'POST',
-    body: JSON.stringify({ description: 'Comps collection — synced by the Comps app and website', public: false, files: { [SYNC_FILE]: { content: JSON.stringify(emptyFile()) } } }),
-  });
-  return created.id;
-}
-
-async function readGist(token: string, id: string): Promise<SyncFile> {
-  const g = await gh<Gist>(token, `/gists/${id}`);
-  const f = g.files[SYNC_FILE];
-  if (!f) return emptyFile();
-  let text = f.content ?? '';
-  if (f.truncated && f.raw_url) text = await (await fetch(f.raw_url, { cache: 'no-store' })).text();
-  try {
-    const parsed = JSON.parse(text) as SyncFile;
-    return { v: 1, updatedAt: parsed.updatedAt ?? 0, items: Array.isArray(parsed.items) ? parsed.items : [] };
-  } catch {
-    return emptyFile();
-  }
-}
-
-async function writeGist(token: string, id: string, items: SyncItem[]) {
-  const file: SyncFile = { v: 1, updatedAt: Date.now(), items };
-  await gh(token, `/gists/${id}`, { method: 'PATCH', body: JSON.stringify({ files: { [SYNC_FILE]: { content: JSON.stringify(file) } } }) });
-}
-
-// ---------------------------------------------------------------- public API
+// ---------------------------------------------------------------- sync
 let running: Promise<void> | null = null;
-
-/** Connects with a GitHub key that has the gist permission. Finds or creates the sync gist, then syncs. */
-export async function connect(token: string, gist?: string) {
-  const t = token.trim();
-  let id: string;
-  try {
-    id = gist || (await findOrCreateGist(t));
-  } catch (e) {
-    throw new Error(e instanceof SyncError && e.kind === 'missing' ? 'That key can’t use gists. Create it with the “gist” box ticked.' : (e as Error).message);
-  }
-  setState({ token: t, gist: id, synced: false, error: undefined });
-  await syncNow();
-  const s = syncState();
-  if (s.error) throw new Error(s.error);
-}
-
-export function disconnect() {
-  try { localStorage.removeItem(STATE_KEY); } catch {}
-  listeners.forEach((l) => l());
-}
 
 export function syncNow(): Promise<void> {
   if (running) return running;
   running = (async () => {
+    const user = currentUser();
+    if (!accountsEnabled || !user) return;
     let s = syncState();
-    if (!s.token || !s.gist) return;
+    if (s.userId !== user.id) {
+      // First time this account syncs in this browser: what's here gets merged in.
+      setState(null);
+      setState({ userId: user.id });
+      s = syncState();
+    }
+    const dirtyAtStart = new Set(s.dirty ?? []);
     try {
-      let remote: SyncFile;
-      try {
-        remote = await readGist(s.token, s.gist);
-      } catch (e) {
-        // The gist was deleted on GitHub: start a new one from this browser's copy.
-        if (!(e instanceof SyncError) || e.kind !== 'missing') throw e;
-        setState({ gist: await findOrCreateGist(s.token) });
-        s = syncState();
-        remote = await readGist(s.token!, s.gist!);
+      if (!s.synced) await migrateLegacyGist().catch(() => {});
+
+      // 1. What changed on the server (a 5 s overlap guards against slow commits).
+      const rows: Row[] = [];
+      let after = Math.max(0, (s.cursor ?? 0) - 5000);
+      for (;;) {
+        const page = await rest<Row[]>(`holdings?select=*&synced_at=gt.${after}&order=synced_at.asc&limit=1000`);
+        rows.push(...page);
+        if (page.length < 1000) break;
+        after = Number(page[page.length - 1].synced_at);
       }
-      const localRaw = readLocal();
-      const merged = merge(localRaw.map(toItem), remote.items, { firstSync: !s.synced, preferLocal: false });
-      const next = merged.map(fromItem);
-      const changedHere = differs(merged, localRaw.map(toItem));
-      if (changedHere) writeLocal(next);
-      if (differs(merged, remote.items)) await writeGist(s.token!, s.gist!, merged);
-      setState({ last: Date.now(), synced: true, error: undefined, count: merged.filter((i) => !i.deleted).length });
-      if (changedHere) invalidate('/api/');
+      const remote = rows.map(fromRow);
+      const localRaw = LS.get<Local[]>('holdings', []);
+      const local = localRaw.map(toItem);
+
+      // 2. Merge (on the first sync, cards copied over earlier by CSV are kept once).
+      const merged = merge(local, remote, { firstSync: !s.synced, preferLocal: false });
+      const remoteById = new Map(remote.map((r) => [r.id.toLowerCase(), r]));
+      const toPush = merged.filter((m) => {
+        const r = remoteById.get(m.id);
+        if (r) return m.updatedAt > r.updatedAt || (Boolean(m.deleted) && !r.deleted);
+        return !s.synced || dirtyAtStart.has(m.id) || dirtyAtStart.has(m.id.toUpperCase());
+      });
+      const changedHere = !sameList(merged, local);
+      if (changedHere) LS.set('holdings', merged.map(fromItem));
+
+      // 3. Save this browser's changes.
+      for (let i = 0; i < toPush.length; i += 500) {
+        await rpc('upsert_holdings', { items: toPush.slice(i, i + 500).map(toRow) });
+      }
+
+      // 4. Watchlist and settings: newest wins as a whole.
+      const dataChanged = await syncUserData(s);
+
+      const cursor = rows.reduce((m, r) => Math.max(m, Number(r.synced_at)), s.cursor ?? 0);
+      const stillDirty = (syncState().dirty ?? []).filter((id) => !dirtyAtStart.has(id));
+      setState({ cursor, synced: true, last: Date.now(), error: undefined, count: merged.filter((m) => !m.deleted).length, dirty: stillDirty });
+      if (changedHere || dataChanged) invalidate('/api/');
     } catch (e) {
       setState({ error: (e as Error).message });
     }
@@ -176,25 +157,98 @@ export function syncNow(): Promise<void> {
   return running;
 }
 
+type DataRow = { watchlist: unknown[]; settings: Record<string, unknown>; updated_at: number };
+
+async function syncUserData(s: State): Promise<boolean> {
+  const [row] = await rest<DataRow[]>('user_data?select=watchlist,settings,updated_at');
+  const localWatch = LS.get<any[]>('watchlist', []);
+  const localSettings = LS.get<Record<string, unknown>>('settings', {});
+  const changedHere = (s.dataAt ?? 0) > (s.dataSyncedAt ?? 0);
+  const now = Date.now();
+  const save = (watchlist: unknown[], settings: Record<string, unknown>) =>
+    rest('user_data', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify({ watchlist, settings, updated_at: now }) });
+
+  if (!row) {
+    if (localWatch.length || Object.keys(localSettings).length) await save(localWatch, localSettings);
+    setState({ dataSyncedAt: now });
+    return false;
+  }
+  if (!s.synced) {
+    // First sync on this browser: keep both watchlists; the account's settings win unless it has none.
+    const key = (w: any) => `${w.cardId}|${w.variant ?? ''}`;
+    const union = [...(row.watchlist as any[])];
+    for (const w of localWatch) if (!union.some((x) => key(x) === key(w))) union.push(w);
+    const settings = Object.keys(row.settings ?? {}).length ? row.settings : localSettings;
+    LS.set('watchlist', union);
+    LS.set('settings', settings);
+    if (union.length !== row.watchlist.length || settings !== row.settings) await save(union, settings);
+    setState({ dataSyncedAt: now });
+    return true;
+  }
+  if (changedHere) {
+    await save(localWatch, localSettings);
+    setState({ dataSyncedAt: now });
+    return false;
+  }
+  if (Number(row.updated_at) > (s.dataSyncedAt ?? 0)) {
+    LS.set('watchlist', row.watchlist ?? []);
+    LS.set('settings', row.settings ?? {});
+    setState({ dataSyncedAt: Number(row.updated_at) });
+    return true;
+  }
+  return false;
+}
+
+/** Earlier versions synced through a GitHub gist; bring its drop links over once, then forget it. */
+async function migrateLegacyGist() {
+  const legacy = LS.get<{ token?: string; gist?: string }>('sync', {});
+  if (!legacy.token || !legacy.gist) return;
+  try {
+    const res = await fetch(`https://api.github.com/gists/${legacy.gist}`, { headers: { Authorization: `Bearer ${legacy.token}`, Accept: 'application/vnd.github+json' }, cache: 'no-store' });
+    if (res.ok) {
+      const g = await res.json();
+      const drops = JSON.parse(g.files?.['comps-drops.json']?.content ?? '{}');
+      const watch = (drops.watch ?? []).filter((w: any) => /^https?:\/\//.test(w.url ?? '')).slice(0, 20);
+      if (watch.length) {
+        await rest('watch_items?on_conflict=user_id,url', {
+          method: 'POST',
+          headers: { Prefer: 'resolution=ignore-duplicates,return=minimal' },
+          body: JSON.stringify(watch.map((w: any) => ({ url: w.url, name: w.name ?? null, max_price: w.maxPrice ?? null }))),
+        });
+      }
+    }
+  } finally {
+    LS.del('sync');
+  }
+}
+
+/** Signing out removes this account's copy from the browser (it's safe in the account). */
+export function forgetLocalData() {
+  LS.del('holdings');
+  LS.del('watchlist');
+  setState(null);
+  invalidate('/api/');
+}
+
 let soon: ReturnType<typeof setTimeout> | undefined;
-/** After a local change: push shortly, batching quick edits. */
+/** After a local change: save shortly, batching quick edits. */
 export function syncSoon() {
-  if (!isConnected()) return;
+  if (!accountsEnabled || !currentUser()) return;
   clearTimeout(soon);
   soon = setTimeout(() => { syncNow(); }, 1500);
 }
 
 let started = false;
-/** Syncs on load, when the tab comes back, and every minute while it's visible. */
+/** Syncs on load, on sign-in, when the tab comes back, and every minute while it's visible. */
 export function startSync() {
-  if (started) return;
+  if (started || !accountsEnabled) return;
   started = true;
   const tick = () => {
-    if (!isConnected() || document.visibilityState !== 'visible') return;
-    const last = syncState().last ?? 0;
-    if (Date.now() - last > 20_000) syncNow();
+    if (!currentUser() || document.visibilityState !== 'visible') return;
+    if (Date.now() - (syncState().last ?? 0) > 20_000) syncNow();
   };
   tick();
+  onAuth(() => { if (currentUser()) syncNow(); });
   addEventListener('focus', tick);
   document.addEventListener('visibilitychange', tick);
   setInterval(tick, 60_000);

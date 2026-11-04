@@ -5,10 +5,11 @@ import { money, ago, longDate } from '../lib/format';
 import { Empty, toast } from '../components/ui';
 import { IconBolt, IconExternal, IconX, IconPhone } from '../components/icons';
 import { Header } from './shared';
-import { syncState, onSync, connect } from '../lib/sync';
+import { AccountPanel, useAccount } from '../components/Account';
+import { accountsEnabled } from '../lib/supabase';
 import {
   loadDrops, addWatch, removeWatch, removeDevice, enableAlerts, disableAlerts, currentEndpoint, pushSupported, isStandalone, isIOS,
-  monitorOnline, storeOf, storeName, STATE_LABEL, BUYABLE, type DropsFile, type MonitorFile, type Watch, type StockState,
+  monitorOnline, storeOf, storeName, STATE_LABEL, BUYABLE, MAX_WATCH, type DropsFile, type MonitorFile, type Watch, type StockState,
 } from '../lib/drops';
 
 const REPO = (import.meta.env.VITE_REPO as string | undefined) ?? '';
@@ -18,21 +19,21 @@ type SetSummary = { id: string; name: string; series: string; released: string |
 const pillClass = (s?: StockState) => (s && BUYABLE.has(s) ? 'on' : s === 'blocked' || s === 'error' ? 'warn' : 'off');
 
 export function DropsPage() {
-  const [sync, setSync] = useState(syncState);
+  const user = useAccount();
   const [data, setData] = useState<Data | null>(null);
   const [err, setErr] = useState('');
-  const connected = Boolean(sync.token && sync.gist);
+  const connected = Boolean(user);
 
   const reload = async () => {
     try { setData(await loadDrops()); setErr(''); } catch (e) { setErr((e as Error).message); }
   };
-  useEffect(() => onSync(() => setSync(syncState())), []);
+  useEffect(() => { if (!user) setData(null); }, [user?.id]);
   useEffect(() => {
     if (!connected) return;
     reload();
     const id = setInterval(() => { if (document.visibilityState === 'visible') reload(); }, 15_000);
     return () => clearInterval(id);
-  }, [connected]);
+  }, [user?.id]);
 
   const m = data?.monitor ?? null;
   const online = monitorOnline(m);
@@ -44,17 +45,22 @@ export function DropsPage() {
       <Header title="Drops">
         {connected && data && <>
           <span class={`dot ${online ? '' : 'err'}`} style={{ display: 'inline-block', marginRight: 6 }} />
-          <span>{online ? `Monitor on your PC is running · checked ${ago(m!.seenAt)}` : m ? `Monitor offline · last seen ${ago(m.seenAt)}` : 'Monitor not set up yet'}</span>
-          <span class="faint">·</span><span>{watch.length} watched{buyable ? ` · ${buyable} buyable now` : ''}</span>
+          <span>{online ? `Drop monitor running · checked ${ago(m!.seenAt)}` : m ? `Drop monitor offline · last seen ${ago(m.seenAt)}` : 'Drop monitor not started yet'}</span>
+          <span class="faint">·</span><span>{watch.length} of {MAX_WATCH} links{buyable ? ` · ${buyable} buyable now` : ''}</span>
         </>}
       </Header>
 
-      {!connected && <ConnectCard />}
+      {!connected && (
+        <section class="section">
+          <p class="section-note">Sign in to watch product links and get an alert the moment one can be bought.</p>
+          <div class="panel" style={{ padding: 16, maxWidth: 460 }}>{accountsEnabled ? <AccountPanel compact /> : <AccountPanel />}</div>
+        </section>
+      )}
       {err && <p class="section-note" style={{ color: 'var(--down)' }}>{err}</p>}
 
       {connected && data && <>
         {!online && <MonitorSetup monitor={m} />}
-        <AddWatch onAdded={reload} />
+        <AddWatch onAdded={reload} full={watch.length >= MAX_WATCH} />
         <section class="section">
           <div class="section-head"><h2>Watching</h2></div>
           {!watch.length ? (
@@ -119,7 +125,7 @@ function WatchRow({ w, m, onRemoved }: { w: Watch; m: MonitorFile | null; onRemo
   );
 }
 
-function AddWatch({ onAdded }: { onAdded: () => void }) {
+function AddWatch({ onAdded, full }: { onAdded: () => void; full: boolean }) {
   const [url, setUrl] = useState('');
   const [name, setName] = useState('');
   const [max, setMax] = useState('');
@@ -132,7 +138,7 @@ function AddWatch({ onAdded }: { onAdded: () => void }) {
     try {
       await addWatch({ url: url.trim(), name: name.trim() || null, maxPrice: max ? Number(max.replace(/[$,]/g, '')) || null : null });
       setUrl(''); setName(''); setMax('');
-      toast('Watching — your PC picks it up within a minute');
+      toast('Watching — the monitor picks it up within a minute');
       onAdded();
     } catch (x) { toast((x as Error).message); }
     setBusy(false);
@@ -147,8 +153,9 @@ function AddWatch({ onAdded }: { onAdded: () => void }) {
           <span class="prefix">$</span>
           <input class="input num" inputMode="decimal" placeholder="Max price" value={max} onInput={(e) => setMax((e.target as HTMLInputElement).value)} aria-label="Alert only at or under this price" />
         </div>
-        <button class="btn primary" disabled={!valid || busy}>{busy ? 'Adding…' : 'Watch'}</button>
+        <button class="btn primary" disabled={!valid || busy || full}>{busy ? 'Adding…' : 'Watch'}</button>
       </div>
+      {full && <p class="drop-hint">You're watching {MAX_WATCH} links, the most per account. Remove one to add another.</p>}
       {valid && storeOf(url) === 'target' && <p class="drop-hint">Target doesn't put stock on its product pages, so the monitor can't tell when Target items are in stock yet.</p>}
     </form>
   );
@@ -164,7 +171,7 @@ function Alerts({ data, onChange }: { data: Data; onChange: () => void }) {
   const iosBrowser = isIOS() && !isStandalone();
 
   const turnOn = async () => {
-    if (!vapid) { toast('Start the monitor on your PC once first'); return; }
+    if (!vapid) { toast('The drop monitor hasn’t been started yet'); return; }
     setBusy(true);
     try { setEndpoint(await enableAlerts(vapid)); toast('Alerts on — a test alert arrives within a minute'); onChange(); } catch (e) { toast((e as Error).message); }
     setBusy(false);
@@ -178,7 +185,7 @@ function Alerts({ data, onChange }: { data: Data; onChange: () => void }) {
   return (
     <section class="section">
       <div class="section-head"><h2>Alerts</h2></div>
-      <p class="section-note">Your PC sends the alert straight to your phone the moment a watched product can be bought — no other services involved.</p>
+      <p class="section-note">The drop monitor sends the alert straight to your devices the moment a watched product can be bought.</p>
       <div class="panel drop-list">
         {devices.map((d) => (
           <div class="drop-row">
@@ -194,12 +201,12 @@ function Alerts({ data, onChange }: { data: Data; onChange: () => void }) {
           <div class="drop-main">
             {iosBrowser ? (
               <div class="drop-sub" style={{ fontSize: 14 }}>
-                <b>To get alerts on this iPhone:</b> tap <b>Share</b> → <b>Add to Home Screen</b>, open <b>Comps</b> from your Home Screen, paste your sync key, then come back to Drops and tap <b>Turn on alerts</b>. (iPhones only allow alerts for Home Screen web apps.)
+                <b>To get alerts on this iPhone:</b> tap <b>Share</b> → <b>Add to Home Screen</b>, open <b>Comps</b> from your Home Screen, sign in, then go to Drops and tap <b>Turn on alerts</b>. (iPhones only allow alerts for Home Screen web apps.)
               </div>
             ) : !pushSupported() ? (
               <div class="drop-sub" style={{ fontSize: 14 }}>This browser can't receive alerts. Use Chrome, Edge or Firefox on a computer, or Comps from your iPhone's Home Screen.</div>
             ) : (
-              <div class="drop-sub" style={{ fontSize: 14 }}>{here ? 'This device gets drop alerts.' : 'Get drop alerts on this device.'}{!vapid ? ' (Start the monitor on your PC once first.)' : ''}</div>
+              <div class="drop-sub" style={{ fontSize: 14 }}>{here ? 'This device gets drop alerts.' : 'Get drop alerts on this device.'}{!vapid ? ' (Waiting for the drop monitor to start.)' : ''}</div>
             )}
           </div>
           {!iosBrowser && pushSupported() && (
@@ -214,38 +221,21 @@ function Alerts({ data, onChange }: { data: Data; onChange: () => void }) {
 }
 
 function MonitorSetup({ monitor }: { monitor: MonitorFile | null }) {
+  const [open, setOpen] = useState(false);
   const zip = REPO ? `https://github.com/${REPO}/archive/refs/heads/main.zip` : '';
   return (
     <section class="section">
       <div class="panel drop-setup">
-        <div class="g-title">{monitor ? 'The monitor on your PC is offline' : 'Set up the drop monitor on your PC'}</div>
-        <p class="g-desc">It runs on your computer and checks your links every ~30 seconds while it's on. One-time setup:</p>
-        <ol class="sync-steps">
-          <li><div class="g-title">Install Node.js</div><div class="g-desc">The free <a href="https://nodejs.org" target="_blank" rel="noopener noreferrer">LTS version from nodejs.org</a>.</div></li>
-          <li><div class="g-title">Download Comps</div><div class="g-desc">{zip ? <a href={zip}>Download the ZIP</a> : 'Download this repository'}, unzip it, and open the <b>monitor</b> folder.</div></li>
-          <li><div class="g-title">Start it</div><div class="g-desc">Double-click <b>start-monitor.cmd</b> (Windows) or <b>start-monitor.command</b> (Mac). Paste your sync key when it asks. Leave the window open.</div></li>
-        </ol>
-      </div>
-    </section>
-  );
-}
-
-function ConnectCard() {
-  const [key, setKey] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState('');
-  return (
-    <section class="section">
-      <div class="panel drop-setup">
-        <div class="g-title">Connect your sync key</div>
-        <p class="g-desc">Drops share your watch list and alerts between your PC, this site and the app using the same GitHub key as collection sync.
-          {isIOS() ? ' Copy it from the Comps app: Settings → Sync with computer → Copy key.' : <> Don't have one? Set it up in <Link href="/settings">Settings → Sync with iPhone</Link>.</>}</p>
-        <form style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}
-          onSubmit={async (e) => { e.preventDefault(); setBusy(true); setErr(''); try { await connect(key); } catch (x) { setErr((x as Error).message); } setBusy(false); }}>
-          <input class="input" type="password" autocomplete="off" placeholder="ghp_…" value={key} onInput={(e) => setKey((e.target as HTMLInputElement).value)} style={{ maxWidth: 320 }} aria-label="GitHub sync key" />
-          <button class="btn primary" disabled={!key.trim() || busy}>{busy ? 'Connecting…' : 'Connect'}</button>
-        </form>
-        {err && <p class="g-desc" style={{ color: 'var(--down)', marginTop: 8 }}>{err}</p>}
+        <div class="g-title">{monitor ? 'The drop monitor is offline' : 'The drop monitor hasn’t started yet'}</div>
+        <p class="g-desc">It runs on the site owner's computer and checks everyone's links about every 30 seconds while it's on. Your links are saved and will be checked as soon as it's back.</p>
+        <button class="btn sm" style={{ marginTop: 10 }} onClick={() => setOpen(!open)}>{open ? 'Hide' : 'Run it yourself (site owner)'}</button>
+        {open && (
+          <ol class="sync-steps">
+            <li><div class="g-title">Install Node.js</div><div class="g-desc">The free <a href="https://nodejs.org" target="_blank" rel="noopener noreferrer">LTS version from nodejs.org</a>.</div></li>
+            <li><div class="g-title">Download Comps</div><div class="g-desc">{zip ? <a href={zip}>Download the ZIP</a> : 'Download this repository'}, unzip it, and open the <b>monitor</b> folder.</div></li>
+            <li><div class="g-title">Start it</div><div class="g-desc">Double-click <b>start-monitor.cmd</b> (Windows) or <b>start-monitor.command</b> (Mac). When it asks, paste your Supabase Project URL and <b>service_role</b> key (Supabase → Project Settings → API). Leave the window open.</div></li>
+          </ol>
+        )}
       </div>
     </section>
   );

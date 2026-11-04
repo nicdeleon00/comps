@@ -64,6 +64,10 @@ jobs:
           gh release upload data data/comps.db.gz --clobber
 
       - name: Build website
+        env:
+          # Accounts (optional): repository variables from your Supabase project (Settings → API).
+          VITE_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
         run: |
           npm --prefix web ci --no-audit --no-fund
           REPO="${GITHUB_REPOSITORY#*/}"
@@ -82,6 +86,17 @@ jobs:
           git -c user.name="comps-bot" -c user.email="comps-bot@users.noreply.github.com" commit -qm "Site and prices $(date -u +%Y-%m-%dT%H:%MZ)"
           git push -qf "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" gh-pages
           echo "Published https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}/"
+
+      - name: Keep accounts awake
+        # Free Supabase projects pause after a week without use; this run counts as use.
+        if: vars.SUPABASE_URL != ''
+        env:
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
+        run: |
+          curl -fsS -X POST "${SUPABASE_URL%/}/rest/v1/rpc/keepalive" -H "apikey: ${SUPABASE_ANON_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" -H "Content-Type: application/json" -d '{}' -o /dev/null \
+            && echo "Supabase is awake" || echo "::warning::Couldn't reach Supabase (has supabase/schema.sql been run?)"
 
       - name: Keep the schedule alive
         # GitHub pauses scheduled workflows after 60 days without commits.

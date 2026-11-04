@@ -11,6 +11,8 @@ import { openPalette } from '../components/Palette';
 import { IconPlus, IconStack, IconDown, IconPencil } from '../components/icons';
 import { toast } from '../components/ui';
 import { Header } from './shared';
+import { useAccount } from '../components/Account';
+import { accountsEnabled } from '../lib/supabase';
 
 type Res = { items: Holding[]; summary: CollectionSummary };
 const GAMES: Game[] = ['pokemon', 'mtg', 'yugioh', 'sports', 'other'];
@@ -28,6 +30,7 @@ function exportCsv(items: Holding[]) {
 }
 
 export function CollectionPage() {
+  const user = useAccount();
   const [days, setDays] = useState('90');
   const { data, loading } = useData<Res>(`/api/collection?days=${days === '0' ? 3650 : days}`);
   const [filter, setFilter] = useState<'all' | 'raw' | 'graded'>('all');
@@ -72,14 +75,24 @@ export function CollectionPage() {
         <button class="btn primary" onClick={add}><IconPlus size={17} />Add card</button>
       </>}>
         {s && <span>{s.count} card{s.count === 1 ? '' : 's'} · {s.unique} unique{token() ? '' : ''}</span>}
-        {STATIC && <span class="faint">· saved in this browser</span>}
+        {STATIC && <span class="faint">· {user ? 'saved to your account' : 'saved in this browser'}</span>}
       </Header>
+
+      {STATIC && accountsEnabled && !user && (
+        <div class="panel signin-banner">
+          <div>
+            <div class="g-title">Keep your collection in your account</div>
+            <div class="g-desc">Sign in to see it on every device and in the iPhone app. Cards here are added to your account.</div>
+          </div>
+          <Link class="btn primary" href="/settings#account">Sign in</Link>
+        </div>
+      )}
 
       {loading && !data && <SkRows n={6} />}
 
       {data && !data.items.length && (
         <Empty icon={<IconStack size={26} />} title="Your collection is empty" action={<button class="btn primary" onClick={add}><IconPlus size={17} />Add your first card</button>}>
-          {STATIC ? 'Add cards by name, or export a CSV from the iPhone app (Collection → menu → Export CSV) and import it here.' : 'Scan cards with the iPhone app (they sync here), or add them by name.'}
+          {STATIC ? (user ? 'Scan cards with the iPhone app (signed in with the same account) or add them by name — they appear everywhere.' : 'Add cards by name, or sign in to see the cards you scan with the iPhone app.') : 'Scan cards with the iPhone app (they sync here), or add them by name.'}
         </Empty>
       )}
 

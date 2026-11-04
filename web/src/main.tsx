@@ -20,6 +20,8 @@ import { SettingsPage } from './pages/Settings';
 import { SetsPage, SetPage } from './pages/Sets';
 import { DropsPage } from './pages/Drops';
 import { registerWorker } from './lib/drops';
+import { useAccount } from './components/Account';
+import { accountsEnabled } from './lib/supabase';
 
 const NAV = [
   { href: '/', label: 'Market', short: 'Market', icon: IconMarket, tab: true },
@@ -75,6 +77,17 @@ function TokenPrompt({ onDone }: { onDone: () => void }) {
   );
 }
 
+function AccountChip() {
+  const user = useAccount();
+  if (!STATIC || !accountsEnabled) return null;
+  return (
+    <Link href="/settings#account" class="account-chip">
+      <span class="account-avatar">{user ? user.email.slice(0, 1).toUpperCase() : '?'}</span>
+      <span class="ellipsis">{user ? user.email : 'Sign in'}</span>
+    </Link>
+  );
+}
+
 function App() {
   const { path } = useLocation();
   const { data: st } = useData<Status>('/api/status', { refresh: 30_000 });
@@ -117,6 +130,7 @@ function App() {
           </Link>
         ))}
         <div class="sidebar-foot">
+          <AccountChip />
           <Link href="/settings" class="nav-item" aria-current={path === '/settings' ? 'page' : undefined}><IconGear size={19} />Settings</Link>
           <Freshness st={st} />
         </div>

@@ -3,7 +3,7 @@
 // browser's own collection, watchlist and settings in localStorage.
 
 import { gradeEV } from './grading';
-import { syncSoon } from './sync';
+import { markDirty, markDataChanged } from './sync';
 import type { Card, Costs, Deal, Holding, Spread } from './types';
 
 const BASE = import.meta.env.BASE_URL;
@@ -94,7 +94,7 @@ type LocalHolding = Omit<Holding, 'value' | 'basis' | 'total' | 'change7d' | 'va
 /** Everything stored, including deletions kept for sync. */
 const allHoldings = () => LS.get<LocalHolding[]>('holdings', []);
 const holdings = () => allHoldings().filter((h) => !h.deleted);
-const saveHoldings = (h: LocalHolding[]) => { LS.set('holdings', h); syncSoon(); };
+const saveHoldings = (h: LocalHolding[], changed: string[]) => { LS.set('holdings', h); markDirty(changed); };
 const COND: Record<string, number> = { NM: 1, LP: 0.82, MP: 0.62, HP: 0.42, DMG: 0.25 };
 
 async function valued(): Promise<Holding[]> {
@@ -261,6 +261,7 @@ export async function staticRequest(method: string, url: string, body?: any): Pr
 
   if (path === '/api/settings' && method === 'PUT') {
     LS.set('settings', { ...LS.get('settings', {}), ...body });
+    markDataChanged();
     return { ...localSettings(), static: true };
   }
   if (path === '/api/refresh') return { started: false, running: 'GitHub Actions (every 6 hours)' };
@@ -276,18 +277,18 @@ export async function staticRequest(method: string, url: string, body?: any): Pr
       condition: body.condition ?? 'NM', quantity: Math.max(1, Number(body.quantity) || 1), costBasis: body.costBasis ?? null,
       acquiredAt: body.acquiredAt ?? null, notes: body.notes ?? null, createdAt: now, updatedAt: now,
     };
-    saveHoldings([h, ...allHoldings()]);
+    saveHoldings([h, ...allHoldings()], [h.id]);
     return (await valued()).find((x) => x.id === h.id);
   }
   if ((r = m(/^\/api\/collection\/([^/]+)$/))) {
     const id = decodeURIComponent(r[1]);
     if (method === 'PATCH') {
-      saveHoldings(allHoldings().map((h) => (h.id === id ? { ...h, ...body, id, updatedAt: Date.now() } : h)));
+      saveHoldings(allHoldings().map((h) => (h.id === id ? { ...h, ...body, id, updatedAt: Date.now() } : h)), [id]);
       return (await valued()).find((x) => x.id === id);
     }
     if (method === 'DELETE') {
       // Kept as a deletion so it also disappears from the phone.
-      saveHoldings(allHoldings().map((h) => (h.id === id ? { ...h, deleted: true, updatedAt: Date.now() } : h)));
+      saveHoldings(allHoldings().map((h) => (h.id === id ? { ...h, deleted: true, updatedAt: Date.now() } : h)), [id]);
       return { ok: true };
     }
   }
@@ -295,11 +296,13 @@ export async function staticRequest(method: string, url: string, body?: any): Pr
     const list = LS.get<any[]>('watchlist', []).filter((w) => !(w.cardId === body.cardId && (w.variant ?? null) === (body.variant ?? null)));
     list.unshift({ cardId: body.cardId, variant: body.variant ?? null, target: body.target != null && body.target !== '' ? Number(body.target) : null, createdAt: Date.now() });
     LS.set('watchlist', list);
+    markDataChanged();
     return { ok: true };
   }
   if ((r = m(/^\/api\/watchlist\/([^/]+)$/)) && method === 'DELETE') {
     const id = decodeURIComponent(r[1]);
     LS.set('watchlist', LS.get<any[]>('watchlist', []).filter((w) => !(w.cardId === id && (!q.variant || w.variant === q.variant || w.variant == null))));
+    markDataChanged();
     return { ok: true };
   }
   if ((r = m(/^\/api\/cards\/([^/]+)\/gem-rates$/))) {

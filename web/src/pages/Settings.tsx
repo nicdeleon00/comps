@@ -6,7 +6,7 @@ import type { Status } from '../lib/types';
 import { Field, MoneyInput, Segmented, toast } from '../components/ui';
 import { IconRefresh } from '../components/icons';
 import { Header } from './shared';
-import { syncState, onSync, connect, disconnect, syncNow, pairLink, TOKEN_URL } from '../lib/sync';
+import { AccountPanel } from '../components/Account';
 
 type S = Record<string, any>;
 
@@ -61,78 +61,19 @@ function Qr({ text }: { text: string }) {
 
 const REPO = (import.meta.env.VITE_REPO as string | undefined) ?? '';
 
-/** Keeps this browser's collection and the iPhone app's in step through a secret gist on your GitHub. */
-function SyncGroup() {
-  const [s, setS] = useState(syncState);
-  const [key, setKey] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState('');
-  useEffect(() => onSync(() => setS(syncState())), []);
-  const connected = Boolean(s.token && s.gist);
-
-  const doConnect = async (e: Event) => {
-    e.preventDefault();
-    setBusy(true);
-    setErr('');
-    try {
-      await connect(key);
-      setKey('');
-      toast('Connected — now scan the code from the app');
-    } catch (x) {
-      setErr((x as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  if (connected) {
-    return (
-      <Group id="sync" title="Sync with iPhone" note="Cards you scan on the phone show up here, and changes here go back to the phone. Stored in a secret gist on your GitHub account.">
-        <div class="pair">
-          <Qr text={pairLink(s)} />
-          <div style={{ minWidth: 0, flex: 1 }}>
-            <div class="g-title">Connected <span class={`status-pill ${s.error ? 'off' : 'on'}`}>{s.error ? 'Needs attention' : 'Syncing'}</span></div>
-            <p class="g-desc" style={{ marginTop: 6 }}>
-              {s.last ? `Last synced ${ago(s.last)}` : 'Not synced yet'}{s.count != null ? ` · ${num(s.count)} card${s.count === 1 ? '' : 's'}` : ''}
-            </p>
-            {s.error && <p class="g-desc" style={{ color: 'var(--down)', marginTop: 6 }}>{s.error}</p>}
-            <p class="g-desc" style={{ marginTop: 10, maxWidth: 400 }}>On the iPhone: <b>Collection → ⚙︎ Settings → Sync with computer → Scan code</b>, and point it at this code. The code contains your sync key, so don't share it.</p>
-            <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
-              <button class="btn sm" disabled={busy} onClick={async () => { setBusy(true); await syncNow(); setBusy(false); }}><IconRefresh size={15} />{busy ? 'Syncing…' : 'Sync now'}</button>
-              <button class="btn sm" onClick={() => { if (confirm('Stop syncing this browser? Your cards stay here and on the phone.')) disconnect(); }}>Disconnect</button>
-            </div>
-          </div>
-        </div>
-      </Group>
-    );
-  }
+/** One account for the website and the app. */
+function AccountGroup() {
   return (
-    <Group id="sync" title="Sync with iPhone" note="Make the cards you scan on the phone show up here automatically. One-time setup, about a minute.">
-      <ol class="sync-steps">
-        <li>
-          <div class="g-title">Create a sync key on GitHub</div>
-          <div class="g-desc">Opens GitHub with only the “gist” permission ticked. Set <b>Expiration</b> to <b>No expiration</b>, click <b>Generate token</b>, and copy it.</div>
-          <a class="btn sm" style={{ marginTop: 10 }} href={TOKEN_URL} target="_blank" rel="noopener noreferrer">Create key on GitHub</a>
-        </li>
-        <li>
-          <div class="g-title">Paste it here</div>
-          <form onSubmit={doConnect} style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
-            <input class="input sm" type="password" autocomplete="off" placeholder="ghp_…" value={key} onInput={(e) => setKey((e.target as HTMLInputElement).value)} style={{ width: 260, maxWidth: '100%' }} aria-label="GitHub sync key" />
-            <button class="btn primary sm" disabled={!key.trim() || busy}>{busy ? 'Connecting…' : 'Connect'}</button>
-          </form>
-          {err && <div class="g-desc" style={{ color: 'var(--down)', marginTop: 8 }}>{err}</div>}
-        </li>
-        <li>
-          <div class="g-title">Scan the code from the app</div>
-          <div class="g-desc">A QR code appears here once connected. Your cards already in this browser are merged in, without duplicates.</div>
-        </li>
-      </ol>
+    <Group id="account" title="Account" note="One account for the website and the iPhone app: your collection, watchlist, settings and drop alerts stay in step everywhere.">
+      <AccountPanel />
     </Group>
   );
 }
 
-/** Settings on the GitHub Pages site: prices are refreshed by GitHub Actions. */
 function HostedSettings() {
+  useEffect(() => {
+    if (location.hash) setTimeout(() => document.querySelector(location.hash)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 120);
+  }, []);
   const { data: st } = useData<Status & { exportedAt?: number }>('/api/status');
   const { data: s, reload } = useData<S>('/api/settings');
   const [g, setG] = useState<S>({});
@@ -191,7 +132,7 @@ function HostedSettings() {
         <div class="g-foot"><button class="btn primary sm" onClick={async () => { await put('/api/settings', g); invalidate('/api/'); reload(); toast('Saved'); }}>Save and recalculate</button></div>
       </Group>
 
-      <SyncGroup />
+      <AccountGroup />
 
       <Group title="iPhone app" note="Install the app with Sideloadly, AltStore or SideStore. It reads prices from this site, so it works anywhere.">
         <div class="pair">
@@ -215,7 +156,7 @@ function HostedSettings() {
           <Segmented value={theme} onChange={applyTheme} label="Theme" options={[{ value: 'system', label: 'System' }, { value: 'light', label: 'Light' }, { value: 'dark', label: 'Dark' }]} />
         </div>
       </Group>
-      <p class="faint" style={{ fontSize: 12, marginTop: 28 }}>Prices: TCGplayer via TCGCSV, Cardmarket via TCGdex. Your watchlist and settings stay in this browser; your collection too, unless you turn on sync.</p>
+      <p class="faint" style={{ fontSize: 12, marginTop: 28 }}>Prices: TCGplayer via TCGCSV, Cardmarket via TCGdex. Signed in, your collection, watchlist and settings are kept in your account; signed out, they stay in this browser.</p>
     </div>
   );
 }

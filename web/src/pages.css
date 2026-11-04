@@ -261,3 +261,19 @@ a.drop-title:hover { color: var(--accent); }
   .drop-row .drop-price { order: 3; margin-left: auto; }
   .drop-row .btn { order: 4; }
 }
+
+/* Account */
+.account-box { display: grid; gap: 10px; padding: 14px 0; }
+.account-box .input { width: 100%; max-width: 380px; }
+.account-box .btn.primary { justify-self: start; }
+.account-tabs { display: inline-flex; gap: 2px; padding: 2px; border-radius: 9px; background: var(--fill-2); justify-self: start; }
+.account-tabs button { height: 30px; padding: 0 14px; border-radius: 7px; font-size: 13.5px; font-weight: 600; color: var(--label-2); }
+.account-tabs button.on { background: var(--surface); color: var(--label); box-shadow: var(--shadow-1); }
+.account-err { margin: 0; font-size: 13px; color: var(--down); }
+.account-who { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.account-avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--accent-fill); color: var(--accent); font-weight: 700; display: grid; place-items: center; flex: none; }
+.account-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.account-chip { display: flex; align-items: center; gap: 9px; padding: 6px 10px; margin: 0 -2px 6px; border-radius: 9px; font-size: 13.5px; color: var(--label-2); text-decoration: none; min-width: 0; }
+.account-chip:hover { background: var(--fill-2); color: var(--label); }
+.account-chip .account-avatar { width: 24px; height: 24px; font-size: 12px; }
+.signin-banner { display: flex; align-items: center; gap: 14px; justify-content: space-between; flex-wrap: wrap; padding: 14px 16px; margin-bottom: 18px; }

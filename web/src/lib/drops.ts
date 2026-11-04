@@ -1,20 +1,19 @@
-// Drops: product links watched by the monitor on your PC, its live stock status,
-// recent drops, and the phones that get alerts. Shared through the sync gist:
-//   comps-drops.json   watch list + phones (written here and by the iPhone app)
-//   comps-monitor.json status + drops (written only by the PC monitor)
+// Drops: product links the monitor checks, its live stock status, recent drops,
+// and the devices that get alerts — stored per account (see supabase/schema.sql).
+// The monitor on the site owner's PC reads everyone's links and writes status back.
 
-import { gh, syncState } from './sync';
-
-export const DROPS_FILE = 'comps-drops.json';
-export const MONITOR_FILE = 'comps-monitor.json';
+import { rest } from './supabase';
 
 export type Watch = { id: string; url: string; name?: string | null; maxPrice?: number | null; addedAt: number };
 export type Device = { id: string; name: string; endpoint: string; keys: { p256dh: string; auth: string }; addedAt: number };
-export type DropsFile = { v: 1; updatedAt: number; watch: Watch[]; devices: Device[] };
+export type DropsFile = { watch: Watch[]; devices: Device[] };
 export type StockState = 'in_stock' | 'preorder' | 'in_store' | 'out_of_stock' | 'unknown' | 'blocked' | 'error';
-export type WatchStatus = { state: StockState; price: number | null; title: string | null; store: string; via?: string | null; note?: string | null; checkedAt: number; changedAt: number };
+export type WatchStatus = { state: StockState; price: number | null; title: string | null; store: string; note?: string | null; checkedAt: number; changedAt: number };
 export type DropEvent = { id: string; watchId: string; at: number; state: StockState; price: number | null; title: string | null; url: string; store: string };
-export type MonitorFile = { v: 1; seenAt: number; startedAt: number; interval: number; vapidPublicKey: string; status: Record<string, WatchStatus>; events: DropEvent[]; dead?: string[] };
+export type MonitorFile = { seenAt: number; interval: number; vapidPublicKey: string | null; watching: number | null; status: Record<string, WatchStatus>; events: DropEvent[] };
+
+/** Most links one account can watch (also enforced by the database). */
+export const MAX_WATCH = 20;
 
 export const STORES: Record<string, string> = {
   target: 'Target', walmart: 'Walmart', bestbuy: 'Best Buy', pokemoncenter: 'Pokémon Center', gamestop: 'GameStop',
@@ -36,44 +35,40 @@ export const BUYABLE = new Set<StockState>(['in_stock', 'preorder']);
 /** The monitor counts as running if it checked in during the last 5 minutes. */
 export const monitorOnline = (m: MonitorFile | null) => Boolean(m && Date.now() - m.seenAt < 5 * 60_000);
 
-type GistFiles = Record<string, { content?: string; truncated?: boolean; raw_url?: string }>;
+const n = (v: unknown) => (v == null ? null : Number(v));
 
 export async function loadDrops(): Promise<{ drops: DropsFile; monitor: MonitorFile | null }> {
-  const s = syncState();
-  const g = await gh<{ files: GistFiles }>(s.token!, `/gists/${s.gist}`);
-  const parse = async (name: string) => {
-    const f = g.files[name];
-    if (!f) return null;
-    let text = f.content ?? '';
-    if (f.truncated && f.raw_url) text = await (await fetch(f.raw_url, { cache: 'no-store' })).text();
-    try { return JSON.parse(text); } catch { return null; }
-  };
-  const d = (await parse(DROPS_FILE)) ?? {};
+  const [watch, devices, status, events, monitor] = await Promise.all([
+    rest<any[]>('watch_items?select=id,url,name,max_price,added_at&order=added_at.desc'),
+    rest<any[]>('push_devices?select=id,name,endpoint,p256dh,auth,added_at&order=added_at.desc'),
+    rest<any[]>('drop_status?select=*'),
+    rest<any[]>('drop_events?select=*&order=at.desc&limit=30'),
+    rest<any[]>('monitor_state?select=*'),
+  ]);
+  const m = monitor[0];
   return {
-    drops: { v: 1, updatedAt: d.updatedAt ?? 0, watch: Array.isArray(d.watch) ? d.watch : [], devices: Array.isArray(d.devices) ? d.devices : [] },
-    monitor: await parse(MONITOR_FILE),
+    drops: {
+      watch: watch.map((w) => ({ id: w.id, url: w.url, name: w.name, maxPrice: n(w.max_price), addedAt: Number(w.added_at) })),
+      devices: devices.map((d) => ({ id: d.id, name: d.name ?? 'Device', endpoint: d.endpoint, keys: { p256dh: d.p256dh, auth: d.auth }, addedAt: Number(d.added_at) })),
+    },
+    monitor: m ? {
+      seenAt: Number(m.seen_at ?? 0), interval: Number(m.interval_s ?? 30), vapidPublicKey: m.vapid_public_key ?? null, watching: n(m.watching),
+      status: Object.fromEntries(status.map((x) => [x.watch_id, { state: x.state, price: n(x.price), title: x.title, store: x.store ?? '', note: x.note, checkedAt: Number(x.checked_at ?? 0), changedAt: Number(x.changed_at ?? 0) }])),
+      events: events.map((e) => ({ id: e.id, watchId: e.watch_id, at: Number(e.at), state: e.state, price: n(e.price), title: e.title, url: e.url, store: e.store ?? '' })),
+    } : null,
   };
 }
 
-/** Read the latest list, change it, write it back (only the drops file). */
-async function update(change: (d: DropsFile) => void) {
-  const { drops, monitor } = await loadDrops();
-  change(drops);
-  // Phones that turned alerts off, as reported by the monitor.
-  if (monitor?.dead?.length) drops.devices = drops.devices.filter((x) => !monitor.dead!.includes(x.endpoint));
-  drops.updatedAt = Date.now();
-  const s = syncState();
-  await gh(s.token!, `/gists/${s.gist}`, { method: 'PATCH', body: JSON.stringify({ files: { [DROPS_FILE]: { content: JSON.stringify(drops) } } }) });
-  return drops;
+export async function addWatch(w: { url: string; name?: string | null; maxPrice?: number | null }) {
+  try {
+    await rest('watch_items', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ url: w.url, name: w.name || null, max_price: w.maxPrice ?? null }) });
+  } catch (e) {
+    if ((e as { status?: number }).status === 409) throw new Error('You’re already watching that link.');
+    throw e;
+  }
 }
-
-export const addWatch = (w: { url: string; name?: string | null; maxPrice?: number | null }) =>
-  update((d) => {
-    if (d.watch.some((x) => x.url === w.url)) return;
-    d.watch.unshift({ id: crypto.randomUUID(), addedAt: Date.now(), url: w.url, name: w.name || null, maxPrice: w.maxPrice ?? null });
-  });
-export const removeWatch = (id: string) => update((d) => { d.watch = d.watch.filter((x) => x.id !== id); });
-export const removeDevice = (endpoint: string) => update((d) => { d.devices = d.devices.filter((x) => x.endpoint !== endpoint); });
+export const removeWatch = (id: string) => rest(`watch_items?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE' });
+export const removeDevice = (endpoint: string) => rest(`push_devices?endpoint=eq.${encodeURIComponent(endpoint)}`, { method: 'DELETE' });
 
 // ---------------------------------------------------------------- alerts on this device
 export const pushSupported = () => typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
@@ -124,9 +119,10 @@ export async function enableAlerts(vapidPublicKey: string) {
   sub ??= await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
   const j = sub.toJSON();
   if (!j.endpoint || !j.keys?.p256dh || !j.keys?.auth) throw new Error("This browser didn't return a push subscription.");
-  await update((d) => {
-    d.devices = [{ id: crypto.randomUUID(), name: deviceName(), endpoint: j.endpoint!, keys: { p256dh: j.keys!.p256dh, auth: j.keys!.auth }, addedAt: Date.now() },
-      ...d.devices.filter((x) => x.endpoint !== j.endpoint)];
+  await rest('push_devices?on_conflict=user_id,endpoint', {
+    method: 'POST',
+    headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+    body: JSON.stringify({ name: deviceName(), endpoint: j.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth }),
   });
   return j.endpoint;
 }
