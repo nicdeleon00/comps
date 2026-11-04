@@ -69,14 +69,17 @@ jobs:
           VITE_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
         run: |
+          # Fall back to supabase/public.json (both values are public by design).
+          [ -n "$VITE_SUPABASE_URL" ] || VITE_SUPABASE_URL=$(node -p 'require("./supabase/public.json").url || ""')
+          [ -n "$VITE_SUPABASE_ANON_KEY" ] || VITE_SUPABASE_ANON_KEY=$(node -p 'require("./supabase/public.json").anonKey || ""')
+          export VITE_SUPABASE_URL VITE_SUPABASE_ANON_KEY
+          echo "SUPABASE_URL=$VITE_SUPABASE_URL" >> "$GITHUB_ENV"
+          echo "SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY" >> "$GITHUB_ENV"
           npm --prefix web ci --no-audit --no-fund
           REPO="${GITHUB_REPOSITORY#*/}"
           VITE_STATIC=1 VITE_BASE="/${REPO}/" VITE_REPO="${GITHUB_REPOSITORY}" npm --prefix web run build
 
       - name: Export data
-        env:
-          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
-          SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
         run: |
           node --disable-warning=ExperimentalWarning server/src/cli.js export web/dist/data && du -sh web/dist/data
           # Public settings the iPhone app reads (so accounts work without rebuilding the app).
@@ -96,10 +99,7 @@ jobs:
 
       - name: Keep accounts awake
         # Free Supabase projects pause after a week without use; this run counts as use.
-        if: vars.SUPABASE_URL != ''
-        env:
-          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
-          SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
+        if: env.SUPABASE_ANON_KEY != ''
         run: |
           curl -fsS -X POST "${SUPABASE_URL%/}/rest/v1/rpc/keepalive" -H "apikey: ${SUPABASE_ANON_KEY}" \
             -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" -H "Content-Type: application/json" -d '{}' -o /dev/null \
