@@ -48,12 +48,15 @@ export function gradedFrom(card) {
   return { ...out, volume: Number.isFinite(weekly) && weekly > 0 ? Math.round(weekly * 4) : volume };
 }
 
-/** Cards to look up today: never looked up first (most valuable first), then the stalest. */
+// Where grading pays off most often; these go first.
+const SWEET_SPOT = [10, 500];
+
+/** Cards to look up today: never looked up first (grading sweet spot first, most valuable first), then the stalest. */
 export function pickCards(db, { limit, minUsd, maxUsd, now }) {
-  const rows = db.all(`SELECT card_id, variant, raw FROM valuations WHERE card_id LIKE 'tcg:%' AND raw >= ? AND raw <= ?`, minUsd, maxUsd);
-  // One lookup per card, valued at its regular printing (what you'd send to grade).
+  // One lookup per card, valued at its regular printing (what you'd send to grade) —
+  // chosen among all printings, so an expensive holo isn't swapped for its reverse holo.
   const byCard = new Map();
-  for (const r of rows) {
+  for (const r of db.all(`SELECT card_id, variant, raw FROM valuations WHERE card_id LIKE 'tcg:%' AND raw > 0`)) {
     const cur = byCard.get(r.card_id);
     const rank = PRINTING_RANK[r.variant] ?? 9;
     if (!cur || rank < cur.rank) byCard.set(r.card_id, { ...r, rank });
@@ -62,11 +65,13 @@ export function pickCards(db, { limit, minUsd, maxUsd, now }) {
   const fresh = [];
   const stale = [];
   for (const c of byCard.values()) {
+    if (c.raw < minUsd || c.raw > maxUsd) continue;
     const k = known.get(c.card_id);
     if (!k) fresh.push(c);
     else if (now - k.at > ttlDays(c.raw, k.found) * DAY_MS) stale.push({ ...c, at: k.at });
   }
-  fresh.sort((a, b) => b.raw - a.raw);
+  const sweet = (c) => (c.raw >= SWEET_SPOT[0] && c.raw <= SWEET_SPOT[1] ? 0 : 1);
+  fresh.sort((a, b) => sweet(a) - sweet(b) || b.raw - a.raw);
   stale.sort((a, b) => a.at - b.at);
   return [...fresh, ...stale].slice(0, limit);
 }

@@ -206,8 +206,9 @@ test('graded prices: free lookups are budgeted, remembered and prioritised', asy
   const { valuate } = await import('../src/engine/valuation.js');
   const db = openDatabase(':memory:');
   const now = Date.UTC(2026, 10, 4, 12);
-  // Three cards worth grading, one too cheap; the 1st-edition printing must not be chosen over the regular one.
-  for (const [id, variant, raw] of [['tcg:1', 'holofoil', 400], ['tcg:1', '1stEditionHolofoil', 9000], ['tcg:2', 'normal', 60], ['tcg:3', 'holofoil', 25], ['tcg:4', 'normal', 0.5]]) {
+  // Three cards worth grading, one too cheap, one pricey rarity (looked up after the sweet spot);
+  // the 1st-edition printing must not be chosen over the regular one.
+  for (const [id, variant, raw] of [['tcg:1', 'holofoil', 400], ['tcg:1', '1stEditionHolofoil', 9000], ['tcg:2', 'normal', 60], ['tcg:3', 'holofoil', 25], ['tcg:4', 'normal', 0.5], ['tcg:5', 'holofoil', 3000]]) {
     db.run('INSERT INTO valuations (card_id, variant, raw, confidence, sources, updated_at) VALUES (?,?,?,?,?,?)', id, variant, raw, 1, 1, now);
   }
   const shapes = {
@@ -232,12 +233,12 @@ test('graded prices: free lookups are budgeted, remembered and prioritised', asy
   // Same day: budget spent, nothing more is asked.
   assert.equal(await refreshGraded(db, settings, () => {}, { fetchImpl: fake, now: now + 3600e3, pause: 0 }), 0);
   assert.equal(calls.length, 2);
-  // Next day: only the card never looked up; "no graded sales" is remembered too.
+  // Next day: the cards never looked up (sweet spot before the pricey rarity); "no graded sales" is remembered too.
   await refreshGraded(db, settings, () => {}, { fetchImpl: fake, now: now + 86400e3, pause: 0 });
-  assert.deepEqual(calls, ['1', '2', '3']);
+  assert.deepEqual(calls, ['1', '2', '3', '5']);
   assert.equal(JSON.parse(db.get(`SELECT data FROM quotes WHERE card_id = 'tcg:3'`).data).found, false);
   assert.equal(pickCards(db, { limit: 10, minUsd: 2, maxUsd: 5000, now: now + 2 * 86400e3 }).length, 0, 'nothing is re-asked within weeks');
-  assert.equal(pickCards(db, { limit: 10, minUsd: 2, maxUsd: 5000, now: now + (ttlDays(400, true) + 1) * 86400e3 })[0].card_id, 'tcg:1', 'pricey cards are re-checked first when stale');
+  assert.deepEqual(pickCards(db, { limit: 10, minUsd: 2, maxUsd: 5000, now: now + (ttlDays(400, true) + 1) * 86400e3 }).map((c) => c.card_id), ['tcg:1'], 'pricey cards are re-checked first when stale');
   // Other response shapes, and valuation picking the graded prices up.
   assert.deepEqual(gradedFrom(shapes[2].data), { psa10: 210, g95: 150, volume: null });
   const v = valuate([{ source: 'tcgplayer', data: { market: 400 } }, { source: 'ppt', data: q1 }], 1.1);
