@@ -1,6 +1,6 @@
 import { sleep, log } from './util.js';
 
-const UA = 'Comps/1.0 (+self-hosted card price tracker)';
+export const UA = 'Comps/1.0 (+self-hosted card price tracker)';
 const lastHit = new Map();
 
 /**

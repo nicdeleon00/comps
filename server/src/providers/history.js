@@ -13,6 +13,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { variantKey } from './tcgcsv.js';
 import { safeJSON, log, day as isoDay } from '../lib/util.js';
+import { UA } from '../lib/http.js';
 
 const BASE = process.env.TCGCSV_ARCHIVE ?? 'https://tcgcsv.com/archive/tcgplayer';
 export const FIRST_DAY = '2024-02-08';
@@ -84,7 +85,8 @@ export async function backfillHistory(db, settings, progress = () => {}, { fetch
   for (const [i, day] of todo.entries()) {
     const dir = mkdtempSync(join(tmpdir(), 'comps-history-'));
     try {
-      const res = await fetchImpl(`${BASE}/prices-${day}.ppmd.7z`, { signal: AbortSignal.timeout(120_000) });
+      // Same identity as the daily price download (the archive host refuses anonymous clients).
+      const res = await fetchImpl(`${BASE}/prices-${day}.ppmd.7z`, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(120_000) });
       if (res.status === 404) { done.add(day); continue; } // no archive that day
       if (!res.ok) { log.warn(`history: ${day} answered ${res.status}; trying again next run`); break; }
       const file = join(dir, `prices-${day}.ppmd.7z`);
