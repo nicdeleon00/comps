@@ -7,7 +7,7 @@ import { useData, setToken, invalidate, STATIC } from './lib/api';
 import { startSync } from './lib/sync';
 import { ago, num } from './lib/format';
 import type { Status } from './lib/types';
-import { Mark, IconMarket, IconTag, IconSlab, IconStack, IconStar, IconGear, IconSearch, IconBinder, IconX, IconBack } from './components/icons';
+import { Mark, IconMarket, IconTag, IconSlab, IconStack, IconStar, IconGear, IconSearch, IconBinder, IconChecklist, IconX, IconBack } from './components/icons';
 import { Palette, openPalette, type PaletteOpts } from './components/Palette';
 import { Sheet, Field } from './components/ui';
 import { MarketPage, lastRefresh } from './pages/Market';
@@ -18,6 +18,7 @@ import { CollectionPage } from './pages/Collection';
 import { WatchlistPage } from './pages/Watchlist';
 import { SettingsPage } from './pages/Settings';
 import { SetsPage, SetPage } from './pages/Sets';
+import { MasterSetsPage, MasterSetPage } from './pages/MasterSets';
 import { useAccount } from './components/Account';
 import { accountsEnabled } from './lib/supabase';
 
@@ -26,6 +27,7 @@ const NAV = [
   { href: '/deals', label: 'Deals', short: 'Deals', icon: IconTag, count: 'deals' as const, tab: true },
   { href: '/grading', label: 'Raw to Graded', short: 'Grading', icon: IconSlab, count: 'spreads' as const, tab: false },
   { href: '/sets', label: 'Sets', short: 'Sets', icon: IconBinder, tab: true },
+  { href: '/mastersets', label: 'Master Sets', short: 'Master Sets', icon: IconChecklist, tab: true },
   { href: '/collection', label: 'Collection', short: 'Collection', icon: IconStack, count: 'holdings' as const, tab: true },
   { href: '/watchlist', label: 'Watchlist', short: 'Watchlist', icon: IconStar, tab: false },
 ];
@@ -38,6 +40,9 @@ function route(path: string, panel = false) {
   if (path === '/watchlist') return { title: 'Watchlist', el: <WatchlistPage /> };
   if (path === '/settings') return { title: 'Settings', el: <SettingsPage /> };
   if (path === '/sets') return { title: 'Sets', el: <SetsPage /> };
+  if (path === '/mastersets') return { title: 'Master Sets', el: <MasterSetsPage /> };
+  const ms = /^\/mastersets\/([^/]+)$/.exec(path);
+  if (ms) return { title: 'Master Set', el: <MasterSetPage id={decodeURIComponent(ms[1])} key={ms[1]} /> };
   const set = /^\/sets\/([^/]+)$/.exec(path);
   if (set) return { title: 'Set', el: <SetPage id={decodeURIComponent(set[1])} key={set[1]} /> };
   const m = /^\/card\/(.+)$/.exec(path);
@@ -103,8 +108,8 @@ function CardPanel({ children }: { children: preact.ComponentChildren }) {
   );
 }
 
-const TOP_LEVEL = new Set(['/', '/deals', '/grading', '/sets', '/collection']);
-const parentOf = (path: string) => (path.startsWith('/sets/') ? '/sets' : '/');
+const TOP_LEVEL = new Set(['/', '/deals', '/grading', '/sets', '/mastersets', '/collection']);
+const parentOf = (path: string) => (path.startsWith('/sets/') ? '/sets' : path.startsWith('/mastersets/') ? '/mastersets' : '/');
 
 function App() {
   const loc = useLocation();

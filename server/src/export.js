@@ -10,7 +10,7 @@ import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { setImageMode } from './store.js';
 import { safeJSON, log } from './lib/util.js';
-import { reprintGroups } from './engine/printings.js';
+import { buildIndex, byPrinting } from './catalogIndex.js';
 
 export const SHARDS = 128;
 export const shardOf = (id) => {
@@ -21,18 +21,13 @@ export const shardOf = (id) => {
   return h % SHARDS;
 };
 
-const r2 = (x) => (x == null || !Number.isFinite(x) ? null : Math.round(x * 100) / 100);
-
 function write(dir, file, data) {
   const path = join(dir, file);
   mkdirSync(join(path, '..'), { recursive: true });
   writeFileSync(path, JSON.stringify(data));
 }
 
-// The regular printing comes first: it's what a scanned or added card defaults to.
-// Reverse holo and 1st edition are only used when picked.
-const PRINTING_RANK = { normal: 0, holofoil: 1, unlimitedHolofoil: 2, reverseHolofoil: 3, '1stEditionNormal': 4, '1stEditionHolofoil': 5 };
-export const byPrinting = (a, b) => (PRINTING_RANK[a[0]] ?? 9) - (PRINTING_RANK[b[0]] ?? 9) || (b[1] ?? 0) - (a[1] ?? 0);
+export { byPrinting };
 
 export async function exportStatic({ db, api, outDir, minDetailUsd = 1 }) {
   setImageMode('direct');
@@ -74,24 +69,9 @@ export async function exportStatic({ db, api, outDir, minDetailUsd = 1 }) {
   }
   shards.forEach((cards, i) => write(outDir, `cards/${i}.json`, { cards }));
 
-  // Compact catalog: [productId, name, setId, number, total, rarity, [[variant, raw, g9, psa10, change7d], ...]] (regular printing first)
-  // Sets: [name, code, series, released, reprint (1 = reprint product; the scanner prefers originals)]
-  const setRows = db.all('SELECT * FROM sets WHERE cards > 0');
-  const reprints = reprintGroups(db);
-  const setsMap = Object.fromEntries(setRows.map((s) => [s.id, [s.name, s.code, s.series, s.released, reprints.has(String(s.id)) ? 1 : 0]]));
-  const vals = new Map();
-  for (const v of db.all(`SELECT card_id, variant, raw, g9, psa10, change_7d FROM valuations WHERE card_id LIKE 'tcg:%'`)) {
-    if (!vals.has(v.card_id)) vals.set(v.card_id, []);
-    vals.get(v.card_id).push([v.variant, r2(v.raw), r2(v.g9), r2(v.psa10), v.change_7d == null ? null : Math.round(v.change_7d * 1000) / 1000]);
-  }
-  const cards = [];
-  for (const c of db.all(`SELECT id, name, group_id, number, printed_total, rarity FROM cards WHERE id LIKE 'tcg:%'`)) {
-    const pv = vals.get(c.id);
-    if (!pv) continue;
-    pv.sort(byPrinting);
-    cards.push([Number(c.id.slice(4)), c.name, String(c.group_id ?? ''), c.number, c.printed_total, c.rarity, pv]);
-  }
-  write(outDir, 'index.json', { v: 1, updatedAt: Date.now(), imageBase: 'https://tcgplayer-cdn.tcgplayer.com/product/', sets: setsMap, cards });
+  const index = buildIndex(db);
+  const cards = index.cards;
+  write(outDir, 'index.json', index);
 
   log.info(`export: ${cards.length} cards in index, ${ids.length} detail pages, ${sets.items.length} sets → ${outDir}`);
   return { cards: cards.length, details: ids.length, sets: sets.items.length };

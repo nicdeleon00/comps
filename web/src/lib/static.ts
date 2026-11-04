@@ -242,6 +242,7 @@ export async function staticRequest(method: string, url: string, body?: any): Pr
     if (path === '/api/spreads') return spreads(q);
     if (path === '/api/search') return { items: await search(q.q ?? '', Number(q.limit) || 24) };
     if (path === '/api/sets') return file('sets.json');
+    if (path === '/api/index') return (await index()).idx;
     if ((r = m(/^\/api\/sets\/([^/]+)$/))) return file(`sets/${decodeURIComponent(r[1])}.json`);
     if ((r = m(/^\/api\/cards\/([^/]+)$/))) return cardDetail(decodeURIComponent(r[1]));
     if (path === '/api/settings') return { ...localSettings(), static: true };

@@ -26,6 +26,7 @@ export const IconArrowUp = make(<path d="M12 19V5M6 11l6-6 6 6" />);
 export const IconExternal = make(<><path d="M14 4h6v6" /><path d="M20 4l-9 9" /><path d="M18 14v4.5c0 .8-.7 1.5-1.5 1.5h-11c-.8 0-1.5-.7-1.5-1.5v-11C4 6.7 4.7 6 5.5 6H10" /></>);
 export const IconRefresh = make(<><path d="M20 11.5A8 8 0 0 0 6.3 6.3L4 8.5" /><path d="M4 4v4.5h4.5" /><path d="M4 12.5a8 8 0 0 0 13.7 5.2L20 15.5" /><path d="M20 20v-4.5h-4.5" /></>);
 export const IconTrash = make(<><path d="M4.5 6.5h15" /><path d="M9.5 6.5V4.8c0-.6.4-1 1-1h3c.6 0 1 .4 1 1v1.7" /><path d="M6.5 6.5l.8 12.6c.1.9.8 1.6 1.7 1.6h6c.9 0 1.6-.7 1.7-1.6l.8-12.6" /></>);
+export const IconChecklist = make(<><rect x="4" y="3.5" width="16" height="17" rx="2.6" /><path d="M7.8 9.2l1.7 1.7 3-3" /><path d="M14.8 9.6h1.8" /><path d="M7.8 15.2l1.7 1.7 3-3" /><path d="M14.8 15.6h1.8" /></>);
 export const IconDown = make(<><path d="M12 4v11" /><path d="M7 10.5l5 5 5-5" /><path d="M5 20h14" /></>);
 export const IconPhone = make(<><rect x="6.5" y="2.5" width="11" height="19" rx="2.5" /><path d="M10.5 18.5h3" /></>);
 export const IconInfo = make(<><circle cx="12" cy="12" r="8.5" /><path d="M12 11v5.5" /><path d="M12 7.6v.1" /></>);

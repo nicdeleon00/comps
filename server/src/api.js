@@ -8,6 +8,7 @@ import { holdingValue } from './engine/valuation.js';
 import { valuedHoldings, summary, sync, upsertHolding, hydrate } from './collection.js';
 import { ebayConfigured, ebaySearchUrl, ebaySoldUrl } from './providers/ebay.js';
 import { SERIES_ORDER } from './providers/tcgcsv.js';
+import { buildIndex } from './catalogIndex.js';
 import { safeJSON, groupBy, log, daysAgo } from './lib/util.js';
 import { networkInterfaces } from 'node:os';
 
@@ -369,6 +370,12 @@ export function createApi({ db, settings, jobs }) {
   });
 
   on('GET', '/api/sets', () => ({ items: listSets(db), series: SERIES_ORDER }));
+  // The compact card catalog (same as the hosted site's index.json), for master sets.
+  let index = null;
+  on('GET', '/api/index', () => {
+    if (!index || Date.now() - index.at > 60_000) index = { at: Date.now(), data: buildIndex(db) };
+    return index.data;
+  });
   on('GET', '/api/sets/:id', ({ params }) => setDetail(db, params.id) ?? { error: 'not found', status: 404 });
 
   on('GET', '/api/cards/:id', ({ params }) => cardDetail(db, settings, params.id) ?? { error: 'not found', status: 404 });
