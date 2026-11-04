@@ -199,3 +199,47 @@ test('catalog lists the regular printing first, not the priciest', () => {
   assert.deepEqual(order([['1stEditionHolofoil', 9000], ['unlimitedHolofoil', 400]]), ['unlimitedHolofoil', '1stEditionHolofoil']);
   assert.deepEqual(order([['1stEditionNormal', 30], ['normal', 2]]), ['normal', '1stEditionNormal']);
 });
+
+test('graded prices: free lookups are budgeted, remembered and prioritised', async () => {
+  const { openDatabase } = await import('../src/db.js');
+  const { refreshGraded, gradedFrom, pickCards, ttlDays } = await import('../src/providers/ppt.js');
+  const { valuate } = await import('../src/engine/valuation.js');
+  const db = openDatabase(':memory:');
+  const now = Date.UTC(2026, 10, 4, 12);
+  // Three cards worth grading, one too cheap; the 1st-edition printing must not be chosen over the regular one.
+  for (const [id, variant, raw] of [['tcg:1', 'holofoil', 400], ['tcg:1', '1stEditionHolofoil', 9000], ['tcg:2', 'normal', 60], ['tcg:3', 'holofoil', 25], ['tcg:4', 'normal', 0.5]]) {
+    db.run('INSERT INTO valuations (card_id, variant, raw, confidence, sources, updated_at) VALUES (?,?,?,?,?,?)', id, variant, raw, 1, 1, now);
+  }
+  const shapes = {
+    1: { data: [{ name: 'A', ebay: { salesByGrade: { psa10: { count: 40, smartMarketPrice: { price: 1500, confidence: 'high' } }, psa9: { medianPrice: 600 } }, salesVelocityWeekly: 3 } }] },
+    2: { data: { name: 'B', ebay: { salesByGrade: { 'PSA 10': { averagePrice: 210 }, 'BGS 9.5': { marketPrice7Day: 150 } } } } },
+    3: { data: [{ name: 'C', ebay: {} }] },
+  };
+  const calls = [];
+  const fake = async (url, init) => {
+    const pid = new URL(url).searchParams.get('tcgPlayerId');
+    calls.push(pid);
+    assert.equal(init.headers.Authorization, 'Bearer k');
+    return new Response(JSON.stringify(shapes[pid]), { status: 200, headers: { 'x-ratelimit-cost': '2' } });
+  };
+  const settings = { pptApiKey: 'k', pptDailyCredits: 4, pptMinUsd: 2, pptMaxUsd: 5000 };
+  // Budget of 4 credits = 2 cards: the most valuable never-seen ones, at their regular printing.
+  assert.equal(await refreshGraded(db, settings, () => {}, { fetchImpl: fake, now, pause: 0 }), 2);
+  assert.deepEqual(calls, ['1', '2']);
+  const q1 = JSON.parse(db.get(`SELECT data FROM quotes WHERE card_id = 'tcg:1' AND source = 'ppt'`).data);
+  assert.equal(db.get(`SELECT variant FROM quotes WHERE card_id = 'tcg:1' AND source = 'ppt'`).variant, 'holofoil');
+  assert.deepEqual([q1.psa10, q1.g9, q1.volume], [1500, 600, 12]);
+  // Same day: budget spent, nothing more is asked.
+  assert.equal(await refreshGraded(db, settings, () => {}, { fetchImpl: fake, now: now + 3600e3, pause: 0 }), 0);
+  assert.equal(calls.length, 2);
+  // Next day: only the card never looked up; "no graded sales" is remembered too.
+  await refreshGraded(db, settings, () => {}, { fetchImpl: fake, now: now + 86400e3, pause: 0 });
+  assert.deepEqual(calls, ['1', '2', '3']);
+  assert.equal(JSON.parse(db.get(`SELECT data FROM quotes WHERE card_id = 'tcg:3'`).data).found, false);
+  assert.equal(pickCards(db, { limit: 10, minUsd: 2, maxUsd: 5000, now: now + 2 * 86400e3 }).length, 0, 'nothing is re-asked within weeks');
+  assert.equal(pickCards(db, { limit: 10, minUsd: 2, maxUsd: 5000, now: now + (ttlDays(400, true) + 1) * 86400e3 })[0].card_id, 'tcg:1', 'pricey cards are re-checked first when stale');
+  // Other response shapes, and valuation picking the graded prices up.
+  assert.deepEqual(gradedFrom(shapes[2].data), { psa10: 210, g95: 150, volume: null });
+  const v = valuate([{ source: 'tcgplayer', data: { market: 400 } }, { source: 'ppt', data: q1 }], 1.1);
+  assert.deepEqual([v.psa10, v.g9], [1500, 600]);
+});

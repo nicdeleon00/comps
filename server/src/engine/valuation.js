@@ -38,20 +38,23 @@ export function valuate(quotes, fx, linkedPc) {
     if (pc?.volume != null) confidence = clamp(confidence * (pc.volume >= 12 ? 1 : 0.75 + pc.volume / 48));
   }
 
+  // Graded prices: PriceCharting when connected, else what PokemonPriceTracker taught us.
+  const pt = by.ppt?.data;
+  const graded = (k) => pc?.[k] ?? pt?.[k] ?? null;
   const out = {
     raw: r2(raw),
     raw_low: r2(tp?.low ?? (cm?.low ? cm.low * fx : null)),
     confidence: Math.round(confidence * 100) / 100,
     sources: cand.length,
-    g7: pc?.g7 ?? null,
-    g8: pc?.g8 ?? null,
-    g9: pc?.g9 ?? null,
-    g95: pc?.g95 ?? null,
-    psa10: pc?.psa10 ?? null,
-    bgs10: pc?.bgs10 ?? null,
-    cgc10: pc?.cgc10 ?? null,
-    sgc10: pc?.sgc10 ?? null,
-    volume: pc?.volume ?? null,
+    g7: graded('g7'),
+    g8: graded('g8'),
+    g9: graded('g9'),
+    g95: graded('g95'),
+    psa10: graded('psa10'),
+    bgs10: graded('bgs10'),
+    cgc10: graded('cgc10'),
+    sgc10: graded('sgc10'),
+    volume: pc?.volume ?? pt?.volume ?? null,
     // Cardmarket's rolling averages give a trend even before we have history.
     cm_change_7d: cm?.avg7 && cm?.avg30 ? cm.avg7 / cm.avg30 - 1 : null,
   };

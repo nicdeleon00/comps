@@ -2,8 +2,9 @@ name: Prices & website
 
 # Refreshes Pokémon prices, finds deals and grading spreads, and publishes the
 # website to GitHub Pages. Price history lives in the "data" release so it
-# survives between runs. Optional secrets: PRICECHARTING_TOKEN (graded prices),
-# EBAY_CLIENT_ID + EBAY_CLIENT_SECRET (live listing scanner).
+# survives between runs. Optional secrets: PPT_API_KEY (free graded prices from
+# PokemonPriceTracker, learned ~50 cards a day), PRICECHARTING_TOKEN (paid graded
+# prices), EBAY_CLIENT_ID + EBAY_CLIENT_SECRET (live listing scanner).
 on:
   schedule:
     - cron: "23 */6 * * *"
@@ -30,6 +31,7 @@ jobs:
     timeout-minutes: 50
     env:
       DATA_DIR: ${{ github.workspace }}/data
+      PPT_API_KEY: ${{ secrets.PPT_API_KEY }}
       PRICECHARTING_TOKEN: ${{ secrets.PRICECHARTING_TOKEN }}
       EBAY_CLIENT_ID: ${{ secrets.EBAY_CLIENT_ID }}
       EBAY_CLIENT_SECRET: ${{ secrets.EBAY_CLIENT_SECRET }}

@@ -15,7 +15,7 @@ export const VARIANT_LABEL = {
   normal: 'Normal', holofoil: 'Holo', reverseHolofoil: 'Reverse Holo', '1stEditionHolofoil': '1st Edition Holo',
   '1stEditionNormal': '1st Edition', unlimitedHolofoil: 'Unlimited Holo', nonfoil: 'Non-foil', foil: 'Foil', etched: 'Etched', default: '',
 };
-const SOURCE_LABEL = { tcgplayer: 'TCGplayer', cardmarket: 'Cardmarket (EU)', pricecharting: 'PriceCharting' };
+const SOURCE_LABEL = { tcgplayer: 'TCGplayer', cardmarket: 'Cardmarket (EU)', pricecharting: 'PriceCharting', ppt: 'PokemonPriceTracker (graded)' };
 
 // Rarity buckets used by filters, over TCGplayer's rarity names.
 export const RARITY_SQL = {
@@ -160,7 +160,11 @@ function cardDetail(db, settings, id) {
   const rates = ratesFor(db, id, row.release_date);
   const fx = settings.get().fxEurUsd;
   const variants = vals.map((v) => {
-    const qs = (quotes.get(v.variant) ?? []).map((q) => ({ source: q.source, label: SOURCE_LABEL[q.source] ?? q.source, currency: q.currency, metrics: safeJSON(q.data, {}), updatedAt: q.updated_at }));
+    const qs = (quotes.get(v.variant) ?? [])
+      .map((q) => ({ source: q.source, label: SOURCE_LABEL[q.source] ?? q.source, currency: q.currency, metrics: safeJSON(q.data, {}), updatedAt: q.updated_at }))
+      // Graded lookups that found no sales are kept (so they aren't repeated) but not shown.
+      .filter((q) => q.source !== 'ppt' || q.metrics.found !== false)
+      .map((q) => (q.source === 'ppt' ? { ...q, metrics: Object.fromEntries(Object.entries(q.metrics).filter(([, x]) => typeof x === 'number' && x > 1e-9 && x < 1e9)) } : q));
     const link = links.find((l) => l.variant === v.variant);
     if (link) {
       const pq = db.get(`SELECT * FROM quotes WHERE card_id = ? AND source = 'pricecharting'`, link.pc_id);
@@ -320,6 +324,7 @@ function status(db, settings, jobs) {
       pokemon: { on: true },
       europe: { on: true },
       pricecharting: { on: Boolean(s.pricechartingToken) },
+      graded: { on: Boolean(s.pptApiKey || s.pricechartingToken), cards: db.get(`SELECT COUNT(*) n FROM valuations WHERE psa10 IS NOT NULL`).n },
       ebay: { on: ebayConfigured(s) },
     },
     fx: { eurUsd: s.fxEurUsd, source: s._fxSource },

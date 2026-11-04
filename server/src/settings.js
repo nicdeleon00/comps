@@ -2,6 +2,11 @@
 // Settings screen (stored in SQLite) are used.
 
 const DEFAULTS = {
+  // Graded prices from PokemonPriceTracker's free plan (100 credits/day).
+  pptApiKey: '',
+  pptDailyCredits: 96,
+  pptMinUsd: 2,
+  pptMaxUsd: 5000,
   pricechartingToken: '',
   ebayClientId: '',
   ebayClientSecret: '',
@@ -24,6 +29,8 @@ const DEFAULTS = {
 };
 
 const ENV = {
+  pptApiKey: 'PPT_API_KEY',
+  pptDailyCredits: 'PPT_DAILY_CREDITS',
   pricechartingToken: 'PRICECHARTING_TOKEN',
   ebayClientId: 'EBAY_CLIENT_ID',
   ebayClientSecret: 'EBAY_CLIENT_SECRET',
@@ -32,7 +39,7 @@ const ENV = {
   refreshHours: 'REFRESH_HOURS',
 };
 
-export const SECRET_KEYS = new Set(['pricechartingToken', 'ebayClientId', 'ebayClientSecret']);
+export const SECRET_KEYS = new Set(['pptApiKey', 'pricechartingToken', 'ebayClientId', 'ebayClientSecret']);
 
 export function createSettings(db) {
   const read = () => {

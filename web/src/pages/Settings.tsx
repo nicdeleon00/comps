@@ -146,7 +146,7 @@ function HostedSettings() {
   };
   const site = `${location.origin}${BASE}/`;
   const gh = REPO ? `https://github.com/${REPO}` : '';
-  const pc = st?.providers.pricecharting?.on;
+  const gr = st?.providers.graded;
   const eb = st?.providers.ebay?.on;
   const jobOk = (name: string) => st?.jobs.find((j) => j.name === name);
   return (
@@ -162,10 +162,10 @@ function HostedSettings() {
         </div>
         <div class="g-row">
           <div class="g-main">
-            <div class="g-title">PriceCharting <span class={`status-pill ${pc ? 'on' : 'off'}`}>{pc ? 'Connected' : 'Not set'}</span></div>
-            <div class="g-desc">Graded prices (PSA 9/10, BGS, CGC, SGC) for Raw to Graded. Paid. Add your token as the repository secret <code>PRICECHARTING_TOKEN</code>.</div>
+            <div class="g-title">Graded prices <span class={`status-pill ${gr?.on ? 'on' : 'off'}`}>{gr?.on ? 'Free · learning' : 'Not set'}</span></div>
+            <div class="g-desc">PSA, CGC and BGS prices for Raw to Graded, from PokemonPriceTracker's free plan: about 50 cards a day, most valuable first, each remembered and re-checked every few weeks{gr?.on ? ` · ${num(gr.cards ?? 0)} cards known so far` : ''}. Get a free key (no card) at <a href="https://www.pokemonpricetracker.com/pokemon-card-api" target="_blank" rel="noopener noreferrer">pokemonpricetracker.com</a> and add it as the repository secret <code>PPT_API_KEY</code>.</div>
           </div>
-          {gh && !pc && <a class="btn sm" href={`${gh}/settings/secrets/actions/new`} target="_blank" rel="noopener noreferrer">Add secret</a>}
+          {gh && !gr?.on && <a class="btn sm" href={`${gh}/settings/secrets/actions/new`} target="_blank" rel="noopener noreferrer">Add secret</a>}
         </div>
         <div class="g-row">
           <div class="g-main">

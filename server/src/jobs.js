@@ -4,6 +4,7 @@
 import { refreshTcgcsv } from './providers/tcgcsv.js';
 import { refreshTcgdex } from './providers/tcgdex.js';
 import { refreshPriceCharting } from './providers/pricecharting.js';
+import { refreshGraded } from './providers/ppt.js';
 import { refreshFx } from './providers/fx.js';
 import { ebayConfigured } from './providers/ebay.js';
 import { rebuildValuations, compactHistory } from './engine/valuation.js';
@@ -48,8 +49,9 @@ export function createJobs(db, settings) {
     await step('fx', () => refreshFx(s, settings));
     await step('pokemon', (p) => refreshTcgcsv(db, s, p));
     if (s.pricechartingToken) await step('pricecharting', (p) => refreshPriceCharting(db, s, p));
-    // Value first so the EU step knows which cards are worth enriching.
+    // Value first so the graded and EU steps know which cards matter most.
     await step('valuations', () => recompute());
+    if (s.pptApiKey) await step('graded', (p) => refreshGraded(db, settings.get(), p));
     await step('europe', (p) => refreshTcgdex(db, settings.get(), p));
     await step('valuations', () => recompute());
     compactHistory(db);

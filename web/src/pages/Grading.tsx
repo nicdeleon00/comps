@@ -35,7 +35,9 @@ export function GradingPage() {
   }, [draft]);
   const items = [...(data?.items ?? []), ...more];
   const st = settings.data;
-  const noPc = status.data && !status.data.providers.pricecharting?.on && !status.data.demo;
+  const graded = status.data?.providers.graded ?? status.data?.providers.pricecharting;
+  const noPc = status.data && !graded?.on && !status.data.demo;
+  const learning = status.data && graded?.on && (graded.cards ?? 0) < 1500;
 
   return (
     <div class="page">
@@ -78,8 +80,10 @@ export function GradingPage() {
 
       {loading && !data && <SkRows n={8} />}
       {data && !items.length && (
-        <Empty icon={<IconSlab size={26} />} title={noPc ? 'Graded prices need PriceCharting' : 'No profitable spreads with these filters'}>
-          {noPc ? 'PriceCharting is the source for PSA 9, PSA 10, BGS, CGC and SGC prices. Add your token in Settings and refresh.' : 'Loosen the filters, or lower your grading costs in Settings if you have a cheaper tier.'}
+        <Empty icon={<IconSlab size={26} />} title={noPc ? 'Graded prices need a free key' : learning ? 'Still learning graded prices' : 'No profitable spreads with these filters'}>
+          {noPc ? 'Add a free PokemonPriceTracker key (Settings → Prices). Comps then learns PSA, CGC and BGS prices for about 50 cards a day, most valuable first, and remembers them.'
+            : learning ? `Graded prices are known for ${graded?.cards ?? 0} cards so far — about 50 more each day, most valuable first. Spreads appear as they're learned.`
+            : 'Loosen the filters, or lower your grading costs in Settings if you have a cheaper tier.'}
         </Empty>
       )}
       {items.length > 0 && (

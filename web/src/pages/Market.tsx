@@ -112,7 +112,9 @@ export function MarketPage() {
             </div>
             <p class="section-note">Cards where a graded copy sells for far more than a raw one, after grading and selling fees.</p>
             {data.spreads.length ? data.spreads.slice(0, 5).map((sp, i) => <SpreadRow s={sp} i={i} />)
-              : <p class="muted" style={{ fontSize: 14 }}>Connect PriceCharting in Settings to get graded prices.</p>}
+              : <p class="muted" style={{ fontSize: 14 }}>{(s?.providers.graded?.on)
+                ? `Learning graded prices — ${s?.providers.graded?.cards ?? 0} cards so far, about 50 more a day.`
+                : 'Add a free PokemonPriceTracker key in Settings to get graded prices.'}</p>}
           </section>
           <section>
             <div class="section-head">

@@ -77,7 +77,7 @@ export interface Job { name: string; status: string; started_at: number; finishe
 export interface Status {
   version: string;
   demo: boolean;
-  providers: Record<string, { on: boolean; key?: boolean }>;
+  providers: Record<string, { on: boolean; key?: boolean; cards?: number }>;
   fx: { eurUsd: number; source: string };
   counts: { cards: number; valued: number; deals: number; spreads: number; listings: number; holdings: number };
   running: string | null;

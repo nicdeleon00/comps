@@ -11,7 +11,7 @@ Everything runs on GitHub — nothing to host or keep running on your computer:
 ## What it does
 
 - **Deals** — cards priced under what they're worth: live eBay Buy It Now listings under fair value, price dips against 30-day history, TCGplayer asks 20–40% under market, and modern cards cheaper on Cardmarket than in the US.
-- **Raw to Graded** — cards that are cheap raw but sell for a multiple graded. Expected profit after grading and selling fees, and the **break-even gem rate**: the share of PSA 10s you need to not lose money. Gem rates start from Pokémon-era defaults (WotC, EX–HGSS, BW/XY, Sun & Moon, modern) and you can set your own per card.
+- **Raw to Graded** — cards that are cheap raw but sell for a multiple graded (graded prices from PokemonPriceTracker's free plan, learned daily). Expected profit after grading and selling fees, and the **break-even gem rate**: the share of PSA 10s you need to not lose money. Gem rates start from Pokémon-era defaults (WotC, EX–HGSS, BW/XY, Sun & Moon, modern) and you can set your own per card.
 - **Sets** — every set by era with its total value, and a binder view of each set.
 - **Collection** — scan to add on the phone; see it on the website too. Turn on **Sync with iPhone** in the website's Settings (one GitHub key with the “gist” permission, then scan the code it shows from the app) and both stay in step automatically. The collection lives in a secret gist on your GitHub account.
 
@@ -21,8 +21,9 @@ Add these as repository secrets: **Settings → Secrets and variables → Action
 
 | Secret | Cost | Unlocks |
 |---|---|---|
+| `PPT_API_KEY` | free ([pokemonpricetracker.com](https://www.pokemonpricetracker.com/pokemon-card-api), no card) | Graded prices (PSA, CGC, BGS) for **Raw to Graded**. The free plan covers about 50 cards a day; Comps looks up the most valuable cards first, remembers every answer, and re-checks a card only every few weeks — so coverage grows daily without repeat lookups. |
 | `EBAY_CLIENT_ID`, `EBAY_CLIENT_SECRET` | free ([developer.ebay.com](https://developer.ebay.com/my/keys), production keyset) | Live listing scanner — the strongest "underpriced" signal. |
-| `PRICECHARTING_TOKEN` | paid subscription | Graded prices (PSA 9/10, BGS, CGC, SGC). Powers **Raw to Graded**. |
+| `PRICECHARTING_TOKEN` | paid (optional) | Graded prices for every card at once, if you ever want them. Not needed. |
 
 To refresh right away: **Actions → Prices & website → Run workflow**.
 
