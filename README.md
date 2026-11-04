@@ -13,7 +13,7 @@ Everything runs on GitHub — nothing to host or keep running on your computer:
 - **Deals** — cards priced under what they're worth: live eBay Buy It Now listings under fair value, price dips against 30-day history, TCGplayer asks 20–40% under market, and modern cards cheaper on Cardmarket than in the US.
 - **Raw to Graded** — cards that are cheap raw but sell for a multiple graded (graded prices from PokemonPriceTracker's free plan, learned daily). Expected profit after grading and selling fees, and the **break-even gem rate**: the share of PSA 10s you need to not lose money. Gem rates start from Pokémon-era defaults (WotC, EX–HGSS, BW/XY, Sun & Moon, modern) and you can set your own per card.
 - **Sets** — every set by era with its total value, and a binder view of each set.
-- **Collection** — scan to add on the phone; see it on the website too. Turn on **Sync with iPhone** in the website's Settings (one GitHub key with the “gist” permission, then scan the code it shows from the app) and both stay in step automatically. The collection lives in a secret gist on your GitHub account.
+- **Collection** — scan to add on the phone; see it on the website too. Sign in with the same account on both and they stay in step automatically.
 
 ## Unlock more (optional, 2 minutes each)
 
@@ -46,20 +46,32 @@ Modes:
 - **Single:** tap the shutter, confirm, add.
 - **Binder:** fit a 4-, 9- or 12-pocket page inside the guide and tap the shutter. It takes a full-resolution photo, finds each card (inferring any pocket it can't outline from the page grid), reads and matches every pocket, and shows the page with a ✓ / ? on each card. Add the whole page at once, or fix a pocket first. Tips: lay the page flat, avoid overhead glare on the sleeves, and fill the frame.
 
+## Accounts
+
+Anyone can create an account (email + password) on the website or in the app. Each person's collection, card watchlist, settings, drop links and alert devices are their own and follow them everywhere. Accounts run on a free [Supabase](https://supabase.com) project; set it up once:
+
+1. Create a free project at supabase.com.
+2. **Authentication → Sign In / Providers → Email:** turn off **Confirm email** (Supabase's free email sender only reaches project members).
+3. **Authentication → URL Configuration:** Site URL = your site (e.g. `https://you.github.io/comps/`).
+4. **SQL Editor:** paste [`supabase/schema.sql`](supabase/schema.sql) and run it (safe to run again after updates).
+5. **Project Settings → API:** add the **Project URL** and **anon public** key to this repository as Actions **variables** `SUPABASE_URL` and `SUPABASE_ANON_KEY`. Both are public by design; row-level security keeps each person's data private. Keep the **service_role** key secret — only the drop monitor uses it.
+
+The next website build turns accounts on, and each price refresh keeps the free project from pausing.
+
 ## Drops (monitor on your PC)
 
 Get a notification the moment a product you're watching can be bought — an Elite Trainer Box, a booster bundle, a pre-order page.
 
-- **The monitor runs on your computer** (`monitor/`). It checks each link about every 30 seconds while the computer is on, spaces out requests to each store, and backs off when a store pushes back. It only reads pages: no logins, no auto-checkout, no getting around bot protection.
-- **Alerts go straight from your PC to your phone** as web push notifications. On iPhone they arrive through Comps added to your Home Screen (iPhone only allows instant alerts for sideloaded apps that way). Desktop Chrome/Edge/Firefox can get them too.
-- **Watch list, live status and recent drops** show on the website's **Drops** page and in the app's **Drops** tab. Everything is shared through your sync gist, using the same GitHub key as collection sync.
+- **One monitor serves everyone.** It runs on the site owner's computer (`monitor/`), reads every account's links (20 per person), checks each unique link about every 30 seconds while the computer is on, spaces out requests to each store, and backs off when a store pushes back. It only reads pages: no logins, no auto-checkout, no getting around bot protection.
+- **Alerts go straight from that PC to each person's devices** as web push notifications — only to the people watching that product, and only within their max price. On iPhone they arrive through Comps added to the Home Screen (iPhone only allows instant alerts for sideloaded apps that way). Desktop Chrome/Edge/Firefox can get them too.
+- **Watch list, live status and recent drops** show on the website's **Drops** page and in the app's **Drops** tab.
 
-Set up once:
+Run the monitor (site owner):
 
-1. Turn on collection sync (website **Settings → Sync with iPhone**).
-2. Install [Node.js](https://nodejs.org) (LTS), download this repository as a ZIP, open the `monitor` folder and double-click `start-monitor.cmd` (Windows) or `start-monitor.command` (Mac). Paste your sync key when asked. Leave the window open.
-3. Add product links on the Drops page (website or app).
-4. On your iPhone: open the site in Safari → Share → **Add to Home Screen** → open Comps from the Home Screen → paste your sync key (copy it in the app: **Settings → Sync with computer → Copy sync key**) → **Drops → Turn on alerts**. A test alert confirms it works.
+1. Install [Node.js](https://nodejs.org) (LTS), download this repository as a ZIP, open the `monitor` folder and double-click `start-monitor.cmd` (Windows) or `start-monitor.command` (Mac).
+2. Paste your Supabase **Project URL** and **service_role** key when asked. Leave the window open.
+
+Get alerts on an iPhone: open the site in Safari → Share → **Add to Home Screen** → open Comps from the Home Screen → sign in → **Drops → Turn on alerts**. A test alert confirms it works.
 
 | Store | How it's checked |
 |---|---|

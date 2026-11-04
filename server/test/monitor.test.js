@@ -5,7 +5,6 @@ import { createECDH, randomBytes, createPublicKey, verify } from 'node:crypto';
 import { encrypt, decrypt, vapidAuth, generateVapidKeys, b64u, fromB64u } from '../../monitor/webpush.mjs';
 import { parseProductPage, looksBlocked, storeOf } from '../../monitor/stores.mjs';
 import { Monitor } from '../../monitor/monitor.mjs';
-import { DROPS_FILE, MONITOR_FILE } from '../../monitor/gist.mjs';
 
 test('web push encryption matches the RFC 8291 example byte for byte', () => {
   const out = encrypt('When I grow up, I want to be a watermelon', {
@@ -52,66 +51,77 @@ test('product pages: bot walls are recognised, not mistaken for stock', () => {
   assert.equal(storeOf('https://www.pokemoncenter.com/product/1'), 'pokemoncenter');
 });
 
-test('monitor: alerts once when a watched product comes in stock, with a working encrypted push', async () => {
+test('monitor: checks a shared link once and alerts each person on their own devices', async () => {
   // A fake store page and a fake push service, both local.
   let stock = 'OutOfStock';
+  let pageHits = 0;
   const pushes = [];
-  const ua = createECDH('prime256v1');
-  ua.generateKeys();
-  const auth = randomBytes(16);
+  const phone = () => { const k = createECDH('prime256v1'); k.generateKeys(); return { k, auth: randomBytes(16) }; };
+  const ash = phone(), misty = phone();
   const server = createServer((req, res) => {
     if (req.url === '/product') {
+      pageHits++;
       res.setHeader('Content-Type', 'text/html');
       return res.end(ld({ '@type': 'Product', name: 'Surging Sparks Booster Box', offers: { price: 159.99, availability: `https://schema.org/${stock}` } }));
     }
     const chunks = [];
     req.on('data', (c) => chunks.push(c));
-    req.on('end', () => {
-      pushes.push({ headers: req.headers, body: Buffer.concat(chunks) });
-      res.statusCode = 201;
-      res.end();
-    });
+    req.on('end', () => { pushes.push({ to: req.url, headers: req.headers, body: Buffer.concat(chunks) }); res.statusCode = 201; res.end(); });
   });
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${server.address().port}`;
-  const files = {
-    [DROPS_FILE]: {
-      v: 1,
-      watch: [{ id: 'w1', url: `${base}/product`, name: '', maxPrice: 170 }],
-      devices: [{ id: 'd1', name: 'iPhone', endpoint: `${base}/push`, keys: { p256dh: b64u(ua.getPublicKey()), auth: b64u(auth) } }],
-    },
+  const url = `${base}/product`;
+  // Two accounts watch the same link; Misty only wants it at $100 or less.
+  const db = {
+    watch: [{ id: 'w-ash', user_id: 'ash', url, name: null, max_price: 170 }, { id: 'w-misty', user_id: 'misty', url, name: 'Booster box', max_price: 100 }],
+    devices: [
+      { id: 'd-ash', user_id: 'ash', name: 'iPhone', endpoint: `${base}/push/ash`, p256dh: b64u(ash.k.getPublicKey()), auth: b64u(ash.auth) },
+      { id: 'd-misty', user_id: 'misty', name: 'iPhone', endpoint: `${base}/push/misty`, p256dh: b64u(misty.k.getPublicKey()), auth: b64u(misty.auth) },
+    ],
+    status: [], events: [], heartbeat: null,
   };
-  const m = new Monitor({ token: 't', gist: 'g', vapid: generateVapidKeys(), interval: 15, subject: 'https://example.com/' });
-  m.gist = { read: async () => structuredClone(files), write: async (f) => Object.assign(files, structuredClone(f)) };
-  const open = (p) => JSON.parse(decrypt(p.body, { privateKey: b64u(ua.getPrivateKey()), auth: b64u(auth) }));
+  const accounts = {
+    watchItems: async () => structuredClone(db.watch), devices: async () => structuredClone(db.devices), statuses: async () => structuredClone(db.status),
+    upsertStatus: async (rows) => { for (const r of rows) db.status = [...db.status.filter((x) => x.watch_id !== r.watch_id), r]; },
+    addEvents: async (rows) => { db.events.push(...rows); }, deleteDevice: async () => {}, heartbeat: async (h) => { db.heartbeat = h; }, pruneEvents: async () => {},
+  };
+  const config = { vapid: generateVapidKeys(), interval: 15, subject: 'https://example.com/', greeted: [] };
+  const m = new Monitor(config, accounts, { save: () => {} });
+  const open = (p, who) => JSON.parse(decrypt(p.body, { privateKey: b64u(who.k.getPrivateKey()), auth: b64u(who.auth) }));
   try {
     await m.load();
-    await m.greetNewDevices();
-    assert.equal(pushes.length, 1, 'new phone gets a test alert');
-    assert.equal(open(pushes[0]).title, 'Drop alerts are on');
-    assert.match(pushes[0].headers.authorization, /^vapid t=/);
-    assert.equal(pushes[0].headers['content-encoding'], 'aes128gcm');
+    assert.equal(pushes.length, 2, 'each new device gets a test alert');
+    assert.equal(open(pushes.find((p) => p.to === '/push/ash'), ash).title, 'Drop alerts are on');
+    assert.equal(m.links.size, 1, 'one link, even with two people watching');
 
-    const w = m.watch[0];
-    await m.check(w);
-    assert.equal(m.status.w1.state, 'out_of_stock');
-    assert.equal(pushes.length, 1, 'no alert while out of stock');
+    await m.check(url);
+    assert.equal(pageHits, 1);
+    assert.equal(pushes.length, 2, 'no alert while out of stock');
 
     stock = 'InStock';
-    await m.check(w);
-    assert.equal(pushes.length, 2, 'alert when it comes in stock');
-    const alert = open(pushes[1]);
-    assert.equal(alert.title, '127.0.0.1: in stock');
+    await m.check(url);
+    assert.equal(pageHits, 2, 'still one request per check');
+    const alerts = pushes.slice(2);
+    assert.deepEqual(alerts.map((p) => p.to), ['/push/ash'], 'only the person whose price limit is met');
+    const alert = open(alerts[0], ash);
+    assert.match(alert.title, /in stock/);
     assert.match(alert.body, /Surging Sparks Booster Box · \$159\.99/);
-    assert.equal(alert.url, `${base}/product`);
+    assert.equal(alert.url, url);
+    assert.match(alerts[0].headers.authorization, /^vapid t=/);
 
-    await m.check(w);
-    assert.equal(pushes.length, 2, 'no repeat while it stays in stock');
-    assert.equal(m.events.length, 1);
+    await m.check(url);
+    assert.equal(pushes.length, 3, 'no repeat while it stays in stock');
 
-    await m.save();
-    assert.equal(files[MONITOR_FILE].status.w1.state, 'in_stock');
-    assert.ok(files[MONITOR_FILE].vapidPublicKey, 'publishes the key phones subscribe with');
+    await m.write();
+    assert.deepEqual(db.status.map((r) => [r.watch_id, r.state]).sort(), [['w-ash', 'in_stock'], ['w-misty', 'in_stock']]);
+    assert.deepEqual(db.events.map((e) => [e.user_id, e.watch_id, e.price]), [['ash', 'w-ash', 159.99]]);
+    assert.equal(db.heartbeat.vapid_public_key, config.vapid.publicKey, 'publishes the key devices subscribe with');
+
+    // A restart remembers status, so nobody gets a duplicate alert.
+    const again = new Monitor(config, accounts, { save: () => {} });
+    await again.load();
+    await again.check(url);
+    assert.equal(pushes.length, 3);
   } finally {
     server.close();
   }
