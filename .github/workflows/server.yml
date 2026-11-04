@@ -3,7 +3,7 @@ name: Server & web
 on:
   push:
     branches: [main]
-    paths: ["server/**", "web/**", "package.json", ".github/workflows/server.yml"]
+    paths: ["server/**", "web/**", "monitor/**", "supabase/**", "package.json", ".github/workflows/server.yml"]
   pull_request:
   workflow_dispatch:
 
@@ -17,3 +17,21 @@ jobs:
           node-version: 22
       - run: npm test
       - run: npm run build
+
+  database:
+    # Checks supabase/schema.sql (accounts) on a real Postgres with a stand-in for Supabase's auth.
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Schema tests
+        env:
+          PGPASSWORD: postgres
+        run: supabase/test/run.sh -h localhost -U postgres
