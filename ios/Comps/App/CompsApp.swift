@@ -22,7 +22,7 @@ struct CompsApp: App {
 
 @MainActor
 struct RootView: View {
-    enum AppTab: Hashable { case collection, scan, deals, search }
+    enum AppTab: Hashable { case collection, scan, deals, masterSets, search }
 
     @Environment(\.modelContext) private var context
     @Environment(\.scenePhase) private var scenePhase
@@ -41,6 +41,9 @@ struct RootView: View {
             DealsView()
                 .tabItem { Label("Deals", systemImage: "tag.fill") }
                 .tag(AppTab.deals)
+            MasterSetsView()
+                .tabItem { Label("Master Sets", systemImage: "checklist") }
+                .tag(AppTab.masterSets)
             SearchView()
                 .tabItem { Label("Search", systemImage: "magnifyingglass") }
                 .tag(AppTab.search)

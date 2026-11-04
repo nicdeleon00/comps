@@ -13,6 +13,7 @@ Everything runs on GitHub — nothing to host or keep running on your computer:
 - **Deals** — cards priced under what they're worth: live eBay Buy It Now listings under fair value, price dips against 30-day history, TCGplayer asks 20–40% under market, and modern cards cheaper on Cardmarket than in the US.
 - **Raw to Graded** — cards that are cheap raw but sell for a multiple graded (graded prices from PokemonPriceTracker's free plan, learned daily). Expected profit after grading and selling fees, and the **break-even gem rate**: the share of PSA 10s you need to not lose money. Gem rates start from Pokémon-era defaults (WotC, EX–HGSS, BW/XY, Sun & Moon, modern) and you can set your own per card.
 - **Sets** — every set by era with its total value, and a binder view of each set.
+- **Master Sets** — every card in every printing (normal, reverse holo, Poké Ball, Master Ball, Energy Symbol and more), which ones you have, the value of what you have and the cost to complete. Tap a card to mark the printings you own; switch to "one of each" for a basic set. On the website and in the app.
 - **Collection** — scan to add on the phone; see it on the website too. Sign in with the same account on both and they stay in step automatically.
 
 ## Unlock more (optional, 2 minutes each)

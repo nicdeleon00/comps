@@ -54,7 +54,9 @@ actor Catalog {
     private var byId: [String: Int] = [:]
     private var byNumber: [String: [Int]] = [:]
     private var byKey: [String: [Int]] = [:]
-    private var imageBase = "https://tcgplayer-cdn.tcgplayer.com/product/"
+    private(set) var imageBase = "https://tcgplayer-cdn.tcgplayer.com/product/"
+    /// Master sets built from the current catalog (see MasterSets.swift).
+    var masterSetCache: [MSSetInfo]?
     private var loading: Task<Void, Never>?
 
     private var cacheFile: URL {
@@ -150,6 +152,7 @@ actor Catalog {
         }
         guard !list.isEmpty else { return }
         cards = list
+        masterSetCache = nil
         sets = newSets
         byId = [:]
         byNumber = [:]
