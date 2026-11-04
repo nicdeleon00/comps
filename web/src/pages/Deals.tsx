@@ -6,6 +6,7 @@ import { Segmented, Empty, SkRows } from '../components/ui';
 import { DealRow } from '../components/Rows';
 import { IconTag } from '../components/icons';
 import { Header, PokemonFilters } from './shared';
+import { MarketplaceFinds } from '../components/Marketplace';
 
 type Res = { items: Deal[]; total: number; counts: Record<string, number> };
 
@@ -16,6 +17,7 @@ const KINDS = [
   { value: 'ask', label: 'Low asks' },
   { value: 'momentum', label: 'Momentum' },
   { value: 'xmarket', label: 'Cross-market' },
+  { value: 'marketplace', label: 'Marketplace' },
 ];
 
 export function DealsPage() {
@@ -26,7 +28,8 @@ export function DealsPage() {
   const sort = query.get('sort') ?? 'score';
   const max = query.get('max') ?? '';
   const params = new URLSearchParams({ limit: '40', sort });
-  if (kind !== 'all') params.set('kind', kind);
+  const mp = kind === 'marketplace';
+  if (kind !== 'all' && !mp) params.set('kind', kind);
   if (series !== 'all') params.set('series', series);
   if (rarity) params.set('rarity', rarity);
   if (max) params.set('max', max);
@@ -63,6 +66,7 @@ export function DealsPage() {
         <Segmented value={kind} scroll label="Deal type" onChange={(v) => setQuery({ kind: v })}
           options={KINDS.map((k) => ({ ...k, count: k.value === 'all' ? all || undefined : counts[k.value] }))} />
       </div>
+      {mp ? <MarketplaceFinds /> : <>
       <div class="toolbar">
         <PokemonFilters series={series} rarity={rarity} onSeries={(v) => setQuery({ series: v })} onRarity={(v) => setQuery({ rarity: v })} />
       </div>
@@ -96,6 +100,7 @@ export function DealsPage() {
           <button class="btn" onClick={loadMore} disabled={loadingMore}>{loadingMore ? 'Loading…' : `Show more (${data.total - items.length})`}</button>
         </div>
       )}
+      </>}
     </div>
   );
 }

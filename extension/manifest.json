@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "Comps for Marketplace",
+  "version": "1.0.0",
+  "description": "Shows Comps market prices on Pokémon card listings as you browse Facebook Marketplace, and sends underpriced ones to your Comps Deals page.",
+  "icons": { "16": "icons/icon16.png", "32": "icons/icon32.png", "48": "icons/icon48.png", "128": "icons/icon128.png" },
+  "action": { "default_popup": "popup.html", "default_title": "Comps for Marketplace", "default_icon": { "16": "icons/icon16.png", "32": "icons/icon32.png" } },
+  "background": { "service_worker": "background.js", "type": "module" },
+  "permissions": ["storage"],
+  "host_permissions": ["https://nicdeleon00.github.io/*"],
+  "content_scripts": [
+    {
+      "matches": ["https://www.facebook.com/*", "https://web.facebook.com/*", "https://m.facebook.com/*"],
+      "js": ["marketplace.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://nicdeleon00.github.io/*", "http://localhost/*", "http://127.0.0.1/*"],
+      "js": ["bridge.js"],
+      "run_at": "document_start"
+    }
+  ]
+}

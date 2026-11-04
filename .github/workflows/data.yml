@@ -20,7 +20,7 @@ on:
         default: 20
   push:
     branches: [main]
-    paths: ["server/**", "web/**", ".github/workflows/data.yml"]
+    paths: ["server/**", "web/**", "extension/**", ".github/workflows/data.yml"]
 
 permissions:
   contents: write
@@ -86,6 +86,12 @@ jobs:
           npm --prefix web ci --no-audit --no-fund
           REPO="${GITHUB_REPOSITORY#*/}"
           VITE_STATIC=1 VITE_BASE="/${REPO}/" VITE_REPO="${GITHUB_REPOSITORY}" npm --prefix web run build
+
+      - name: Package the Marketplace extension
+        run: |
+          # Downloaded from Deals → Marketplace; unzips to a folder for "Load unpacked".
+          mkdir -p /tmp/pkg && cp -r extension /tmp/pkg/comps-marketplace
+          (cd /tmp/pkg && zip -qr "$GITHUB_WORKSPACE/web/dist/comps-marketplace.zip" comps-marketplace)
 
       - name: Export data
         run: |

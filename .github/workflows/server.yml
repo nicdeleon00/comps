@@ -3,7 +3,7 @@ name: Server & web
 on:
   push:
     branches: [main]
-    paths: ["server/**", "web/**", "supabase/**", "package.json", ".github/workflows/server.yml"]
+    paths: ["server/**", "web/**", "extension/**", "supabase/**", "package.json", ".github/workflows/server.yml"]
   pull_request:
   workflow_dispatch:
 

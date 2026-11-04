@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Comps for Marketplace</title>
+  <style>
+    :root { color-scheme: light dark; --bg: #fff; --fg: #1d1d1f; --sub: #6e6e73; --sep: rgba(60,60,67,.18); --accent: #0071e3; --good: #0a7d32; }
+    @media (prefers-color-scheme: dark) { :root { --bg: #1c1c1e; --fg: #f5f5f7; --sub: #98989d; --sep: rgba(235,235,245,.16); --accent: #0a84ff; --good: #30d158; } }
+    body { margin: 0; width: 320px; font: 13px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: var(--bg); color: var(--fg); }
+    header { display: flex; align-items: center; gap: 10px; padding: 14px 16px 10px; }
+    header img { width: 28px; height: 28px; border-radius: 7px; }
+    h1 { font-size: 15px; margin: 0; }
+    .sub { color: var(--sub); font-size: 12px; }
+    .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 16px; border-top: .5px solid var(--sep); }
+    ul { list-style: none; margin: 0; padding: 0 16px; max-height: 260px; overflow: auto; }
+    li { padding: 8px 0; border-top: .5px solid var(--sep); }
+    li:first-child { border-top: 0; }
+    li a { color: inherit; text-decoration: none; font-weight: 600; }
+    .good { color: var(--good); font-weight: 600; }
+    .actions { display: flex; gap: 8px; padding: 12px 16px 14px; border-top: .5px solid var(--sep); }
+    button { flex: 1; height: 30px; border-radius: 8px; border: 0; font: inherit; font-weight: 600; cursor: pointer; background: rgba(120,120,128,.16); color: inherit; }
+    button.primary { background: var(--accent); color: #fff; }
+    .empty { padding: 4px 16px 12px; color: var(--sub); }
+  </style>
+</head>
+<body>
+  <header>
+    <img src="icons/icon48.png" alt="">
+    <div><h1>Comps for Marketplace</h1><div class="sub" id="count">—</div></div>
+  </header>
+  <div class="row"><label for="enabled">Show prices on Marketplace</label><input type="checkbox" id="enabled"></div>
+  <div class="row sub">Open Marketplace, search for Pokémon cards and scroll. Cards with a number in the title get a price tag.</div>
+  <ul id="list"></ul>
+  <div class="empty" id="empty" hidden>No underpriced cards yet.</div>
+  <div class="actions"><button id="clear">Clear</button><button class="primary" id="open">Open Deals</button></div>
+  <script src="popup.js"></script>
+</body>
+</html>
