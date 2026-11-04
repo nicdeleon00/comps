@@ -58,14 +58,6 @@ struct RootView: View {
             ScannerView()
         }
         .onOpenURL { url in
-            // comps://sync?token=…&gist=… — sync the collection with the website.
-            if let link = CollectionSync.parse(url.absoluteString) {
-                Task {
-                    try? await CollectionSync.shared.connect(token: link.token, gist: link.gist, context: context)
-                    await Portfolio.reprice(context: context)
-                }
-                return
-            }
             // comps://connect?url=… from the website's Settings page QR code.
             if let pair = PairingScanner.parse(url.absoluteString) {
                 dataURL = pair.0
@@ -76,6 +68,7 @@ struct RootView: View {
             }
         }
         .task {
+            await Account.shared.loadConfig()
             await Catalog.shared.ensureLoaded()
             await Portfolio.migrateDefaultPrintings(context: context)
             await Portfolio.refreshPrices(context: context)

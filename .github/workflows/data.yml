@@ -74,7 +74,14 @@ jobs:
           VITE_STATIC=1 VITE_BASE="/${REPO}/" VITE_REPO="${GITHUB_REPOSITORY}" npm --prefix web run build
 
       - name: Export data
-        run: node --disable-warning=ExperimentalWarning server/src/cli.js export web/dist/data && du -sh web/dist/data
+        env:
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
+        run: |
+          node --disable-warning=ExperimentalWarning server/src/cli.js export web/dist/data && du -sh web/dist/data
+          # Public settings the iPhone app reads (so accounts work without rebuilding the app).
+          node -e 'require("fs").writeFileSync("web/dist/config.json", JSON.stringify({ supabaseUrl: process.env.SUPABASE_URL || null, supabaseAnonKey: process.env.SUPABASE_ANON_KEY || null }))'
+          cat web/dist/config.json | head -c 80; echo
 
       - name: Publish to GitHub Pages
         run: |

@@ -12,30 +12,17 @@ struct DropWatch: Codable, Identifiable, Hashable {
 
 struct DropDevice: Codable, Hashable {
     var id: String
-    var name: String
+    var name: String?
     var endpoint: String
-    var keys: [String: String]
-    var addedAt: Double
 }
 
-struct DropsFile: Codable {
-    var v = 1
-    var updatedAt: Double = 0
+struct DropsFile {
     var watch: [DropWatch] = []
     var devices: [DropDevice] = []
-
-    init() {}
-
-    init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        v = (try? c.decodeIfPresent(Int.self, forKey: .v)) ?? 1
-        updatedAt = (try? c.decodeIfPresent(Double.self, forKey: .updatedAt)) ?? 0
-        watch = (try? c.decodeIfPresent([DropWatch].self, forKey: .watch)) ?? []
-        devices = (try? c.decodeIfPresent([DropDevice].self, forKey: .devices)) ?? []
-    }
 }
 
 struct WatchStatus: Codable, Hashable {
+    var watchId: String
     var state: String
     var price: Double?
     var title: String?
@@ -46,7 +33,7 @@ struct WatchStatus: Codable, Hashable {
 
 struct DropEvent: Codable, Identifiable, Hashable {
     var id: String
-    var watchId: String
+    var watchId: String?
     var at: Double
     var state: String
     var price: Double?
@@ -55,19 +42,10 @@ struct DropEvent: Codable, Identifiable, Hashable {
     var store: String?
 }
 
-struct MonitorFile: Codable {
+struct MonitorFile {
     var seenAt: Double
     var status: [String: WatchStatus]
     var events: [DropEvent]
-    var dead: [String]?
-
-    init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        seenAt = (try? c.decodeIfPresent(Double.self, forKey: .seenAt)) ?? 0
-        status = (try? c.decodeIfPresent([String: WatchStatus].self, forKey: .status)) ?? [:]
-        events = (try? c.decodeIfPresent([DropEvent].self, forKey: .events)) ?? []
-        dead = try? c.decodeIfPresent([String].self, forKey: .dead)
-    }
 
     var isOnline: Bool { Date().millis - seenAt < 5 * 60_000 }
 }
@@ -95,20 +73,37 @@ enum DropText {
 @MainActor
 @Observable
 final class DropsModel {
-    static let dropsFile = "comps-drops.json"
-    static let monitorFile = "comps-monitor.json"
-
     var drops = DropsFile()
     var monitor: MonitorFile?
     var loaded = false
     var error: String?
 
+    private struct MonitorRow: Decodable { var seenAt: Double? }
+
+    private var decoder: JSONDecoder {
+        let d = JSONDecoder()
+        d.keyDecodingStrategy = .convertFromSnakeCase
+        return d
+    }
+
     func load() async {
-        guard CollectionSync.shared.isConnected else { return }
+        guard Account.shared.isSignedIn else { return }
         do {
-            let files = try await CollectionSync.shared.gistFiles()
-            drops = files[Self.dropsFile].flatMap { try? JSONDecoder().decode(DropsFile.self, from: $0) } ?? DropsFile()
-            monitor = files[Self.monitorFile].flatMap { try? JSONDecoder().decode(MonitorFile.self, from: $0) }
+            async let watch = Account.shared.rest("watch_items?select=id,url,name,max_price,added_at&order=added_at.desc")
+            async let devices = Account.shared.rest("push_devices?select=id,name,endpoint")
+            async let status = Account.shared.rest("drop_status?select=watch_id,state,price,title,store,note,checked_at")
+            async let events = Account.shared.rest("drop_events?select=*&order=at.desc&limit=30")
+            async let state = Account.shared.rest("monitor_state?select=seen_at")
+            let d = decoder
+            let (w, dv, st, ev, ms) = (try await watch, try await devices, try await status, try await events, try await state)
+            drops = DropsFile(watch: try d.decode([DropWatch].self, from: w), devices: try d.decode([DropDevice].self, from: dv))
+            let statuses = try d.decode([WatchStatus].self, from: st)
+            let recent = (try? d.decode([DropEvent].self, from: ev)) ?? []
+            if let seen = try d.decode([MonitorRow].self, from: ms).first?.seenAt {
+                monitor = MonitorFile(seenAt: seen, status: Dictionary(statuses.map { ($0.watchId, $0) }, uniquingKeysWith: { a, _ in a }), events: recent)
+            } else {
+                monitor = nil
+            }
             error = nil
             loaded = true
         } catch {
@@ -116,31 +111,26 @@ final class DropsModel {
         }
     }
 
-    /// Reads the latest list, changes it, writes back only the drops file.
-    private func update(_ change: (inout DropsFile) -> Void) async {
+    func add(url: String, name: String?, maxPrice: Double?) async {
         do {
-            let files = try await CollectionSync.shared.gistFiles()
-            var latest = files[Self.dropsFile].flatMap { try? JSONDecoder().decode(DropsFile.self, from: $0) } ?? DropsFile()
-            change(&latest)
-            if let dead = monitor?.dead, !dead.isEmpty { latest.devices.removeAll { dead.contains($0.endpoint) } }
-            latest.updatedAt = Date().millis.rounded()
-            try await CollectionSync.shared.writeGistFile(Self.dropsFile, data: JSONEncoder().encode(latest))
-            withAnimation(.snappy) { drops = latest }
+            let row: [String: Any] = ["url": url, "name": name.map { $0 as Any } ?? NSNull(), "max_price": maxPrice.map { $0 as Any } ?? NSNull()]
+            _ = try await Account.shared.rest("watch_items", method: "POST", json: row, prefer: "return=minimal")
             error = nil
+            await load()
+        } catch Account.Failure.server(409, _) {
+            error = "You're already watching that link."
         } catch {
             self.error = error.localizedDescription
         }
     }
 
-    func add(url: String, name: String?, maxPrice: Double?) async {
-        await update { d in
-            guard !d.watch.contains(where: { $0.url == url }) else { return }
-            d.watch.insert(DropWatch(id: UUID().uuidString.lowercased(), url: url, name: name, maxPrice: maxPrice, addedAt: Date().millis.rounded()), at: 0)
-        }
-    }
-
     func remove(_ id: String) async {
-        await update { d in d.watch.removeAll { $0.id == id } }
+        do {
+            _ = try await Account.shared.rest("watch_items?id=eq.\(id)", method: "DELETE")
+            withAnimation(.snappy) { drops.watch.removeAll { $0.id == id } }
+        } catch {
+            self.error = error.localizedDescription
+        }
     }
 }
 
@@ -154,7 +144,7 @@ struct DropsView: View {
     @State private var maxPrice = ""
     @State private var adding = false
     @State private var upcoming: [SetOption] = []
-    @State private var copied = false
+    @State private var signingIn = false
     @Environment(\.openURL) private var openURL
     private var sync: CollectionSync { .shared }
 
@@ -168,8 +158,12 @@ struct DropsView: View {
             List {
                 if !sync.isConnected {
                     Section {
-                        Label("Drops share your watch list with the monitor on your PC using your sync key.", systemImage: "bolt.horizontal.circle")
-                        Text("Set up **Sync with computer** first: Collection → ⚙︎ Settings.").font(.footnote).foregroundStyle(.secondary)
+                        Label("Watch product links and get an alert the moment one can be bought.", systemImage: "bolt.horizontal.circle")
+                        if Account.shared.isEnabled {
+                            Button("Sign in or create account") { signingIn = true }.bold()
+                        } else {
+                            Text("Accounts aren't switched on for this site yet.").font(.footnote).foregroundStyle(.secondary)
+                        }
                     }
                 } else {
                     monitorSection
@@ -190,6 +184,7 @@ struct DropsView: View {
                 }
             }
             .task { await loadUpcoming() }
+            .sheet(isPresented: $signingIn) { SignInSheet() }
         }
     }
 
@@ -200,9 +195,9 @@ struct DropsView: View {
             HStack(spacing: 12) {
                 Circle().fill(model.monitor?.isOnline == true ? Color.up : Color.secondary.opacity(0.5)).frame(width: 9, height: 9)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(model.monitor?.isOnline == true ? "Monitor on your PC is running" : model.monitor == nil ? "Monitor not set up yet" : "Monitor on your PC is offline")
+                    Text(model.monitor?.isOnline == true ? "Drop monitor is running" : model.monitor == nil ? "Drop monitor hasn't started yet" : "Drop monitor is offline")
                         .font(.subheadline.weight(.semibold))
-                    Text(model.monitor.map { "Last check-in \(DropText.ago($0.seenAt))" } ?? "Set it up from the website's Drops page on your computer.")
+                    Text(model.monitor.map { "Last check-in \(DropText.ago($0.seenAt))" } ?? "Your links are saved and checked once it runs.")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
             }
@@ -240,7 +235,7 @@ struct DropsView: View {
         } header: {
             Text("Watch a product")
         } footer: {
-            Text("Your PC checks it about every 30 seconds and alerts you the moment it can be bought.")
+            Text("Checked about every 30 seconds while the drop monitor runs; you're alerted the moment it can be bought. Up to 20 links.")
         }
     }
 
@@ -284,16 +279,12 @@ struct DropsView: View {
             let phones = model.drops.devices.count
             Label(phones == 0 ? "No phones get alerts yet" : "\(phones) device\(phones == 1 ? "" : "s") get alerts", systemImage: "bell.badge")
             Button {
-                UIPasteboard.general.string = sync.token
-                copied = true
-            } label: { Label(copied ? "Key copied" : "1. Copy your sync key", systemImage: copied ? "checkmark" : "doc.on.doc") }
-            Button {
                 openURL(HostedData.current.url("drops"))
-            } label: { Label("2. Open Comps in Safari", systemImage: "safari") }
+            } label: { Label("Set up alerts in Safari", systemImage: "safari") }
         } header: {
             Text("Alerts on this iPhone")
         } footer: {
-            Text("iPhone only allows instant alerts for apps installed outside the App Store through Home Screen web apps. In Safari tap Share → Add to Home Screen, open Comps from your Home Screen, paste the key, then Drops → Turn on alerts. Your PC sends the alerts directly.")
+            Text("iPhone only allows instant alerts for apps installed outside the App Store through Home Screen web apps. In Safari tap Share → Add to Home Screen, open Comps from your Home Screen, sign in with this account, then Drops → Turn on alerts.")
         }
     }
 
