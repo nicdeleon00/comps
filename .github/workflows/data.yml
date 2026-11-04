@@ -14,6 +14,10 @@ on:
         description: "Re-download the whole catalog even if it's fresh"
         type: boolean
         default: false
+      backfill:
+        description: "Past days of price history to import this run (from TCGCSV's archives)"
+        type: number
+        default: 20
   push:
     branches: [main]
     paths: ["server/**", "web/**", ".github/workflows/data.yml"]
@@ -53,7 +57,11 @@ jobs:
           fi
 
       - name: Refresh prices
-        run: node --disable-warning=ExperimentalWarning server/src/cli.js refresh ${{ (github.event_name == 'workflow_dispatch' && inputs.force) && '--force' || '' }}
+        env:
+          HISTORY_BACKFILL: ${{ inputs.backfill || 20 }}
+        run: |
+          command -v 7z >/dev/null || sudo apt-get install -y -qq p7zip-full >/dev/null
+          node --disable-warning=ExperimentalWarning server/src/cli.js refresh ${{ (github.event_name == 'workflow_dispatch' && inputs.force) && '--force' || '' }}
 
       - name: Save price history
         run: |

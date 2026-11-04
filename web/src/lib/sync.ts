@@ -239,17 +239,18 @@ export function syncSoon() {
 }
 
 let started = false;
-/** Syncs on load, on sign-in, when the tab comes back, and every minute while it's visible. */
+/** Automatic: on load, on sign-in, when the tab comes back, every 30 s while it's open, and right after changes. */
 export function startSync() {
   if (started || !accountsEnabled) return;
   started = true;
   const tick = () => {
     if (!currentUser() || document.visibilityState !== 'visible') return;
-    if (Date.now() - (syncState().last ?? 0) > 20_000) syncNow();
+    if (Date.now() - (syncState().last ?? 0) > 10_000) syncNow();
   };
   tick();
   onAuth(() => { if (currentUser()) syncNow(); });
   addEventListener('focus', tick);
+  addEventListener('online', tick);
   document.addEventListener('visibilitychange', tick);
-  setInterval(tick, 60_000);
+  setInterval(tick, 30_000);
 }

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import { useData, put, del, invalidate } from '../lib/api';
-import { getHero, setHero, Link } from '../lib/router';
+import { getHero, setHero, Link, goBack } from '../lib/router';
 import { money, pct, multiple, signedMoney, cardApi, GRADE_LABEL, longDate, ago } from '../lib/format';
 import { gradeEV } from '../lib/grading';
 import type { CardDetail, Grades, VariantDetail } from '../lib/types';
@@ -9,7 +9,7 @@ import { AreaChart, type Pt } from '../components/Chart';
 import { Delta, Segmented, Counter, GradeBadge, Sheet, Field, MoneyInput, toast, Empty } from '../components/ui';
 import { HoldingSheet } from '../components/HoldingSheet';
 import { dealReason } from '../components/Rows';
-import { IconExternal, IconPlus, IconStar, IconStarFill, IconPencil } from '../components/icons';
+import { IconExternal, IconPlus, IconStar, IconStarFill, IconPencil, IconBack } from '../components/icons';
 
 const RANGES = [
   { value: '30', label: '1M' },
@@ -140,7 +140,7 @@ function WatchSheet({ d, variant, onClose }: { d: CardDetail; variant: string; o
   );
 }
 
-export function CardPage({ id }: { id: string }) {
+export function CardPage({ id, panel = false }: { id: string; panel?: boolean }) {
   const { data: d, error } = useData<CardDetail>(cardApi(id));
   const [variant, setVariant] = useState<string | null>(null);
   const [series, setSeries] = useState<'raw' | 'g9' | 'psa10'>('raw');
@@ -174,7 +174,8 @@ export function CardPage({ id }: { id: string }) {
   if (v?.grades?.psa10) seriesOpts.push({ value: 'psa10' as any, label: 'PSA 10' });
 
   return (
-    <div class="page card-page">
+    <div class={`page card-page ${panel ? 'in-panel' : ''}`}>
+      {!panel && <button class="btn sm card-back" onClick={() => goBack('/')}><IconBack size={16} />Back</button>}
       <div class="card-layout">
         <aside class="card-aside">
           {c ? <TiltCard card={c} hero={hero} /> : <div class="sk" style={{ width: '100%', aspectRatio: '63/88', borderRadius: 14 }} />}

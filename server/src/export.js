@@ -63,8 +63,11 @@ export async function exportStatic({ db, api, outDir, minDetailUsd = 1 }) {
   for (const id of ids) {
     const d = await get(`/api/cards/${encodeURIComponent(id)}`);
     if (!d || d.error) continue;
-    // Keep files small: 120 days of history, and no holdings (those live on your devices).
-    for (const v of Object.keys(d.history)) d.history[v] = d.history[v].slice(-120);
+    // Keep files small: history is already thinned (daily → weekly → monthly); drop empty
+    // graded columns from each point. No holdings (those live in accounts).
+    for (const v of Object.keys(d.history)) {
+      d.history[v] = d.history[v].map((p) => { const q = [...p]; while (q.length > 2 && q[q.length - 1] == null) q.pop(); return q; });
+    }
     delete d.holdings;
     delete d.watch;
     shards[shardOf(id)][id] = d;

@@ -277,3 +277,33 @@ a.drop-title:hover { color: var(--accent); }
 .account-chip:hover { background: var(--fill-2); color: var(--label); }
 .account-chip .account-avatar { width: 24px; height: 24px; font-size: 12px; }
 .signin-banner { display: flex; align-items: center; gap: 14px; justify-content: space-between; flex-wrap: wrap; padding: 14px 16px; margin-bottom: 18px; }
+
+/* Card panel: a card opens over the page you were on; tap the dark area to close. */
+.panel-backdrop {
+  position: fixed; inset: 0; z-index: 60; overflow-y: auto; overscroll-behavior: contain;
+  background: rgba(0, 0, 0, 0.55); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+  padding: 40px 24px 60px; animation: panel-fade 200ms ease-out;
+}
+.card-panel {
+  position: relative; max-width: 1120px; margin: 0 auto; border-radius: 22px;
+  background: var(--bg); box-shadow: 0 30px 80px rgba(0, 0, 0, 0.35); animation: panel-rise 320ms var(--spring);
+}
+.card-panel .page { padding-top: 34px; }
+.panel-close {
+  position: sticky; top: 12px; float: right; margin: 12px 12px -48px 0; z-index: 2;
+  width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--fill-2); color: var(--label); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+}
+.panel-close:hover { background: var(--fill); }
+.card-back { margin-bottom: 18px; gap: 4px; padding-left: 8px; }
+/* Stop the page underneath from scrolling on touch while a card is open, without moving it. */
+body.panel-open .main, body.panel-open .tabbar { touch-action: none; }
+.back-btn { background: none !important; margin-left: -6px; color: var(--accent); }
+@keyframes panel-fade { from { opacity: 0; } }
+@keyframes panel-rise { from { opacity: 0; transform: translateY(24px) scale(0.985); } }
+@media (max-width: 760px) {
+  .panel-backdrop { padding: 54px 0 0; }
+  .card-panel { border-radius: 20px 20px 0 0; min-height: calc(100vh - 54px); }
+  .card-back { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { .panel-backdrop, .card-panel { animation: none; } }

@@ -5,6 +5,7 @@ import { refreshTcgcsv } from './providers/tcgcsv.js';
 import { refreshTcgdex } from './providers/tcgdex.js';
 import { refreshPriceCharting } from './providers/pricecharting.js';
 import { refreshGraded } from './providers/ppt.js';
+import { backfillHistory } from './providers/history.js';
 import { refreshFx } from './providers/fx.js';
 import { ebayConfigured } from './providers/ebay.js';
 import { rebuildValuations, compactHistory } from './engine/valuation.js';
@@ -63,6 +64,11 @@ export function createJobs(db, settings) {
     if (s.pptApiKey) await step('graded', (p) => refreshGraded(db, settings.get(), p));
   }
 
+  /** Imports a batch of past days from TCGCSV's archives until history is complete. Returns days added. */
+  async function runBackfill() {
+    return (await step('history', (p) => backfillHistory(db, settings.get(), p))) ?? 0;
+  }
+
   async function runListings() {
     const s = settings.get();
     if (!ebayConfigured(s)) return;
@@ -81,6 +87,7 @@ export function createJobs(db, settings) {
     recompute,
     runCatalog,
     runGraded,
+    runBackfill,
     runListings,
     get running() { return running; },
     trigger(what = 'all') {

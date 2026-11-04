@@ -116,12 +116,6 @@ struct AccountSection: View {
                         Text(status).font(.footnote).foregroundStyle(sync.lastError == nil ? Color.secondary : Color.down)
                     }
                 }
-                Button {
-                    Task { await sync.sync(context) }
-                } label: {
-                    HStack { Text("Sync now"); if sync.syncing { Spacer(); ProgressView() } }
-                }
-                .disabled(sync.syncing)
                 if changing {
                     SecureField("New password (6+)", text: $newPassword).textContentType(.newPassword)
                     Button("Save new password") {
@@ -161,10 +155,9 @@ struct AccountSection: View {
     }
 
     private var status: String {
-        if let e = sync.lastError { return e }
-        if sync.syncing { return "Syncing…" }
-        guard let last = sync.lastSync else { return "Signed in" }
+        if let e = sync.lastError { return "\(e) · retrying automatically" }
+        guard sync.lastSync != nil else { return "Syncing…" }
         let cards = sync.count.map { " · \($0) card\($0 == 1 ? "" : "s")" } ?? ""
-        return "Synced \(last.formatted(.relative(presentation: .named)))\(cards)"
+        return "Syncs automatically · up to date\(cards)"
     }
 }

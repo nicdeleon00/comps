@@ -18,6 +18,8 @@ const DEFAULTS = {
   euMaxCards: 900,
   // Daily history is kept for card printings worth at least this much.
   historyMinUsd: 1,
+  // Past days imported from TCGCSV's price archives per refresh (until history is complete).
+  historyBackfillPerRun: 20,
   refreshHours: 12,
   listingsHours: 3,
   // Grading economics, editable in Settings.
@@ -37,6 +39,7 @@ const ENV = {
   ebayMarketplace: 'EBAY_MARKETPLACE',
   pricechartingCategories: 'PRICECHARTING_CATEGORIES',
   refreshHours: 'REFRESH_HOURS',
+  historyBackfillPerRun: 'HISTORY_BACKFILL',
 };
 
 export const SECRET_KEYS = new Set(['pptApiKey', 'pricechartingToken', 'ebayClientId', 'ebayClientSecret']);

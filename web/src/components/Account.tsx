@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'preact/hooks';
 import { accountsEnabled, currentUser, onAuth, signIn, signUp, signOut, changePassword } from '../lib/supabase';
-import { syncState, onSync, syncNow, forgetLocalData } from '../lib/sync';
-import { ago, num } from '../lib/format';
+import { syncState, onSync, forgetLocalData } from '../lib/sync';
+import { num } from '../lib/format';
 import { toast } from './ui';
 
 /** Re-renders when the signed-in account changes. */
@@ -70,7 +70,6 @@ function SignInForm() {
 
 function SignedIn({ email, compact }: { email: string; compact: boolean }) {
   const s = useSyncState();
-  const [busy, setBusy] = useState(false);
   const [changing, setChanging] = useState(false);
   const [pw, setPw] = useState('');
   return (
@@ -80,14 +79,13 @@ function SignedIn({ email, compact }: { email: string; compact: boolean }) {
         <div style={{ minWidth: 0 }}>
           <div class="g-title ellipsis">{email}</div>
           <div class="g-desc">
-            {s.error ? <span style={{ color: 'var(--down)' }}>{s.error}</span>
-              : s.last ? `Synced ${ago(s.last)}${s.count != null ? ` · ${num(s.count)} card${s.count === 1 ? '' : 's'}` : ''}` : 'Syncing…'}
+            {s.error ? <span style={{ color: 'var(--down)' }}>{s.error} · retrying automatically</span>
+              : s.last ? `Syncs automatically · up to date${s.count != null ? ` · ${num(s.count)} card${s.count === 1 ? '' : 's'}` : ''}` : 'Syncing…'}
           </div>
         </div>
       </div>
       {!compact && (
         <div class="account-actions">
-          <button class="btn sm" disabled={busy} onClick={async () => { setBusy(true); await syncNow(); setBusy(false); }}>{busy ? 'Syncing…' : 'Sync now'}</button>
           <button class="btn sm" onClick={() => setChanging(!changing)}>Change password</button>
           <button class="btn sm" onClick={async () => {
             if (!confirm('Sign out? Your cards stay in your account; this browser forgets them until you sign in again.')) return;

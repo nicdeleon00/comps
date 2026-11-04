@@ -4,24 +4,29 @@ import type { ComponentChildren, JSX } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
 import { prefetch } from './api';
 
-type Loc = { path: string; query: URLSearchParams };
+/** `bg` is the page a card was opened over (cards open as a panel on top of where you were). */
+type Loc = { path: string; query: URLSearchParams; bg?: Loc | null };
 /** "/comps" on GitHub Pages, "" when served at the root. */
 export const BASE = import.meta.env.BASE_URL.replace(/\/$/, '');
 export const withBase = (path: string) => (/^https?:/.test(path) ? path : BASE + path);
 const listeners = new Set<(l: Loc) => void>();
 const scrolls = new Map<string, number>();
-let loc: Loc = parse(location.pathname + location.search);
+let loc: Loc = parse(location.pathname + location.search, history.state?.bg);
 // GitHub Pages serves 404.html for deep links; it's the same app, so just route.
 let entryKey = (history.state?.key as string) ?? newKey();
-if (!history.state?.key) history.replaceState({ key: entryKey }, '');
+let depth = (history.state?.depth as number) ?? 0;
+if (!history.state?.key) history.replaceState({ key: entryKey, depth }, '');
 
 function newKey() { return Math.random().toString(36).slice(2, 10); }
-function parse(href: string): Loc {
+function parse(href: string, bg?: string | null): Loc {
   const u = new URL(href, location.origin);
   let path = u.pathname;
   if (BASE && path.startsWith(BASE)) path = path.slice(BASE.length) || '/';
-  return { path, query: u.searchParams };
+  return { path, query: u.searchParams, bg: bg ? parse(bg) : null };
 }
+
+const hrefOf = (l: Loc) => l.path + (l.query.toString() ? `?${l.query}` : '');
+const isCard = (path: string) => path.startsWith('/card/');
 
 const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -43,17 +48,31 @@ function transition(update: () => void) {
 }
 
 export function navigate(to: string, { replace = false, scroll = true } = {}) {
-  const next = parse(to);
+  // A card opens over the page you're on (or over the same page as the card before it).
+  const bg = isCard(parse(to).path) ? (loc.bg ? hrefOf(loc.bg) : !isCard(loc.path) ? hrefOf(loc) : null) : null;
+  const next = parse(to, bg);
   if (next.path + next.query.toString() === loc.path + loc.query.toString()) return;
   scrolls.set(entryKey, window.scrollY);
+  const opensPanel = Boolean(bg) && !loc.bg;
   transition(() => {
     entryKey = newKey();
-    if (replace) history.replaceState({ key: entryKey }, '', withBase(to));
-    else history.pushState({ key: entryKey }, '', withBase(to));
+    if (replace) history.replaceState({ key: entryKey, bg, depth }, '', withBase(to));
+    else history.pushState({ key: entryKey, bg, depth: ++depth }, '', withBase(to));
     loc = next;
     listeners.forEach((l) => l(loc));
-    if (scroll) window.scrollTo(0, 0);
+    if (scroll && !opensPanel && !bg) window.scrollTo(0, 0);
   });
+}
+
+/** Back within the app when there's somewhere to go back to, else to `fallback`. */
+export function goBack(fallback = '/') {
+  if (depth > 0) history.back();
+  else navigate(fallback, { replace: true });
+}
+
+/** Closes a card panel, returning to the page underneath exactly as it was. */
+export function closePanel() {
+  if (loc.bg) history.back();
 }
 
 /** Update query params in place (filters) without a transition or scroll jump. */
@@ -65,7 +84,7 @@ export function setQuery(patch: Record<string, string | number | null | undefine
   }
   const s = q.toString();
   const to = loc.path + (s ? `?${s}` : '');
-  history.replaceState({ key: entryKey }, '', withBase(to));
+  history.replaceState({ key: entryKey, depth }, '', withBase(to));
   loc = parse(withBase(to));
   listeners.forEach((l) => l(loc));
 }
@@ -74,12 +93,19 @@ addEventListener('popstate', (e) => {
   scrolls.set(entryKey, window.scrollY);
   transition(() => {
     entryKey = (e.state?.key as string) ?? newKey();
-    loc = parse(location.pathname + location.search);
+    depth = (e.state?.depth as number) ?? 0;
+    loc = parse(location.pathname + location.search, e.state?.bg);
     listeners.forEach((l) => l(loc));
     const y = scrolls.get(entryKey) ?? 0;
     requestAnimationFrame(() => window.scrollTo(0, y));
   });
 });
+
+/** The page's own location: the page underneath when a card panel is open. */
+export function usePageLocation(): Loc {
+  const l = useLocation();
+  return l.bg ?? l;
+}
 
 export function useLocation(): Loc {
   const [l, set] = useState(loc);

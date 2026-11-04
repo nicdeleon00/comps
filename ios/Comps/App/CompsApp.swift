@@ -73,6 +73,15 @@ struct RootView: View {
             await Portfolio.migrateDefaultPrintings(context: context)
             await Portfolio.refreshPrices(context: context)
         }
+        .task(id: scenePhase) {
+            // Keep the collection in step with the account while the app is open.
+            guard scenePhase == .active else { return }
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(30))
+                guard !Task.isCancelled, scenePhase == .active else { return }
+                await CollectionSync.shared.sync(context)
+            }
+        }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { Task { await Portfolio.refreshPrices(context: context) } }
         }

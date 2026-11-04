@@ -49,7 +49,13 @@ export function Segmented<T extends string>({ value, options, onChange, scroll =
     const el = wrap.current?.querySelector<HTMLButtonElement>(`button[data-v="${CSS.escape(value)}"]`);
     if (!el || !wrap.current) return;
     setThumb({ x: el.offsetLeft, w: el.offsetWidth });
-    if (scroll) el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: first.current ? 'auto' : 'smooth' });
+    if (scroll) {
+      // Scroll only this row sideways (scrollIntoView would also move the page behind a card panel).
+      const box = wrap.current;
+      const left = el.offsetLeft - 8, right = el.offsetLeft + el.offsetWidth + 8;
+      const target = left < box.scrollLeft ? left : right > box.scrollLeft + box.clientWidth ? right - box.clientWidth : null;
+      if (target != null) box.scrollTo({ left: Math.max(0, target), behavior: first.current ? 'auto' : 'smooth' });
+    }
     first.current = false;
   }, [value, options.map((o) => o.label + (o.count ?? '')).join()]);
   return (

@@ -244,3 +244,47 @@ test('graded prices: free lookups are budgeted, remembered and prioritised', asy
   const v = valuate([{ source: 'tcgplayer', data: { market: 400 } }, { source: 'ppt', data: q1 }], 1.1);
   assert.deepEqual([v.psa10, v.g9], [1500, 600]);
 });
+
+test('history backfill: samples days sensibly, imports kept printings once, never overwrites recorded points', async () => {
+  const { openDatabase } = await import('../src/db.js');
+  const { backfillHistory, wantedDays, FIRST_DAY } = await import('../src/providers/history.js');
+  const { compactHistory } = await import('../src/engine/valuation.js');
+  const now = Date.UTC(2026, 10, 4, 12);
+  const days = wantedDays(now);
+  assert.equal(days[0], '2026-11-03', 'newest first, starting yesterday');
+  assert.ok(days.slice(0, 90).every((d, i) => i === 0 || d < days[i - 1]), 'daily for 90 days');
+  assert.ok(days.length > 130 && days.length < 190, `about 150 snapshots (${days.length})`);
+  assert.ok(days.at(-1) >= FIRST_DAY);
+  const old = days.filter((d) => d < '2025-11-04');
+  assert.ok(old.every((d) => new Date(d).getUTCDay() === 1 && Number(d.slice(8)) <= 7), 'older than a year: first Monday of each month');
+
+  const db = openDatabase(':memory:');
+  for (const [id, variant, raw] of [['tcg:1', 'holofoil', 50], ['tcg:2', 'normal', 0.2]]) {
+    db.run('INSERT INTO valuations (card_id, variant, raw, confidence, sources, updated_at) VALUES (?,?,?,?,?,?)', id, variant, raw, 1, 1, now);
+  }
+  db.run(`INSERT INTO history (card_id, variant, day, raw) VALUES ('tcg:1', 'holofoil', '2026-11-03', 49)`); // recorded live
+  const fetched = [];
+  const fetchImpl = async (url) => {
+    fetched.push(url.match(/prices-(.+)\.ppmd\.7z/)[1]);
+    return url.includes('2026-11-01') ? new Response('', { status: 404 }) : new Response('7z bytes');
+  };
+  const extract = (file, day) => [[
+    { productId: 1, subTypeName: 'Holofoil', marketPrice: 40 + Number(day.slice(8)) / 10 },
+    { productId: 2, subTypeName: 'Normal', marketPrice: 0.2 },          // too cheap to keep
+    { productId: 999, subTypeName: 'Normal', marketPrice: 10 },         // not in the catalog
+  ]];
+  const added = await backfillHistory(db, { historyMinUsd: 1 }, () => {}, { fetchImpl, extract, limit: 3, now });
+  assert.deepEqual(fetched, ['2026-11-03', '2026-11-02', '2026-11-01']);
+  assert.equal(added, 2, 'the missing day is skipped, not counted');
+  const pts = db.all(`SELECT day, raw FROM history WHERE card_id = 'tcg:1' ORDER BY day`);
+  assert.deepEqual(pts.map((p) => [p.day, p.raw]), [['2026-11-02', 40.2], ['2026-11-03', 49]], 'recorded point kept as is');
+  assert.equal(db.get(`SELECT COUNT(*) n FROM history WHERE card_id <> 'tcg:1'`).n, 0);
+  // Next run continues where it left off.
+  await backfillHistory(db, { historyMinUsd: 1 }, () => {}, { fetchImpl, extract, limit: 2, now });
+  assert.deepEqual(fetched.slice(3), ['2026-10-31', '2026-10-30']);
+  // Compaction keeps the same shape the backfill imports.
+  db.run(`INSERT INTO history (card_id, variant, day, raw) VALUES ('tcg:1','holofoil','2025-03-11',1), ('tcg:1','holofoil','2025-03-03',1), ('tcg:1','holofoil','2026-06-02',1), ('tcg:1','holofoil','2026-06-01',1)`);
+  compactHistory(db, now);
+  const kept = db.all(`SELECT day FROM history WHERE day < '2026-07-01' ORDER BY day`).map((r) => r.day);
+  assert.deepEqual(kept, ['2025-03-03', '2026-06-01'], 'first Monday of the month > 1 year; Mondays within the year');
+});

@@ -2,12 +2,12 @@ import { render } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
 import './styles.css';
 import './pages.css';
-import { useLocation, Link } from './lib/router';
+import { useLocation, Link, closePanel, goBack } from './lib/router';
 import { useData, setToken, invalidate, STATIC } from './lib/api';
 import { startSync } from './lib/sync';
 import { ago, num } from './lib/format';
 import type { Status } from './lib/types';
-import { Mark, IconMarket, IconTag, IconSlab, IconStack, IconStar, IconGear, IconSearch, IconBinder, IconBolt } from './components/icons';
+import { Mark, IconMarket, IconTag, IconSlab, IconStack, IconStar, IconGear, IconSearch, IconBinder, IconBolt, IconX, IconBack } from './components/icons';
 import { Palette, openPalette, type PaletteOpts } from './components/Palette';
 import { Sheet, Field } from './components/ui';
 import { MarketPage, lastRefresh } from './pages/Market';
@@ -33,7 +33,7 @@ const NAV = [
   { href: '/watchlist', label: 'Watchlist', short: 'Watchlist', icon: IconStar, tab: false },
 ];
 
-function route(path: string) {
+function route(path: string, panel = false) {
   if (path === '/') return { title: 'Market', el: <MarketPage /> };
   if (path === '/deals') return { title: 'Deals', el: <DealsPage /> };
   if (path === '/grading') return { title: 'Raw to Graded', el: <GradingPage /> };
@@ -45,7 +45,7 @@ function route(path: string) {
   const set = /^\/sets\/([^/]+)$/.exec(path);
   if (set) return { title: 'Set', el: <SetPage id={decodeURIComponent(set[1])} key={set[1]} /> };
   const m = /^\/card\/(.+)$/.exec(path);
-  if (m) { const id = decodeURIComponent(m[1]); return { title: '', el: <CardPage id={id} key={id} /> }; }
+  if (m) { const id = decodeURIComponent(m[1]); return { title: '', el: <CardPage id={id} key={id} panel={panel} /> }; }
   return { title: 'Not found', el: <div class="page"><h1>Not found</h1></div> };
 }
 
@@ -88,8 +88,33 @@ function AccountChip() {
   );
 }
 
+/** A card shown over the page you were on; tap the dark area (or Esc, or ×) to close it. */
+function CardPanel({ children }: { children: preact.ComponentChildren }) {
+  useEffect(() => {
+    // The panel scrolls on its own (the page underneath keeps its place).
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') closePanel(); };
+    addEventListener('keydown', onKey);
+    document.body.classList.add('panel-open');
+    return () => { removeEventListener('keydown', onKey); document.body.classList.remove('panel-open'); };
+  }, []);
+  return (
+    <div class="panel-backdrop" onClick={(e) => { if (e.target === e.currentTarget) closePanel(); }}>
+      <div class="card-panel" role="dialog" aria-modal="true" aria-label="Card">
+        <button class="panel-close" onClick={closePanel} aria-label="Close"><IconX size={18} /></button>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+const TOP_LEVEL = new Set(['/', '/deals', '/grading', '/drops', '/sets', '/collection']);
+const parentOf = (path: string) => (path.startsWith('/sets/') ? '/sets' : '/');
+
 function App() {
-  const { path } = useLocation();
+  const loc = useLocation();
+  const panelOpen = Boolean(loc.bg && loc.path.startsWith('/card/'));
+  const path = panelOpen ? loc.bg!.path : loc.path;
+  const panel = panelOpen ? route(loc.path, true) : null;
   const { data: st } = useData<Status>('/api/status', { refresh: 30_000 });
   const [palette, setPalette] = useState<PaletteOpts | null>(null);
   const [needToken, setNeedToken] = useState(false);
@@ -116,7 +141,7 @@ function App() {
     };
   }, []);
 
-  useEffect(() => { document.title = r.title ? `${r.title} · Comps` : 'Comps'; }, [path]);
+  useEffect(() => { document.title = !panelOpen && r.title ? `${r.title} · Comps` : 'Comps'; }, [path, panelOpen]);
 
   return (
     <div class="shell">
@@ -138,7 +163,9 @@ function App() {
 
       <main class="main">
         <div class={`mobile-top ${scrolled ? 'scrolled' : ''}`}>
-          <Link href="/" aria-label="Comps home" style={{ color: 'var(--label)' }}><Mark size={24} /></Link>
+          {TOP_LEVEL.has(path)
+            ? <Link href="/" aria-label="Comps home" style={{ color: 'var(--label)' }}><Mark size={24} /></Link>
+            : <button class="btn icon sm back-btn" onClick={() => goBack(parentOf(path))} aria-label="Back"><IconBack size={20} /></button>}
           <span class="mt-title">{r.title}</span>
           <div style={{ display: 'flex', gap: 4 }}>
             <button class="btn icon sm" style={{ background: 'none' }} onClick={() => openPalette()} aria-label="Search"><IconSearch size={19} /></button>
@@ -148,6 +175,7 @@ function App() {
         </div>
         {r.el}
       </main>
+      {panel && <CardPanel>{panel.el}</CardPanel>}
 
       <nav class="tabbar" aria-label="Sections">
         {NAV.filter((n) => n.tab).map((n) => (

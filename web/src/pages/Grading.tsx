@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'preact/hooks';
 import { useData, get } from '../lib/api';
-import { useLocation, setQuery, Link } from '../lib/router';
+import { usePageLocation, setQuery, Link } from '../lib/router';
 import { money } from '../lib/format';
 import type { Spread, Status } from '../lib/types';
 import { Empty, SkRows } from '../components/ui';
@@ -11,7 +11,7 @@ import { Header, PokemonFilters } from './shared';
 type Res = { items: Spread[]; total: number };
 
 export function GradingPage() {
-  const { query } = useLocation();
+  const { query } = usePageLocation();
   const series = query.get('series') ?? 'all';
   const rarity = query.get('rarity') ?? '';
   const sort = query.get('sort') ?? 'profit';

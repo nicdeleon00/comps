@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'preact/hooks';
 import { useData, get } from '../lib/api';
-import { useLocation, setQuery } from '../lib/router';
+import { usePageLocation, setQuery } from '../lib/router';
 import type { Deal } from '../lib/types';
 import { Segmented, Empty, SkRows } from '../components/ui';
 import { DealRow } from '../components/Rows';
@@ -19,7 +19,7 @@ const KINDS = [
 ];
 
 export function DealsPage() {
-  const { query } = useLocation();
+  const { query } = usePageLocation();
   const kind = query.get('kind') ?? 'all';
   const series = query.get('series') ?? 'all';
   const rarity = query.get('rarity') ?? '';

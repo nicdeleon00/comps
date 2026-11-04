@@ -138,9 +138,11 @@ function splitKey(key) {
 }
 
 /** Keeps daily points for 120 days, then one per week. */
-export function compactHistory(db) {
-  const cutoff = daysAgo(120);
-  return db.run(`DELETE FROM history WHERE day < ? AND strftime('%w', day) <> '1'`, cutoff).changes;
+/** Thins old history: daily for 120 days, Mondays for a year, each month's first Monday before that. */
+export function compactHistory(db, now = Date.now()) {
+  let n = db.run(`DELETE FROM history WHERE day < ? AND strftime('%w', day) <> '1'`, daysAgo(120, now)).changes;
+  n += db.run(`DELETE FROM history WHERE day < ? AND CAST(strftime('%d', day) AS INTEGER) > 7`, daysAgo(365, now)).changes;
+  return n;
 }
 
 // Holding value: map a holding's grade/condition to the right price.

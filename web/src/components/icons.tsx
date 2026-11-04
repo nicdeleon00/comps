@@ -20,6 +20,7 @@ export const IconSearch = make(<><circle cx="10.8" cy="10.8" r="6.3" /><path d="
 export const IconPlus = make(<path d="M12 5v14M5 12h14" />);
 export const IconX = make(<path d="M6 6l12 12M18 6L6 18" />);
 export const IconChevron = make(<path d="M9.5 5.5L16 12l-6.5 6.5" />);
+export const IconBack = make(<path d="M14.5 5.5L8 12l6.5 6.5" />);
 export const IconChevronDown = make(<path d="M6 9.5l6 6 6-6" />);
 export const IconArrowUp = make(<path d="M12 19V5M6 11l6-6 6 6" />);
 export const IconExternal = make(<><path d="M14 4h6v6" /><path d="M20 4l-9 9" /><path d="M18 14v4.5c0 .8-.7 1.5-1.5 1.5h-11c-.8 0-1.5-.7-1.5-1.5v-11C4 6.7 4.7 6 5.5 6H10" /></>);

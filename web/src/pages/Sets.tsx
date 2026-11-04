@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'preact/hooks';
 import { useData } from '../lib/api';
-import { Link, setHero, useLocation, setQuery } from '../lib/router';
+import { Link, setHero, usePageLocation, setQuery } from '../lib/router';
 import { money, num, cardHref, cardApi } from '../lib/format';
 import type { Card } from '../lib/types';
 import { Thumb } from '../components/Thumb';
@@ -21,7 +21,7 @@ const RARITY_TEST: Record<string, (r: string) => boolean> = {
 
 export function SetsPage() {
   const { data, loading } = useData<{ items: SetSummary[] }>('/api/sets');
-  const { query } = useLocation();
+  const { query } = usePageLocation();
   const series = query.get('series') ?? 'all';
   const groups = useMemo(() => {
     const m = new Map<string, SetSummary[]>();
