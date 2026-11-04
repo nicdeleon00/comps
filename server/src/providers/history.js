@@ -62,7 +62,7 @@ function extractWith(bin) {
 }
 
 /** Imports up to `limit` archives. Returns the number of days added. */
-export async function backfillHistory(db, settings, progress = () => {}, { fetchImpl = fetch, extract, limit, now = Date.now() } = {}) {
+export async function backfillHistory(db, settings, progress = () => {}, { fetchImpl = fetch, extract, limit, now = Date.now(), pause = 1500 } = {}) {
   const max = Number(limit ?? settings.historyBackfillPerRun ?? 20);
   if (!max) return 0;
   let unpack = extract;
@@ -83,12 +83,13 @@ export async function backfillHistory(db, settings, progress = () => {}, { fetch
   const sql = `INSERT OR IGNORE INTO history (card_id, variant, day, raw) VALUES (?, ?, ?, ?)`;
   let added = 0;
   for (const [i, day] of todo.entries()) {
+    if (i && pause) await new Promise((r) => setTimeout(r, pause)); // a free service: don't rush it
     const dir = mkdtempSync(join(tmpdir(), 'comps-history-'));
     try {
       // Same identity as the daily price download (the archive host refuses anonymous clients).
       const res = await fetchImpl(`${BASE}/prices-${day}.ppmd.7z`, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(120_000) });
       if (res.status === 404) { done.add(day); continue; } // no archive that day
-      if (!res.ok) { log.warn(`history: ${day} answered ${res.status}; trying again next run`); break; }
+      if (!res.ok) { log.warn(`history: ${day} answered ${res.status}${res.status === 429 ? ' (busy)' : ''}; trying again next run`); break; }
       const file = join(dir, `prices-${day}.ppmd.7z`);
       writeFileSync(file, Buffer.from(await res.arrayBuffer()));
       const lists = unpack(file, day, dir);

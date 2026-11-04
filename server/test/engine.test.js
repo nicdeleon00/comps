@@ -273,14 +273,14 @@ test('history backfill: samples days sensibly, imports kept printings once, neve
     { productId: 2, subTypeName: 'Normal', marketPrice: 0.2 },          // too cheap to keep
     { productId: 999, subTypeName: 'Normal', marketPrice: 10 },         // not in the catalog
   ]];
-  const added = await backfillHistory(db, { historyMinUsd: 1 }, () => {}, { fetchImpl, extract, limit: 3, now });
+  const added = await backfillHistory(db, { historyMinUsd: 1 }, () => {}, { fetchImpl, extract, limit: 3, now, pause: 0 });
   assert.deepEqual(fetched, ['2026-11-03', '2026-11-02', '2026-11-01']);
   assert.equal(added, 2, 'the missing day is skipped, not counted');
   const pts = db.all(`SELECT day, raw FROM history WHERE card_id = 'tcg:1' ORDER BY day`);
   assert.deepEqual(pts.map((p) => [p.day, p.raw]), [['2026-11-02', 40.2], ['2026-11-03', 49]], 'recorded point kept as is');
   assert.equal(db.get(`SELECT COUNT(*) n FROM history WHERE card_id <> 'tcg:1'`).n, 0);
   // Next run continues where it left off.
-  await backfillHistory(db, { historyMinUsd: 1 }, () => {}, { fetchImpl, extract, limit: 2, now });
+  await backfillHistory(db, { historyMinUsd: 1 }, () => {}, { fetchImpl, extract, limit: 2, now, pause: 0 });
   assert.deepEqual(fetched.slice(3), ['2026-10-31', '2026-10-30']);
   // Compaction keeps the same shape the backfill imports.
   db.run(`INSERT INTO history (card_id, variant, day, raw) VALUES ('tcg:1','holofoil','2025-03-11',1), ('tcg:1','holofoil','2025-03-03',1), ('tcg:1','holofoil','2026-06-02',1), ('tcg:1','holofoil','2026-06-01',1)`);
