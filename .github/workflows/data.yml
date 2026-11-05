@@ -89,9 +89,14 @@ jobs:
 
       - name: Package the Marketplace extension
         run: |
-          # Downloaded from Deals → Marketplace; unzips to a folder for "Load unpacked".
+          # The download (Deals → Marketplace) unzips to a folder for "Load unpacked".
           mkdir -p /tmp/pkg && cp -r extension /tmp/pkg/comps-marketplace
           (cd /tmp/pkg && zip -qr "$GITHUB_WORKSPACE/web/dist/comps-marketplace.zip" comps-marketplace)
+          # The same files, one by one, plus version.json: installed copies update themselves from these.
+          cp -r extension web/dist/extension
+          (cd extension && find . -type f | sed 's#^\./##' | sort) \
+            | node -e 'const files=require("fs").readFileSync(0,"utf8").trim().split("\n");const {version}=require("./extension/manifest.json");require("fs").writeFileSync("web/dist/extension/version.json",JSON.stringify({version,files}))'
+          cat web/dist/extension/version.json
 
       - name: Export data
         run: |

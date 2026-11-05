@@ -52,7 +52,7 @@ export function MarketplaceFinds() {
       {!items && <SkRows n={5} />}
       {items && !list.length && (
         <Empty icon={<IconTag size={26} />} title={items.length ? 'Nothing matches' : 'No Marketplace listings yet'}>
-          {items.length ? 'Try "All priced" or a different search.' : ext.installed ? 'Press "Find deals for me" above and they show up here in a minute or two.' : 'Add the free extension above and press "Find deals for me".'}
+          {items.length ? 'Try "All priced" or a different search.' : ext.installed ? 'Press "Search now" above and they show up here in a minute or two.' : 'Add the free extension above and press "Search now".'}
         </Empty>
       )}
       <div class="mp-list">
@@ -98,7 +98,7 @@ function ExtensionBar({ ext }: { ext: ReturnType<typeof useListings>['ext'] }) {
         <div class="mp-install-head">
           <div>
             <div class="g-title">Find these deals yourself, near you</div>
-            <div class="g-desc">The free Comps extension for Chrome or Edge puts a price on every card listing on Facebook Marketplace and finds the deals for you with one button.</div>
+            <div class="g-desc">The free Comps extension for Chrome or Edge prices every card listing on Facebook Marketplace, searches for deals with one button (or by itself every so often) and alerts you. It keeps itself up to date.</div>
           </div>
           <button class="btn primary" onClick={() => setOpen(!open)}>{open ? 'Hide steps' : 'Get the extension'}</button>
         </div>
@@ -106,7 +106,9 @@ function ExtensionBar({ ext }: { ext: ReturnType<typeof useListings>['ext'] }) {
           <ol class="mp-steps">
             <li><a class="btn primary sm" href={ZIP} download>Download</a> and open the file so it unzips into a folder.</li>
             <li>Paste <code>chrome://extensions</code> into the address bar and switch on <b>Developer mode</b> (top right).</li>
-            <li>Press <b>Load unpacked</b> and pick the <b>comps-marketplace</b> folder. Done — come back here and press <b>Find deals for me</b>.</li>
+            <li>Press <b>Load unpacked</b> and pick the <b>comps-marketplace</b> folder.</li>
+            <li>On the welcome page that opens, press <b>Turn on automatic updates</b> and pick the same folder. You never have to reinstall again.</li>
+            <li>Open Facebook Marketplace: the Comps panel is in the bottom right. Pick what to search for and press <b>Search now</b>.</li>
           </ol>
         )}
       </div>
@@ -116,16 +118,16 @@ function ExtensionBar({ ext }: { ext: ReturnType<typeof useListings>['ext'] }) {
   return (
     <div class="panel mp-ext">
       <div class="mp-ext-main">
-        <div class="g-title">{scan?.running ? `Searching Marketplace for “${scan.queries[scan.qi]}” (${scan.qi + 1} of ${scan.queries.length})` : 'Extension connected'}</div>
+        <div class="g-title">{scan?.running ? `${scan.mode === 'monitor' ? 'Checking' : 'Searching'} Marketplace for “${scan.list[scan.i]?.q}” (${scan.i + 1} of ${scan.list.length})` : 'Extension connected'}</div>
         <div class="g-desc">
           {scan?.running ? `${scan.priced} cards priced, ${scan.deals} deals so far. You can keep using your computer.`
             : scan?.note === 'blocked' ? 'Couldn’t see any listings. Log in to Facebook in this browser, then try again.'
             : ext.lastScan ? `Last search ${ago(ext.lastScan.at)}: ${ext.lastScan.priced} cards priced, ${ext.lastScan.deals} deals.`
-            : 'Press the button: it opens Marketplace, scrolls through the newest listings near you and prices every card.'}
+            : 'Press the button: it searches Marketplace near you, scrolls through the newest listings and prices every card. Change what it searches for in the panel on Facebook.'}
           {!ext.share && ' Sharing is off, so only you see what it finds.'}
         </div>
       </div>
-      {scan?.running ? <button class="btn" onClick={ext.stop}>Stop</button> : <button class="btn primary" onClick={ext.start}>▶ Find deals for me</button>}
+      {scan?.running ? <button class="btn" onClick={ext.stop}>Stop</button> : <button class="btn primary" onClick={ext.start}>▶ Search now</button>}
     </div>
   );
 }

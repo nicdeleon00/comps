@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildLookup, matchListing, parsePrice } from '../../extension/matcher.js';
+import { buildLookup, matchListing, parsePrice, fakePrice } from '../../extension/matcher.js';
+import { fakePrice as siteFakePrice } from '../../web/src/lib/fakePrice.ts';
 
 const v = (variant, raw, g9 = null, psa10 = null) => [variant, raw, g9, psa10, null];
 const lookup = buildLookup({
@@ -75,9 +76,10 @@ test('skips what it can\'t price honestly', () => {
   for (const t of ['Pokemon card lot 199/165 charizard', 'Japanese Charizard ex 199/165', 'WTB Charizard ex SIR', 'Prismatic Evolutions booster bundle', 'Blastoise 199/165', 'Pokemon cards']) {
     assert.equal(m(t), null, t);
   }
-  const placeholder = m('Charizard ex 199/165', 1);
-  assert.equal(placeholder.placeholder, true);
-  assert.equal(placeholder.deal, false);
+  for (const p of [0, 1, 12, 123, 1234, 69, 420, 9999, 999999]) {
+    const x = m('Charizard ex 199/165', p);
+    assert.ok(x.fake && !x.deal && x.discount == null, `${p} is not a real price`);
+  }
 });
 
 test('reads Marketplace prices', () => {
@@ -86,4 +88,16 @@ test('reads Marketplace prices', () => {
   assert.equal(parsePrice('$8$10'), 8, 'reduced price');
   assert.equal(parsePrice('Free'), null);
   assert.equal(parsePrice('CA$40'), null);
+});
+
+test('fake prices: placeholders, number mashes, memes and absurd asks; the website agrees', () => {
+  const cases = [
+    [0, null, true], [1, null, true], [1.5, 10, false], [12, null, true], [123, null, true], [1234, null, true], [123456, null, true],
+    [69, null, true], [420, null, true], [9999, null, true], [999999, null, true], [111, 10, true], [111, 500, false], [999, 1000, false],
+    [999, 100, true], [5000, 10, true], [5000, 4000, false], [180, 317, false], [234, null, false], [150000, null, true],
+  ];
+  for (const [price, worth, fake] of cases) {
+    assert.equal(fakePrice(price, worth), fake, `extension: ${price} (worth ${worth})`);
+    assert.equal(siteFakePrice(price, worth), fake, `website: ${price} (worth ${worth})`);
+  }
 });

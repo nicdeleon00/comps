@@ -93,6 +93,25 @@ export function buildLookup(index) {
   return { byNumber, byName, imageBase: index.imageBase };
 }
 
+// Asking prices people use when they don't mean it: "message me", memes, keyboard mashes.
+const MEME_PRICES = new Set([69, 420, 666, 6969, 42069, 80085]);
+
+/**
+ * True for prices that aren't real offers: free / $0 / $1, 123 / 1234…, 69 / 420,
+ * 1111 / 9999 / 999999, and absurd asks for a cheap card. The website uses the same rule.
+ */
+export function fakePrice(price, worth = null) {
+  if (!(price > 1)) return true;
+  if (price >= 100000) return true;
+  if (Number.isInteger(price)) {
+    const s = String(price);
+    if (s.length >= 2 && '123456789'.startsWith(s)) return true; // 12, 123, 1234…
+    if (MEME_PRICES.has(price)) return true;
+    if (/^(\d)\1+$/.test(s) && (s.length >= 4 || (worth && price > worth * 3))) return true;
+  }
+  return Boolean(worth && price >= 500 && price > worth * 20);
+}
+
 /** "$1,250" / "$45.50" / a reduced "$8$10" (reads as $8). Null for free, other currencies or no price. */
 export function parsePrice(text) {
   const m = /^\s*\$\s?([\d,]+(?:\.\d{1,2})?)/.exec(String(text ?? ''));
@@ -201,12 +220,12 @@ export function matchListing(lookup, { title, price }) {
   // Unsure: judge the price against the cheapest card it could be.
   const against = value ?? low;
   const discount = against && price ? 1 - price / against : null;
-  const placeholder = Boolean(price && price <= 1 && against >= 10);
-  const deal = Boolean(!placeholder && discount != null && discount >= 0.15 && against - price >= 3);
+  const fake = fakePrice(price, against);
+  const deal = Boolean(!fake && discount != null && discount >= 0.15 && against - price >= 3);
   const c = best.c;
   return {
     card: { id: `tcg:${c.pid}`, name: c.name, set: c.setName, number: c.number, total: c.total, image: `${lookup.imageBase}${c.pid}_200w.jpg` },
     variant: best.variant[0], grade: grade ? `${grade.grader} ${grade.n}` : null, basis: best.basis,
-    value, low, high, matches: priced.length, discount, deal, placeholder, confident: tight,
+    value, low, high, matches: priced.length, discount: fake ? null : discount, deal, fake, confident: tight,
   };
 }

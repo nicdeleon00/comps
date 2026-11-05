@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from 'preact/hooks';
 import { useData } from './api';
 import { accountsEnabled, publicRest } from './supabase';
 import type { CatalogIndex, IndexRow } from './masterset';
+import { fakePrice } from './fakePrice';
 
 export interface Listing {
   id: string;
@@ -31,15 +32,14 @@ export interface Listing {
 
 type SharedRow = { id: string; card_id: string; variant: string | null; grade: string | null; title: string; price: number; location: string | null; confident: boolean; status: string; seen_at: number };
 type LocalFind = Omit<Listing, 'mine' | 'card' | 'seenAt'> & { card: Listing['card']; seenAt: number; variant: string | null; high: number | null };
-export type Scan = { running: boolean; queries: string[]; qi: number; priced: number; deals: number; note: string | null; endedAt?: number };
+type Scan = { mode: 'search' | 'monitor'; running: boolean; list: { q: string; url: string }[]; i: number; priced: number; deals: number; note: string | null; endedAt?: number };
 
 const FRESH_DAYS = 14;
 const fbUrl = (id: string) => `https://www.facebook.com/marketplace/item/${id}/`;
 
-/** Under value enough to bother: 15%+ and $3+ under, and not a $1 "message me" placeholder. */
+/** Under value enough to bother: 15%+ and $3+ under, at a real asking price. */
 function isDeal(price: number, worth: number | null) {
-  if (!worth || !price) return false;
-  if (price <= 1 && worth >= 10) return false;
+  if (!worth || fakePrice(price, worth)) return false;
   return 1 - price / worth >= 0.15 && worth - price >= 3;
 }
 
@@ -115,7 +115,7 @@ export function useListings(cardId?: string) {
     const out = new Map<string, Listing>();
     for (const r of shared.rows ?? []) {
       const row = byId.get(r.card_id);
-      if (!row) continue;
+      if (!row || fakePrice(Number(r.price), r.confident ? valueOf(row, r.variant, r.grade) : null)) continue;
       const fb = r.id.replace(/^fb:/, '');
       const value = r.confident ? valueOf(row, r.variant, r.grade) : null;
       out.set(fb, {
@@ -126,10 +126,11 @@ export function useListings(cardId?: string) {
     }
     for (const f of ext.finds) {
       if (cardId && f.card.id !== cardId) continue;
-      if (!f.price || f.status === 'sold' || f.seenAt < Date.now() - FRESH_DAYS * 86_400_000) continue;
+      if (f.status === 'sold' || f.seenAt < Date.now() - FRESH_DAYS * 86_400_000) continue;
       const row = byId.get(f.card.id);
       const value = f.confident && row ? valueOf(row, f.variant, f.grade) : null;
       const worth = value ?? f.low;
+      if (fakePrice(f.price, worth)) continue;
       out.set(f.id, {
         ...f, url: fbUrl(f.id), value, low: f.low, discount: worth ? 1 - f.price / worth : null,
         deal: isDeal(f.price, worth), mine: true, seenAt: Math.max(f.seenAt, out.get(f.id)?.seenAt ?? 0),
