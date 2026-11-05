@@ -22,7 +22,7 @@ export type SyncItem = {
 };
 const KEEP_TOMBSTONES = 90 * 86_400_000;
 
-export const keyOf = (i: SyncItem) => [i.cardId, i.variant ?? '', i.grader ?? '', i.grade ?? '', i.condition || 'NM'].join('|');
+const keyOf = (i: SyncItem) => [i.cardId, i.variant ?? '', i.grader ?? '', i.grade ?? '', i.condition || 'NM'].join('|');
 
 /**
  * Newest change wins per card. On a device's first sync, the same card that exists

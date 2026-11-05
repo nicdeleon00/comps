@@ -7,7 +7,7 @@
 // "Eevee (Poke Ball Pattern)" #074 sits next to "Eevee" #074. Products with the
 // same number and the same name (tags removed) are one card slot.
 
-export type IndexVariant = [string, number | null, number | null, number | null, number | null];
+type IndexVariant = [string, number | null, number | null, number | null, number | null];
 export type IndexRow = [number, string, string, string | null, string | null, string | null, IndexVariant[]];
 export interface CatalogIndex {
   imageBase: string;
@@ -15,7 +15,7 @@ export interface CatalogIndex {
   cards: IndexRow[];
 }
 /** A card you have, with its printing already resolved (an unset printing means the regular one). */
-export interface Owned { cardId: string; variantResolved: string | null; quantity: number }
+interface Owned { cardId: string; variantResolved: string | null; quantity: number }
 
 export interface Printing {
   cardId: string;

@@ -97,25 +97,8 @@ export function valuationOut(v) {
   };
 }
 
-export function gradesOut(v) {
+function gradesOut(v) {
   const g = {};
   for (const k of ['g7', 'g8', 'g9', 'g95', 'psa10', 'bgs10', 'cgc10', 'sgc10']) if (v[k] != null) g[k] = v[k];
   return Object.keys(g).length ? g : null;
-}
-
-/** Card + its primary (highest-value) variant valuation, many ids at once. */
-export function loadCards(db, ids) {
-  if (!ids.length) return new Map();
-  const out = new Map();
-  const uniq = [...new Set(ids)];
-  for (let i = 0; i < uniq.length; i += 500) {
-    const part = uniq.slice(i, i + 500);
-    const ph = part.map(() => '?').join(',');
-    for (const r of db.all(`SELECT * FROM cards WHERE id IN (${ph})`, ...part)) out.set(r.id, r);
-  }
-  return out;
-}
-
-export function loadValuation(db, cardId, variant) {
-  return db.get('SELECT * FROM valuations WHERE card_id = ? AND variant = ?', cardId, variant);
 }

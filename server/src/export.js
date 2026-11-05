@@ -12,7 +12,7 @@ import { setImageMode } from './store.js';
 import { safeJSON, log } from './lib/util.js';
 import { buildIndex, byPrinting } from './catalogIndex.js';
 
-export const SHARDS = 128;
+const SHARDS = 128;
 export const shardOf = (id) => {
   const n = Number(String(id).replace(/^\D+/, ''));
   if (Number.isFinite(n)) return n % SHARDS;

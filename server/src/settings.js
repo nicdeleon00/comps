@@ -42,7 +42,7 @@ const ENV = {
   historyBackfillPerRun: 'HISTORY_BACKFILL',
 };
 
-export const SECRET_KEYS = new Set(['pptApiKey', 'pricechartingToken', 'ebayClientId', 'ebayClientSecret']);
+const SECRET_KEYS = new Set(['pptApiKey', 'pricechartingToken', 'ebayClientId', 'ebayClientSecret']);
 
 export function createSettings(db) {
   const read = () => {

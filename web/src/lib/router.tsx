@@ -8,7 +8,7 @@ import { prefetch } from './api';
 type Loc = { path: string; query: URLSearchParams; bg?: Loc | null };
 /** "/comps" on GitHub Pages, "" when served at the root. */
 export const BASE = import.meta.env.BASE_URL.replace(/\/$/, '');
-export const withBase = (path: string) => (/^https?:/.test(path) ? path : BASE + path);
+const withBase = (path: string) => (/^https?:/.test(path) ? path : BASE + path);
 const listeners = new Set<(l: Loc) => void>();
 const scrolls = new Map<string, number>();
 let loc: Loc = parse(location.pathname + location.search, history.state?.bg);

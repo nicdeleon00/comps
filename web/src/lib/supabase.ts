@@ -14,7 +14,7 @@ type Session = { access_token: string; refresh_token: string; expires_at: number
 const SESSION_KEY = 'comps.session';
 const listeners = new Set<() => void>();
 
-export function currentSession(): Session | null {
+function currentSession(): Session | null {
   try { return JSON.parse(localStorage.getItem(SESSION_KEY) ?? 'null') as Session | null; } catch { return null; }
 }
 export const currentUser = (): User | null => currentSession()?.user ?? null;
@@ -28,7 +28,7 @@ export function onAuth(l: () => void) {
   return () => { listeners.delete(l); };
 }
 
-export class AccountError extends Error {
+class AccountError extends Error {
   constructor(public status: number, message: string) { super(message); }
 }
 
@@ -97,7 +97,7 @@ export async function changePassword(password: string) {
 let refreshing: Promise<string> | null = null;
 
 /** A valid access token, refreshed when it's about to expire. */
-export async function accessToken(): Promise<string> {
+async function accessToken(): Promise<string> {
   const s = currentSession();
   if (!s) throw new AccountError(401, 'Sign in first.');
   if (s.expires_at - Date.now() / 1000 > 60) return s.access_token;

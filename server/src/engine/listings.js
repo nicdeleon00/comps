@@ -75,7 +75,7 @@ function queryFor(card) {
 }
 
 /** Picks which cards to spend eBay calls on this cycle. */
-export function pickCandidates(db, limit) {
+function pickCandidates(db, limit) {
   const rows = db.all(`
     SELECT * FROM (
       SELECT v.card_id, v.variant, 3 AS pri, v.raw AS sortv FROM watchlist w JOIN valuations v ON v.card_id = w.card_id AND v.variant = w.variant

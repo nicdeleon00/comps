@@ -101,17 +101,6 @@ enum SyncMerge {
         }
         return order.compactMap { byId[$0] }.filter { !$0.isDeleted || now - $0.updatedAt < keepTombstones }
     }
-
-    /// True when `other` is missing changes that `merged` has.
-    static func differs(_ merged: [SyncItem], _ other: [SyncItem]) -> Bool {
-        guard merged.count == other.count else { return true }
-        var byId: [String: SyncItem] = [:]
-        for o in other { byId[o.id.lowercased()] = o }
-        return merged.contains { m in
-            guard let o = byId[m.id] else { return true }
-            return o.updatedAt != m.updatedAt || o.isDeleted != m.isDeleted
-        }
-    }
 }
 
 private enum SyncDates {

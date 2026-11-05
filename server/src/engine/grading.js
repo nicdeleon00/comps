@@ -20,8 +20,6 @@ export const ERA_RATES = {
   modern: { p10: 0.45, p9: 0.42, p8: 0.1 }, //  2020+: SWSH, SV, ME — mostly pack-fresh
 };
 
-export const ERA_LABEL = { wotc: 'WotC era', ex: 'EX to HGSS era', bwxy: 'Black & White / XY era', sm: 'Sun & Moon era', modern: 'modern' };
-
 export function eraOf(releaseDate) {
   const y = yearOf(releaseDate);
   if (!y) return 'modern';

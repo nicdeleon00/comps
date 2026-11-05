@@ -13,7 +13,7 @@ export function setToken(t: string) {
   try { localStorage.setItem('comps.token', t); } catch {}
 }
 
-export class HttpError extends Error {
+class HttpError extends Error {
   constructor(public status: number, message: string) { super(message); }
 }
 
@@ -68,7 +68,7 @@ function load(url: string) {
   return p;
 }
 
-export function peek<T>(url: string): T | undefined {
+function peek<T>(url: string): T | undefined {
   return cache.get(url)?.data as T | undefined;
 }
 

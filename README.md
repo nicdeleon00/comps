@@ -70,7 +70,7 @@ The next website build turns accounts on, and each price refresh keeps the free 
 
 ## Run it yourself (optional)
 
-The same code runs as a normal server with a live API (collection sync, token auth, image cache):
+The same code runs as a normal server with a live API (your collection on the server, token auth, image cache):
 
 ```bash
 npm run build
@@ -86,12 +86,14 @@ Open http://localhost:8787. `npm run demo` starts it with labelled sample data i
 
 ```
 server/            Node, no runtime dependencies (built-in SQLite)
-  src/providers/   TCGCSV, TCGdex, PriceCharting, eBay, FX
-  src/engine/      valuation, deal signals, grading EV, listing filter, scan matching
+  src/providers/   TCGCSV (+ price history archives), TCGdex, PokemonPriceTracker, PriceCharting, eBay, FX
+  src/engine/      valuation, deal signals, grading EV, listing filter, catalog search
   src/export.js    static export for GitHub Pages
   src/cli.js       refresh / export (used by the scheduled workflow)
-web/               Preact + Vite website (~31 KB gzipped JS)
+web/               Preact + Vite website
 ios/               SwiftUI app, iOS 17+, no third-party packages
+extension/         Comps for Marketplace (Chrome/Edge extension)
+supabase/          accounts + shared Marketplace listings (schema and tests)
 .github/workflows  data.yml (prices + site), ios.yml (IPA), server.yml (tests)
 ```
 

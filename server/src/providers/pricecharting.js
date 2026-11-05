@@ -2,7 +2,7 @@
 // prices: ungraded, grade 7, 8, 9, 9.5, PSA 10, BGS 10, CGC 10, SGC 10 —
 // which is what powers the raw → graded spread engine. Also covers sports cards.
 
-import { getText, getJSON } from '../lib/http.js';
+import { getText } from '../lib/http.js';
 import { upsertCards, upsertQuotes, pruneQuotes } from '../store.js';
 import { parseCSV, money, norm, similarity, log, groupBy } from '../lib/util.js';
 
@@ -15,7 +15,7 @@ const GAME_BY_CATEGORY = {
 };
 
 // PriceCharting reuses its video-game column names for card grades.
-export const GRADE_COLUMNS = {
+const GRADE_COLUMNS = {
   ungraded: 'loose-price',
   g7: 'cib-price',
   g8: 'new-price',
@@ -107,18 +107,6 @@ export async function refreshPriceCharting(db, settings, onProgress = () => {}) 
   if (total) pruneQuotes(db, 'pricecharting', started, 'pc:');
   linkPriceCharting(db);
   return total;
-}
-
-/** Live search, used by the scanner for sports/other cards. Prices are in pennies. */
-export async function searchPriceCharting(settings, q) {
-  const token = settings.pricechartingToken;
-  if (!token) return [];
-  const res = await getJSON(`${BASE}/api/products?t=${encodeURIComponent(token)}&q=${encodeURIComponent(q)}`, { timeout: 15_000, retries: 1 });
-  return (res.products ?? []).slice(0, 12).map((p) => {
-    const row = { id: p.id, 'product-name': p['product-name'], 'console-name': p['console-name'] };
-    for (const col of Object.values(GRADE_COLUMNS)) row[col] = p[col] != null ? p[col] / 100 : '';
-    return mapRow(row, 'search');
-  }).filter(Boolean);
 }
 
 // ---------------------------------------------------------------------------

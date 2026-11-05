@@ -6,9 +6,8 @@ import { holdingValue, gradeKey } from './engine/valuation.js';
 import { day, daysAgo, groupBy } from './lib/util.js';
 import { img } from './store.js';
 
-const FIELDS = ['cardId', 'game', 'name', 'setName', 'number', 'image', 'variant', 'grader', 'grade', 'condition', 'quantity', 'costBasis', 'acquiredAt', 'notes'];
 
-export function rowToHolding(r) {
+function rowToHolding(r) {
   return {
     id: r.id,
     cardId: r.card_id,
@@ -31,12 +30,10 @@ export function rowToHolding(r) {
   };
 }
 
-export function upsertHolding(db, h, { force = false } = {}) {
-  const cur = h.id ? db.get('SELECT updated_at FROM holdings WHERE id = ?', h.id) : null;
+export function upsertHolding(db, h) {
   const id = h.id || randomUUID();
   const t = Date.now();
   const updatedAt = Number(h.updatedAt) || t;
-  if (cur && !force && cur.updated_at >= updatedAt) return { id, applied: false };
   db.run(`INSERT INTO holdings (id, card_id, game, name, set_name, number, image, variant, grader, grade, condition, quantity, cost_basis, acquired_at, notes, created_at, updated_at, deleted)
     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     ON CONFLICT(id) DO UPDATE SET card_id=excluded.card_id, game=excluded.game, name=excluded.name, set_name=excluded.set_name, number=excluded.number,
@@ -46,7 +43,7 @@ export function upsertHolding(db, h, { force = false } = {}) {
     h.grader || null, h.grade != null && h.grade !== '' ? String(h.grade) : null, h.condition ?? 'NM', Math.max(1, Number(h.quantity) || 1),
     h.costBasis != null && h.costBasis !== '' ? Number(h.costBasis) : null, h.acquiredAt ?? null, h.notes ?? null,
     Number(h.createdAt) || t, updatedAt, h.deleted ? 1 : 0);
-  return { id, applied: true };
+  return { id };
 }
 
 /** Fills in name/set/image from the catalog when a client only sent cardId. */
@@ -55,12 +52,6 @@ export function hydrate(db, h) {
   const c = db.get('SELECT * FROM cards WHERE id = ?', h.cardId);
   if (!c) return h;
   return { ...h, game: h.game ?? c.game, name: h.name ?? c.name, setName: h.setName ?? c.set_name, number: h.number ?? c.number, image: h.image ?? c.image };
-}
-
-export function sync(db, items = [], since = 0) {
-  const results = db.tx(() => items.map((h) => (h?.cardId ? upsertHolding(db, hydrate(db, h)) : null)));
-  const changed = db.all('SELECT * FROM holdings WHERE updated_at > ? ORDER BY updated_at', Number(since) || 0).map(rowToHolding);
-  return { applied: results.filter((r) => r?.applied).length, items: changed, serverTime: Date.now() };
 }
 
 function valuationsFor(db, holdings) {
@@ -80,8 +71,8 @@ function pickVal(vs, variant) {
   return vs.find((v) => v.variant === variant) ?? [...vs].sort((a, b) => (b.raw ?? 0) - (a.raw ?? 0))[0];
 }
 
-export function valuedHoldings(db, { includeDeleted = false } = {}) {
-  const hs = db.all(`SELECT * FROM holdings ${includeDeleted ? '' : 'WHERE deleted = 0'} ORDER BY updated_at DESC`).map(rowToHolding);
+export function valuedHoldings(db) {
+  const hs = db.all('SELECT * FROM holdings WHERE deleted = 0 ORDER BY updated_at DESC').map(rowToHolding);
   const vals = valuationsFor(db, hs);
   return hs.map((h) => {
     const v = pickVal(vals.get(h.cardId), h.variant);
@@ -138,7 +129,7 @@ const r2 = (x) => Math.round(x * 100) / 100;
  * Value of the *current* collection on each past day, rebuilt from card price
  * history (so the chart is meaningful as soon as cards are added).
  */
-export function portfolioSeries(db, items, days = 90) {
+function portfolioSeries(db, items, days = 90) {
   if (!items.length) return [];
   const since = daysAgo(days);
   const ids = [...new Set(items.map((h) => h.cardId))];
@@ -189,5 +180,4 @@ export function snapshotPortfolio(db) {
     day(), r2(value), r2(cost), items.reduce((s, h) => s + h.quantity, 0));
 }
 
-export const HOLDING_FIELDS = FIELDS;
 export { gradeKey };

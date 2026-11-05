@@ -2,7 +2,6 @@
 
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 export const clamp = (v, lo = 0, hi = 1) => Math.min(hi, Math.max(lo, v));
-export const round2 = (v) => (v == null || !Number.isFinite(v) ? null : Math.round(v * 100) / 100);
 export const now = () => Date.now();
 
 /** YYYY-MM-DD in UTC. */
@@ -48,7 +47,7 @@ export function tokens(s) {
 }
 
 /** Levenshtein distance with early exit. */
-export function levenshtein(a, b, max = Infinity) {
+function levenshtein(a, b, max = Infinity) {
   if (a === b) return 0;
   if (!a.length) return b.length;
   if (!b.length) return a.length;
@@ -120,12 +119,6 @@ export function* parseCSV(text) {
     for (let k = 0; k < header.length; k++) o[header[k]] = r[k] ?? '';
     yield o;
   }
-}
-
-export function chunk(arr, size) {
-  const out = [];
-  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
-  return out;
 }
 
 export function groupBy(arr, keyFn) {

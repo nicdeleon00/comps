@@ -98,7 +98,7 @@ const sameList = (a: SyncItem[], b: SyncItem[]) => {
 // ---------------------------------------------------------------- sync
 let running: Promise<void> | null = null;
 
-export function syncNow(): Promise<void> {
+function syncNow(): Promise<void> {
   if (running) return running;
   running = (async () => {
     const user = currentUser();
@@ -112,7 +112,7 @@ export function syncNow(): Promise<void> {
     }
     const dirtyAtStart = new Set(s.dirty ?? []);
     try {
-      if (!s.synced) await migrateLegacyGist().catch(() => {});
+      if (!s.synced) LS.del('sync'); // an old GitHub gist sync token, no longer used
 
       // 1. What changed on the server (a 5 s overlap guards against slow commits).
       const rows: Row[] = [];
@@ -199,11 +199,6 @@ async function syncUserData(s: State): Promise<boolean> {
   return false;
 }
 
-/** Earlier versions synced through a GitHub gist; forget its token. */
-async function migrateLegacyGist() {
-  LS.del('sync');
-}
-
 /** Signing out removes this account's copy from the browser (it's safe in the account). */
 export function forgetLocalData() {
   LS.del('holdings');
@@ -214,7 +209,7 @@ export function forgetLocalData() {
 
 let soon: ReturnType<typeof setTimeout> | undefined;
 /** After a local change: save shortly, batching quick edits. */
-export function syncSoon() {
+function syncSoon() {
   if (!accountsEnabled || !currentUser()) return;
   clearTimeout(soon);
   soon = setTimeout(() => { syncNow(); }, 1500);

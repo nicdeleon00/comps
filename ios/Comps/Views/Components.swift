@@ -90,25 +90,6 @@ struct GradeBadge: View {
     }
 }
 
-struct Sparkline: View {
-    var values: [Double]
-
-    var body: some View {
-        GeometryReader { geo in
-            if values.count > 1, let lo = values.min(), let hi = values.max() {
-                let span = max(hi - lo, 0.0001)
-                Path { p in
-                    for (i, v) in values.enumerated() {
-                        let pt = CGPoint(x: geo.size.width * CGFloat(i) / CGFloat(values.count - 1), y: geo.size.height * (1 - CGFloat((v - lo) / span)))
-                        if i == 0 { p.move(to: pt) } else { p.addLine(to: pt) }
-                    }
-                }
-                .stroke((values.last ?? 0) >= (values.first ?? 0) ? Color.up : Color.down, style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
-            }
-        }
-    }
-}
-
 /// A row used for cards across Search and Deals.
 struct CardRow<Trailing: View>: View {
     var card: CardSummary

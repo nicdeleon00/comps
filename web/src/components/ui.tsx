@@ -70,19 +70,6 @@ export function Segmented<T extends string>({ value, options, onChange, scroll =
   );
 }
 
-export function Chips<T extends string>({ value, options, onChange }: { value: T; options: { value: T; label: string; color?: string }[]; onChange: (v: T) => void }) {
-  return (
-    <div class="chips" role="group">
-      {options.map((o) => (
-        <button type="button" class="chip" aria-pressed={o.value === value} onClick={() => onChange(o.value)}>
-          {o.color && <i class="swatch" style={{ background: o.color }} />}
-          {o.label}
-        </button>
-      ))}
-    </div>
-  );
-}
-
 const GRADER_COLOR: Record<string, string> = { PSA: 'var(--psa)', BGS: 'var(--bgs)', CGC: 'var(--cgc)', SGC: 'var(--sgc)' };
 
 export function GradeBadge({ grader, grade, condition }: { grader?: string | null; grade?: string | null; condition?: string | null }) {

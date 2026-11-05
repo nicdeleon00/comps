@@ -28,7 +28,7 @@ export interface Card {
   setId?: string | null;
 }
 
-export type DealKind = 'listing' | 'dip' | 'momentum' | 'ask' | 'xmarket';
+type DealKind = 'listing' | 'dip' | 'momentum' | 'ask' | 'xmarket';
 
 export interface Deal {
   id: number;
@@ -48,7 +48,7 @@ export interface Deal {
 }
 
 export interface Outcome { grade: string; p: number; value: number; net: number }
-export interface Rates { p10: number; p9: number; p8: number; pLow?: number; era?: string; custom?: boolean }
+interface Rates { p10: number; p9: number; p8: number; pLow?: number; era?: string; custom?: boolean }
 
 export interface Spread {
   card: Card;
@@ -72,7 +72,7 @@ export interface Spread {
   if9: number;
 }
 
-export interface Job { name: string; status: string; started_at: number; finished_at: number | null; items: number | null; message: string | null }
+interface Job { name: string; status: string; started_at: number; finished_at: number | null; items: number | null; message: string | null }
 
 export interface Status {
   version: string;
@@ -125,7 +125,7 @@ export interface CollectionSummary {
   history: [string, number][];
 }
 
-export interface Source { source: string; label: string; currency: string; metrics: Record<string, number | null>; updatedAt: number; linked?: string; linkConfidence?: number }
+interface Source { source: string; label: string; currency: string; metrics: Record<string, number | null>; updatedAt: number; linked?: string; linkConfidence?: number }
 
 export interface Grading {
   raw: number; cost: number; ev: number; profit: number; roi: number; breakEven: number | null; multiple: number; if10: number; if9: number;

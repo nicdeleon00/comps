@@ -40,22 +40,11 @@ test('card detail has grading EV, history and links', async () => {
   assert.ok(d.links.ebaySold.includes('LH_Sold=1'));
 });
 
-test('identify resolves printed identifiers without live lookups', async () => {
+test('collection: edit, delete and add graded copies', async () => {
   const { api } = setup();
-  const r = await api('POST', '/api/identify', {}, { live: false, lines: [{ text: 'Umbreon VMAX', y: 0.05, h: 0.05 }, { text: '215/203', y: 0.95, h: 0.02 }] });
-  assert.equal(r.candidates[0].card.id, 'tcg:900010');
-  assert.ok(r.candidates[0].card.price > 0);
-});
-
-test('collection sync is last-write-wins with tombstones', async () => {
-  const { api } = setup();
-  const base = await api('POST', '/api/collection/sync', {}, { items: [], since: 0 });
-  const h = base.items[0];
-  const stale = await api('POST', '/api/collection/sync', {}, { items: [{ ...h, quantity: 9, updatedAt: h.updatedAt - 1 }], since: base.serverTime });
-  assert.equal(stale.applied, 0);
-  const fresh = await api('POST', '/api/collection/sync', {}, { items: [{ ...h, quantity: 9, updatedAt: Date.now() + 1 }], since: base.serverTime });
-  assert.equal(fresh.applied, 1);
-  assert.equal(fresh.items[0].quantity, 9);
+  const h = (await api('GET', '/api/collection', {})).items[0];
+  const edited = await api('PATCH', `/api/collection/${h.id}`, {}, { quantity: 9 });
+  assert.equal(edited.quantity, 9);
   await api('DELETE', `/api/collection/${h.id}`, {});
   const after = await api('GET', '/api/collection', {});
   assert.ok(!after.items.some((x) => x.id === h.id));

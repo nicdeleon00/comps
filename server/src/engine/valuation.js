@@ -109,27 +109,6 @@ export function rebuildValuations(db, fx, { historyMinUsd = 0 } = {}) {
   return n;
 }
 
-/** Values a handful of cards right away (e.g. found by a live scan lookup). No history write. */
-export function revalue(db, fx, ids) {
-  if (!ids.length) return 0;
-  const ph = ids.map(() => '?').join(',');
-  const quotes = db.all(`SELECT card_id, variant, source, currency, data FROM quotes WHERE card_id IN (${ph})`, ...ids).map((q) => ({ ...q, data: safeJSON(q.data, {}) }));
-  const t = Date.now();
-  let n = 0;
-  db.tx(() => {
-    for (const [key, qs] of groupBy(quotes, (q) => `${q.card_id}|${q.variant}`)) {
-      const [cardId, variant] = splitKey(key);
-      const v = valuate(qs, fx, null);
-      if (v.raw == null && v.psa10 == null) continue;
-      db.run(`INSERT OR REPLACE INTO valuations (card_id, variant, raw, raw_low, confidence, sources, g7, g8, g9, g95, psa10, bgs10, cgc10, sgc10, volume, change_7d, change_30d, updated_at)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, cardId, variant, v.raw, v.raw_low, v.confidence, v.sources, v.g7, v.g8, v.g9, v.g95, v.psa10, v.bgs10, v.cgc10, v.sgc10, v.volume,
-        v.cm_change_7d != null ? Math.round(v.cm_change_7d * 10000) / 10000 : null, null, t);
-      n++;
-    }
-  });
-  return n;
-}
-
 const r4 = (x) => (x == null || !Number.isFinite(x) ? null : Math.round(x * 10000) / 10000);
 
 function splitKey(key) {

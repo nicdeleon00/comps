@@ -1,15 +1,14 @@
 // JSON API used by the website and the iOS app.
 
-import { cardOut, valuationOut, gradesOut, img } from './store.js';
-import { extractFeatures, matchLocal, searchCatalog } from './engine/identify.js';
+import { cardOut, valuationOut, img } from './store.js';
+import { searchCatalog } from './engine/search.js';
 import { gradeEV, ratesFor } from './engine/grading.js';
 import { KINDS } from './engine/signals.js';
-import { holdingValue } from './engine/valuation.js';
-import { valuedHoldings, summary, sync, upsertHolding, hydrate } from './collection.js';
+import { valuedHoldings, summary, upsertHolding, hydrate } from './collection.js';
 import { ebayConfigured, ebaySearchUrl, ebaySoldUrl } from './providers/ebay.js';
 import { SERIES_ORDER } from './providers/tcgcsv.js';
 import { buildIndex } from './catalogIndex.js';
-import { safeJSON, groupBy, log, daysAgo } from './lib/util.js';
+import { safeJSON, groupBy, daysAgo } from './lib/util.js';
 import { networkInterfaces } from 'node:os';
 
 export const VARIANT_LABEL = {
@@ -19,7 +18,7 @@ export const VARIANT_LABEL = {
 const SOURCE_LABEL = { tcgplayer: 'TCGplayer', cardmarket: 'Cardmarket (EU)', pricecharting: 'PriceCharting', ppt: 'PokemonPriceTracker (graded)' };
 
 // Rarity buckets used by filters, over TCGplayer's rarity names.
-export const RARITY_SQL = {
+const RARITY_SQL = {
   sir: "c.rarity LIKE 'Special Illustration%'",
   ir: "c.rarity = 'Illustration Rare'",
   hyper: "(c.rarity LIKE '%Hyper%' OR c.rarity LIKE '%Secret%' OR c.rarity LIKE 'Rare Rainbow%')",
@@ -216,36 +215,6 @@ function cardDetail(db, settings, id) {
   };
 }
 
-function identify(db, body) {
-  const f = extractFeatures(body.lines ?? []);
-  if (body.name && !f.name) f.name = body.name;
-  const matches = matchLocal(db, f);
-  const vals = primaryVals(db, matches.map((m) => m.row.id));
-  return {
-    features: { game: f.game, name: f.name, number: f.number, total: f.total, setCode: f.setCode },
-    candidates: matches.map((m) => {
-      const vs = vals.get(m.row.id) ?? [];
-      return {
-        card: cardOut(m.row, vs[0]),
-        variants: vs.map((v) => ({ variant: v.variant, label: vlabel(v.variant), price: v.raw, grades: gradesOut(v) })),
-        score: Math.round(m.score * 100) / 100,
-        reason: m.reason,
-      };
-    }),
-  };
-}
-
-function prices(db, items = []) {
-  const vals = primaryVals(db, items.map((i) => i.cardId));
-  return items.map((h) => {
-    const vs = vals.get(h.cardId) ?? [];
-    const v = vs.find((x) => x.variant === h.variant) ?? vs[0];
-    if (!v) return { cardId: h.cardId, variant: h.variant, value: null };
-    const { value, basis } = holdingValue(h, v);
-    return { cardId: h.cardId, variant: v.variant, value, basis, raw: v.raw, grades: gradesOut(v), change7d: v.change_7d, change30d: v.change_30d, updatedAt: v.updated_at };
-  });
-}
-
 /** The most valuable cards in the newest main set. */
 function newestChase(db) {
   const today = new Date().toISOString().slice(0, 10);
@@ -394,14 +363,11 @@ export function createApi({ db, settings, jobs }) {
     return cardDetail(db, settings, params.id);
   });
 
-  on('POST', '/api/identify', ({ body }) => identify(db, body ?? {}));
-  on('POST', '/api/prices', ({ body }) => ({ items: prices(db, body?.items ?? []) }));
 
   on('GET', '/api/collection', ({ query }) => ({ items: valuedHoldings(db), summary: summary(db, { days: int(query.days, 90) }) }));
-  on('GET', '/api/collection/summary', ({ query }) => summary(db, { days: int(query.days, 90) }));
   on('POST', '/api/collection', ({ body }) => {
     if (!body?.cardId) return { error: 'cardId required', status: 400 };
-    const { id } = upsertHolding(db, hydrate(db, { ...body, updatedAt: Date.now() }), { force: true });
+    const { id } = upsertHolding(db, hydrate(db, { ...body, updatedAt: Date.now() }));
     return valuedHoldings(db).find((h) => h.id === id);
   });
   on('PATCH', '/api/collection/:id', ({ params, body }) => {
@@ -410,14 +376,13 @@ export function createApi({ db, settings, jobs }) {
     const merged = { cardId: cur.card_id, game: cur.game, name: cur.name, setName: cur.set_name, number: cur.number, image: cur.image, variant: cur.variant,
       grader: cur.grader, grade: cur.grade, condition: cur.condition, quantity: cur.quantity, costBasis: cur.cost_basis, acquiredAt: cur.acquired_at, notes: cur.notes,
       createdAt: cur.created_at, ...body, id: params.id, updatedAt: Date.now() };
-    upsertHolding(db, merged, { force: true });
+    upsertHolding(db, merged);
     return valuedHoldings(db).find((h) => h.id === params.id);
   });
   on('DELETE', '/api/collection/:id', ({ params }) => {
     db.run('UPDATE holdings SET deleted = 1, updated_at = ? WHERE id = ?', Date.now(), params.id);
     return { ok: true };
   });
-  on('POST', '/api/collection/sync', ({ body }) => sync(db, body?.items ?? [], body?.since ?? 0));
 
   on('GET', '/api/watchlist', () => {
     const rows = db.all('SELECT * FROM watchlist ORDER BY created_at DESC');

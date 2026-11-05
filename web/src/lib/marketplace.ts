@@ -37,7 +37,7 @@ const FRESH_DAYS = 14;
 const fbUrl = (id: string) => `https://www.facebook.com/marketplace/item/${id}/`;
 
 /** Under value enough to bother: 15%+ and $3+ under, and not a $1 "message me" placeholder. */
-export function isDeal(price: number, worth: number | null) {
+function isDeal(price: number, worth: number | null) {
   if (!worth || !price) return false;
   if (price <= 1 && worth >= 10) return false;
   return 1 - price / worth >= 0.15 && worth - price >= 3;
@@ -58,7 +58,7 @@ function valueOf(row: IndexRow, variant: string | null, grade: string | null) {
 const post = (msg: Record<string, unknown>) => window.postMessage({ source: 'comps-site', ...msg }, location.origin);
 
 /** The browser extension, if this browser has it: installed is null while checking. */
-export function useExtension() {
+function useExtension() {
   const [s, setS] = useState<{ installed: boolean | null; finds: LocalFind[]; scan: Scan | null; lastScan: { at: number; priced: number; deals: number } | null; share: boolean; version?: string }>(
     { installed: null, finds: [], scan: null, lastScan: null, share: true });
   useEffect(() => {
@@ -83,7 +83,7 @@ export function useExtension() {
 // ---------------------------------------------------------------- shared listings
 
 /** Listings everyone has shared (optionally for one card), refreshed every minute. */
-export function useSharedListings(cardId?: string) {
+function useSharedListings(cardId?: string) {
   const [rows, setRows] = useState<SharedRow[] | null>(null);
   const [missing, setMissing] = useState(false);
   useEffect(() => {

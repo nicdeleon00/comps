@@ -1,18 +1,11 @@
 const usd0 = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
 const usd2 = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const compact = new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 });
 const int = new Intl.NumberFormat('en-US');
 
 export function money(v: number | null | undefined, opts: { whole?: boolean } = {}): string {
   if (v == null || !Number.isFinite(v)) return '—';
   if (opts.whole || Math.abs(v) >= 1000) return usd0.format(v);
   return usd2.format(v);
-}
-
-export function moneyCompact(v: number | null | undefined): string {
-  if (v == null || !Number.isFinite(v)) return '—';
-  if (Math.abs(v) < 1000) return money(v, { whole: Math.abs(v) >= 100 });
-  return '$' + compact.format(v);
 }
 
 export function signedMoney(v: number | null | undefined): string {

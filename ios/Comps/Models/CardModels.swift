@@ -99,18 +99,11 @@ struct ScanCandidate: Codable, Hashable, Identifiable {
     var id: String { card.id }
 }
 
-struct IdentifyResponse: Decodable {
-    var candidates: [ScanCandidate]
-}
-
 struct DealData: Decodable, Hashable {
     var title: String?
     var url: String?
     var grader: String?
     var grade: String?
-    var eur: Double?
-    var accel: Double?
-    var median30: Double?
     var grading: DealGrading?
 }
 
@@ -127,7 +120,6 @@ struct Deal: Decodable, Hashable, Identifiable {
     var score: Double
     var price: Double
     var value: Double
-    var upside: Double
     var discount: Double?
     var variantLabel: String?
     var card: CardSummary
@@ -165,7 +157,6 @@ struct Spread: Decodable, Hashable, Identifiable {
 }
 
 struct SpreadsResponse: Decodable { var items: [Spread]; var total: Int }
-struct SearchResponse: Decodable { var items: [CardSummary] }
 
 struct HistoryPoint: Decodable, Hashable {
     var day: String

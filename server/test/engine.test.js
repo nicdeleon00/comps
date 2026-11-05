@@ -2,7 +2,6 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { gradeEV, ERA_RATES, eraOf } from '../src/engine/grading.js';
 import { classifyListing, parseGrade } from '../src/engine/listings.js';
-import { extractFeatures } from '../src/engine/identify.js';
 import { valuate, holdingValue, gradeKey } from '../src/engine/valuation.js';
 import { scoreSignal } from '../src/engine/signals.js';
 import { parseProductName, mapRow } from '../src/providers/pricecharting.js';
@@ -78,24 +77,6 @@ test('listing filter: rejects junk, wrong printing, damage', () => {
 
 test('listing filter: "120 HP" is not a condition', () => {
   assert.equal(classifyListing('Charizard 120 HP 4/102 Base Set Holo', charizard, 'holofoil').ok, true);
-});
-
-test('OCR features: Pokémon', () => {
-  const f = extractFeatures([
-    { text: 'BASIC', y: 0.03, h: 0.02 },
-    { text: 'Pikachu', y: 0.05, h: 0.05 },
-    { text: 'HP 60', y: 0.05, h: 0.04 },
-    { text: 'Illus. Atsuko Nishida 058/102 ●', y: 0.95, h: 0.02 },
-  ]);
-  assert.equal(f.game, 'pokemon');
-  assert.equal(f.name, 'Pikachu');
-  assert.equal(f.number, '058');
-  assert.equal(f.total, '102');
-});
-
-test('OCR features: secret rares and black star promos', () => {
-  assert.deepEqual([extractFeatures([{ text: 'TG05/TG30', y: 0.95 }]).number, extractFeatures([{ text: 'TG05/TG30', y: 0.95 }]).total], ['TG05', 'TG30']);
-  assert.equal(extractFeatures([{ text: 'SWSH050', y: 0.95 }]).number, 'SWSH050');
 });
 
 test('valuation: rejects an outlier source and weights the rest', () => {

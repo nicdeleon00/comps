@@ -7,7 +7,7 @@ import { upsertCards, upsertQuotes } from '../store.js';
 import { log } from '../lib/util.js';
 
 const BASE = process.env.TCGCSV_BASE ?? 'https://tcgcsv.com/tcgplayer';
-export const POKEMON_CATEGORY = 3;
+const POKEMON_CATEGORY = 3;
 
 const SUBTYPE = {
   Normal: 'normal',

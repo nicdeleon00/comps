@@ -24,7 +24,6 @@ enum DataError: LocalizedError {
 struct HostedStatus: Decodable {
     struct Counts: Decodable { var cards: Int; var valued: Int; var deals: Int }
     struct Provider: Decodable { var on: Bool }
-    var exportedAt: Double?
     var counts: Counts
     var providers: [String: Provider]
 }
