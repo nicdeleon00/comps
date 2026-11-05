@@ -1,85 +1,131 @@
-# Comps — Pokémon card prices, deals and collection tracking
+# Comps
 
-Three parts, one account:
+Pokémon card prices, deals and collection tracking, in three parts that share one account:
 
-- **Website** — https://nicdeleon00.github.io/comps/ — prices and price history for every English Pokémon card, deals, raw-to-graded, sets, master sets, your collection, and Facebook Marketplace deals with Buy links.
-- **iPhone app** — [Comps.ipa](https://github.com/nicdeleon00/comps/releases/download/ios-latest/Comps.ipa) (sideload) · AltStore source: `https://github.com/nicdeleon00/comps/releases/download/ios-latest/altstore-source.json` — card and binder scanner, collection, deals and master sets, with the whole price catalog on the phone so it works offline.
-- **Chrome/Edge extension** — Comps for Marketplace (download from Deals → Marketplace on the site) — prices every Pokémon card listing on Facebook Marketplace, searches for deals with one click or on a timer, alerts you, shares the deals on the site, and updates itself.
-
-Sign in with the same account on the website and in the app and your collection stays in step everywhere.
-
-Everything runs on GitHub — nothing to host or keep running on your computer:
-
-- Every 6 hours a GitHub Action downloads prices for **every English Pokémon card** (TCGplayer via [TCGCSV](https://tcgcsv.com), Cardmarket via [TCGdex](https://tcgdex.dev)), finds deals and grading spreads, saves price history, and publishes the website to GitHub Pages.
-- The iPhone app and the extension read the same published data.
-
-## What it does
-
-- **Deals** — cards priced under what they're worth: live eBay Buy It Now listings under fair value, price dips against 30-day history, TCGplayer asks 20–40% under market, and modern cards cheaper on Cardmarket than in the US.
-- **Facebook Marketplace** (Deals → Marketplace) — card listings from Facebook Marketplace with what they're worth and a **Buy** link to each, from the free Comps extension for Chrome/Edge:
-  - Reads the listing data Facebook sends the page (title, price, place, photo, sold/pending), with the screen as a fallback, and puts a price tag on every Pokémon card listing. Titles like "Charizard ex SIR 151" or "Moonbreon PSA 10" work; lots, sealed product, non-English cards and fake prices ($0, free, 123, 9999…) are ignored.
-  - A panel on Marketplace: pick presets (Pokémon cards, graded slabs, alt arts & SIRs, Charizard, Eeveelutions, Pikachu, vintage) or your own words, a price range and how recent, then **Search now**, or let it **check by itself** every 15 min – 3 h in a background tab and alert you to new deals.
-  - What it finds is shared on Comps (listing facts only, nothing about you or the seller), so everyone sees the deals; each card page lists its Marketplace copies too.
-  - It updates itself from this site (one-time OK on the welcome page). Install: Deals → Marketplace → Get the extension.
-- **Raw to Graded** — cards that are cheap raw but sell for a multiple graded (graded prices from PokemonPriceTracker's free plan, learned daily). Expected profit after grading and selling fees, and the **break-even gem rate**: the share of PSA 10s you need to not lose money. Gem rates start from Pokémon-era defaults (WotC, EX–HGSS, BW/XY, Sun & Moon, modern) and you can set your own per card.
-- **Sets** — every set by era with its total value, and a binder view of each set.
-- **Master Sets** — every card in every printing (normal, reverse holo, Poké Ball, Master Ball, Energy Symbol and more), which ones you have, the value of what you have and the cost to complete. Tap a card to mark the printings you own; switch to "one of each" for a basic set. On the website and in the app.
-- **Collection** — scan to add on the phone; see it on the website too. Sign in with the same account on both and they stay in step automatically.
-
-## Unlock more (optional, 2 minutes each)
-
-Add these as repository secrets: **Settings → Secrets and variables → Actions → New repository secret**. The next refresh picks them up.
-
-| Secret | Cost | Unlocks |
+| | What it is | Get it |
 |---|---|---|
-| `PPT_API_KEY` | free ([pokemonpricetracker.com](https://www.pokemonpricetracker.com/pokemon-card-api), no card) | Graded prices (PSA, CGC, BGS) for **Raw to Graded**. The free plan covers about 50 cards a day; Comps looks up the most valuable cards first, remembers every answer, and re-checks a card only every few weeks — so coverage grows daily without repeat lookups. |
-| `EBAY_CLIENT_ID`, `EBAY_CLIENT_SECRET` | free ([developer.ebay.com](https://developer.ebay.com/my/keys), production keyset) | Live listing scanner — the strongest "underpriced" signal. |
-| `PRICECHARTING_TOKEN` | paid (optional) | Graded prices for every card at once, if you ever want them. Not needed. |
+| **Website** | Prices and price history for every English Pokémon card, deals, raw-to-graded, sets, master sets, your collection, and Facebook Marketplace deals | https://nicdeleon00.github.io/comps/ |
+| **iPhone app** | Card and binder scanner, collection, deals, master sets and search, with every price on the phone so it works offline | [Comps.ipa](https://github.com/nicdeleon00/comps/releases/download/ios-latest/Comps.ipa) (sideload) |
+| **Chrome / Edge extension** | Prices every Pokémon card listing on Facebook Marketplace, finds the deals for you, and shares them on the site | Website → Deals → Marketplace → Get the extension |
 
-To refresh right away: **Actions → Prices & website → Run workflow**.
+Everything runs on GitHub. There's no server to host and nothing to keep running on your computer.
+
+---
+
+## Website
+
+- **Market** — the best deals right now, chase cards from the newest set, the biggest raw-to-graded spreads, and this week's movers.
+- **Deals** — cards priced under what they're worth, ranked by discount, dollar upside and confidence:
+  - **Dips:** down against their 30-day median.
+  - **Low asks:** TCGplayer listings 20–40% under market.
+  - **Cross-market:** modern cards cheaper on Cardmarket than in the US.
+  - **Momentum:** rising in Europe before the US price follows.
+  - **Live listings:** eBay Buy It Now under fair value (optional key, below).
+  - **Marketplace:** Facebook Marketplace listings found by the extension (yours and everyone else's), each with what it's worth and a **Buy** link.
+- **Raw to Graded** — cards that are cheap raw but sell for a multiple graded. Shows the expected profit after grading and selling fees, and the **break-even gem rate**: the share of PSA 10s you need to not lose money. Gem rates start from era defaults (WotC, EX–HGSS, BW/XY, Sun & Moon, modern) and you can set your own per card.
+- **Sets** — every set by era with its total value, and a binder view of each one.
+- **Master Sets** — every card in every printing: normal, reverse holo, Poké Ball, Master Ball, Energy Symbol and more.
+  - For each set it shows what you have, what it's worth, and what it costs to complete.
+  - Tap a card to mark the printings you own.
+  - "One of each" counts a basic set instead.
+- **Collection** — what you own, its value over time, gains against what you paid, and raw and graded copies.
+- **Card pages** — price history (daily for 90 days, weekly for a year, monthly back to early 2024) for raw, PSA 9 and PSA 10. Also: prices by grade, "should you grade it?", live eBay listings, copies for sale on Facebook Marketplace, and every source used.
+- **Watchlist** — cards you're watching, with a target price.
+- **Accounts** — sign in with email and password. Your collection syncs with the iPhone app automatically, and your watchlist and settings follow you to any browser.
 
 ## iPhone app
 
-Install `Comps.ipa` with [Sideloadly](https://sideloadly.io) (Windows/Mac) or [AltStore](https://altstore.io) / [SideStore](https://sidestore.io). They sign it with your Apple ID. With a free Apple ID the app must be re-signed every 7 days; AltStore/SideStore do that automatically, and adding the AltStore source above gets you updates.
+Install `Comps.ipa` with [Sideloadly](https://sideloadly.io) (Windows/Mac), [AltStore](https://altstore.io) or [SideStore](https://sidestore.io); they sign it with your Apple ID.
+- With a free Apple ID the app has to be re-signed every 7 days; AltStore and SideStore do that automatically.
+- For updates, add this AltStore source: `https://github.com/nicdeleon00/comps/releases/download/ios-latest/altstore-source.json`.
+- Requires iOS 17.
 
-Every push to `ios/` rebuilds the IPA on a Mac runner (**Actions → iOS app**).
+Tabs: **Collection**, **Scan**, **Deals** (undervalued and raw-to-graded), **Master Sets** and **Search**. Sign in under Settings with the same account as the website.
 
-**Scanning.** Point the camera at a card. It finds the card outline, waits until it's steady, flattens it, and reads the name, the collector number and set size (`025/198`, `TG05/TG30`, `SWSH050`) and, on Scarlet & Violet-era and later cards, the printed set code (`PAL EN`). Slab labels are read too (`GEM MT 10` → PSA 10). Then:
+**Scanning.** Point the camera at a card. The app finds its outline, waits until it's steady, flattens it, and reads:
+- the name, the collector number and set size (`025/198`, `TG05/TG30`, `SWSH050`);
+- on Scarlet & Violet-era and later cards, the printed set code (`PAL EN`);
+- slab labels (`GEM MT 10` → PSA 10).
 
-- **Matching** scores every plausible card on name, number, set size and set code, and prefers the original printing over reprint products that share its number (Prize Pack, Jumbo, World Championship decks, Trick or Trade, Celebrations Classic Collection…) and over pattern variants (Poké Ball / Master Ball reverse holos), unless the stamp's words are read off the card.
-- **Art check:** close calls are settled by comparing the scan with each candidate's official image (Apple's Vision feature prints), so a different artwork with the same name and number loses.
-- **Second look:** if a read is unsure and the card is still under the camera, it re-reads a fresh frame with different crops and pools both reads.
-- **It learns:** when you pick a different match, the same read resolves to your pick next time. Lock the scanner to a set (top of the screen) when scanning a stack or binder from one set.
+It then:
+
+- **Matches** every plausible card on name, number, set size and set code. It prefers the original printing over reprint products that share its number (Prize Pack, Jumbo, World Championship decks, Celebrations…) and over pattern variants, unless the card says otherwise.
+- **Checks the art.** Close calls are settled by comparing your scan with each candidate's official image, so a different artwork with the same name and number loses.
+- **Takes a second look.** If a read is unsure and the card is still in view, it re-reads a fresh frame and pools both reads.
+- **Learns.** When you pick a different match, the same read resolves to your pick next time. Lock the scanner to one set when you're scanning a stack or binder from that set.
 
 Modes:
 
-- **Continuous:** keep feeding cards — each new card lands in the tray with a haptic tick. A fingerprint of the card face stops it re-reading the card that's still there, so you can flip through a stack. Close matches are marked **?** for review, with your scan and the match side by side.
+- **Continuous:** keep feeding cards. Each one lands in the tray with a haptic tick, and you can flip through a stack without it re-reading the card still in view. Unsure matches are marked **?** for review, with your scan and the match side by side.
 - **Single:** tap the shutter, confirm, add.
-- **Binder:** fit a 4-, 9- or 12-pocket page inside the guide and tap the shutter. It takes a full-resolution photo, finds each card (inferring any pocket it can't outline from the page grid), reads and matches every pocket, and shows the page with a ✓ / ? on each card. Add the whole page at once, or fix a pocket first. Tips: lay the page flat, avoid overhead glare on the sleeves, and fill the frame.
+- **Binder:** fit a 4-, 9- or 12-pocket page in the guide and tap the shutter. Every pocket is found, read and matched, and you add the whole page at once or fix a pocket first. Lay the page flat and avoid glare on the sleeves.
 
-## Accounts
+## Comps for Marketplace (Chrome / Edge extension)
 
-Anyone can create an account (email + password) on the website or in the app. Each person's collection, card watchlist and settings are their own and follow them everywhere. Accounts run on a free [Supabase](https://supabase.com) project; set it up once:
+- **Price tags on every card listing** on Facebook Marketplace: green "▼ 43% under · worth $317" for deals.
+  - It reads the listing data Facebook sends the page (title, price, place, photo, sold or pending), and reads the screen as a fallback.
+  - Titles like "Charizard ex SIR 151", "Moonbreon PSA 10" or "Eevee master ball prismatic" work. When a title could be several cards, the tag shows a price range.
+  - Lots, sealed product, non-English cards and fake prices ($0, free, $1, 123, 1234, 9999…) are ignored.
+- **A panel on Marketplace** (bottom right):
+  - Pick presets (Pokémon cards, graded slabs, alt arts & SIRs, Charizard, Eeveelutions, Pikachu, vintage) or your own words, a price range and how recent.
+  - **Search now** runs each search, newest first, and scrolls through it.
+  - **Check by itself** every 15 min to 3 h in a background tab while Chrome is open, with a desktop alert for new deals. It's off until you switch it on.
+- **Shared on the site:** what it finds appears on Deals → Marketplace and on each card's page, for everyone. Only listing facts are shared, never anything about you or the seller. You can switch sharing off.
+- **Updates itself** from the website after a one-time OK on its welcome page.
 
-1. Create a free project at supabase.com.
-2. **Authentication → Sign In / Providers → Email:** turn off **Confirm email** (Supabase's free email sender only reaches project members).
-3. **Authentication → URL Configuration:** Site URL = your site (e.g. `https://you.github.io/comps/`).
-4. **SQL Editor:** paste [`supabase/schema.sql`](supabase/schema.sql) and run it (safe to run again after updates; run it again to turn on shared Marketplace deals).
-5. **Project Settings → API:** add the **Project URL** and **anon public** key to this repository as Actions **variables** `SUPABASE_URL` and `SUPABASE_ANON_KEY`. Both are public by design; row-level security keeps each person's data private. Keep the **service_role** key secret; nothing here needs it.
+Install: download it from Deals → Marketplace and unzip it somewhere permanent. Open `chrome://extensions`, turn on **Developer mode**, press **Load unpacked** and pick the folder. On the welcome page, press **Turn on automatic updates** and pick the same folder.
 
-The next website build turns accounts on, and each price refresh keeps the free project from pausing.
+> Facebook's terms don't allow automated browsing. Price tags and **Search now** only read pages you open; the background check is automated, so it's off unless you turn it on, and you use it at your own risk.
 
-## How the numbers work
+## How it works
 
-**Fair value** anchors on TCGplayer's market price; Cardmarket and PriceCharting only count when they broadly agree (within −35% / +50%), so a mismatched printing can't drag it.
+Every 6 hours a GitHub Action ([`data.yml`](.github/workflows/data.yml)) does the following:
 
-**Deal score (0–100)** — half discount depth, a quarter dollar upside (log scale), a quarter confidence, weighted by signal type. Live listings are filtered hard: proxies, lots, wrong language, wrong printing (1st edition, shadowless, reverse holo), damaged copies and unknown graders are thrown out, and the collector number must match. Cardmarket signals only apply to 2017+ sets, where its printings line up reliably with TCGplayer's.
+1. Downloads prices for every English Pokémon card and printing: TCGplayer via [TCGCSV](https://tcgcsv.com), and Cardmarket via [TCGdex](https://tcgdex.dev) for cards worth $15+.
+2. Fills in price history from TCGCSV's daily archives.
+3. Looks up graded prices.
+4. Finds deals and grading spreads.
+5. Publishes the website to GitHub Pages, along with the data files the app and the extension read.
 
-**Raw to graded** — cost = raw + grading fee + shipping; each outcome (10, 9, 8, ≤7) nets its sale price minus selling fees; expected value = Σ probability × net; break-even = the P(10) at which expected value equals cost. Grading costs are editable on the website (Settings).
+Other workflows rebuild the iPhone app ([`ios.yml`](.github/workflows/ios.yml)) and run the tests ([`server.yml`](.github/workflows/server.yml)).
 
-## Run it yourself (optional)
+**Fair value** starts from TCGplayer's market price. Cardmarket and PriceCharting only count when they broadly agree (within −35% / +50%), so a mismatched printing can't drag it.
 
-The same code runs as a normal server with a live API (your collection on the server, token auth, image cache):
+**Deal score (0–100)** is half discount depth, a quarter dollar upside (log scale) and a quarter confidence, weighted by signal type. Live listings are filtered hard: proxies, lots, wrong language, wrong printing, damaged copies and unknown graders are thrown out, and the collector number must match. Cardmarket signals only apply to 2017+ sets, where its printings line up reliably with TCGplayer's.
+
+**Raw to graded:**
+- **Cost** = raw price + grading fee + shipping.
+- Each outcome (PSA 10, 9, 8, 7 or lower) nets its sale price minus selling fees.
+- **Expected value** = Σ probability × net.
+- **Break-even** is the PSA 10 rate at which expected value equals cost.
+
+You can change grading and selling costs in Settings.
+
+## Setting up your own copy
+
+Fork the repository, enable GitHub Pages (Settings → Pages → branch `gh-pages`) and run **Actions → Prices & website → Run workflow**. Everything below is optional.
+
+The app and the extension point at this site by default. In the app, scan the code on your site's Settings page (or type its address under Settings → Price site). For the extension, change `SITE` in `extension/background.js`, `marketplace.js` and `update.js`, and the site address in `manifest.json`.
+
+**Price sources.** Add any of these under **Settings → Secrets and variables → Actions → New repository secret**:
+
+| Secret | Cost | Adds |
+|---|---|---|
+| `PPT_API_KEY` | free ([PokemonPriceTracker](https://www.pokemonpricetracker.com/pokemon-card-api)) | Graded prices (PSA, CGC, BGS). The free plan covers about 50 cards a day. Comps looks up the most valuable cards first, remembers every answer and re-checks a card only every few weeks, so coverage grows daily. |
+| `EBAY_CLIENT_ID`, `EBAY_CLIENT_SECRET` | free ([eBay developers](https://developer.ebay.com/my/keys), production keyset) | Live eBay listings, the strongest "underpriced" signal. |
+| `PRICECHARTING_TOKEN` | paid | Graded prices for every card at once. Not needed. |
+
+**Accounts and shared Marketplace deals** run on a free [Supabase](https://supabase.com) project:
+
+1. Create a project.
+2. **Authentication → Sign In / Providers → Email:** turn off **Confirm email**. Supabase's free email sender only reaches project members.
+3. **Authentication → URL Configuration:** set Site URL to your site.
+4. **SQL Editor:** paste [`supabase/schema.sql`](supabase/schema.sql) and run it. It's safe to run again after updates.
+5. **Project Settings → API:** add the Project URL and the **anon public** key as Actions **variables** `SUPABASE_URL` and `SUPABASE_ANON_KEY`, or put them in [`supabase/public.json`](supabase/public.json). Both are public by design, and row-level security keeps each person's data private. Keep the service_role key secret; nothing here needs it.
+
+Each price refresh also keeps the free Supabase project from pausing.
+
+**Run it as a server** instead (a live API with your collection on the server, token sign-in and an image cache). It needs Node 22.13+:
 
 ```bash
 npm run build
@@ -89,21 +135,17 @@ npm run build
 npm start
 ```
 
-Open http://localhost:8787. `npm run demo` starts it with labelled sample data instead. Requires Node 22.13+.
+Then open http://localhost:8787. `npm run demo` starts it with sample data. Run the tests with `npm test`.
 
-## Layout
+## Code
 
 ```
-server/            Node, no runtime dependencies (built-in SQLite)
-  src/providers/   TCGCSV (+ price history archives), TCGdex, PokemonPriceTracker, PriceCharting, eBay, FX
-  src/engine/      valuation, deal signals, grading EV, listing filter, catalog search
-  src/export.js    static export for GitHub Pages
-  src/cli.js       refresh / export (used by the scheduled workflow)
-web/               Preact + Vite website
-ios/               SwiftUI app, iOS 17+, no third-party packages
-extension/         Comps for Marketplace (Chrome/Edge extension)
-supabase/          accounts + shared Marketplace listings (schema and tests)
-.github/workflows  data.yml (prices + site), ios.yml (IPA), server.yml (tests)
+server/      Node, no runtime dependencies (built-in SQLite): price providers, valuation,
+             deal signals, grading math, catalog search, the static export
+web/         Preact + Vite website
+ios/         SwiftUI app, iOS 17+, no third-party packages
+extension/   Comps for Marketplace (Chrome / Edge, Manifest V3)
+supabase/    accounts and shared Marketplace listings: schema and its tests
 ```
 
-Price data: TCGplayer via TCGCSV, Cardmarket via TCGdex, optional PriceCharting and eBay. Prices are estimates — check sold listings before spending real money. Pokémon and card images are © their respective owners.
+Prices are estimates, so check sold listings before spending real money. Pokémon and card images are © their respective owners.
