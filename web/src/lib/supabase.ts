@@ -118,6 +118,9 @@ export async function accessToken(): Promise<string> {
   return refreshing;
 }
 
+/** Data API read anyone can make, signed in or not (for public tables). */
+export const publicRest = <T = any>(path: string): Promise<T> => call(`/rest/v1/${path}`) as Promise<T>;
+
 /** Data API call as the signed-in person (row-level security applies). */
 export async function rest<T = any>(path: string, init: RequestInit = {}): Promise<T> {
   return call(`/rest/v1/${path}`, { ...init, token: await accessToken() }) as Promise<T>;

@@ -97,6 +97,69 @@ drop policy if exists "own data" on public.user_data;
 create policy "own data" on public.user_data for all to authenticated
   using (user_id = auth.uid()) with check (user_id = auth.uid());
 
+-- ---------------------------------------------------------------- marketplace listings
+-- Card listings that people's browsers priced on Facebook Marketplace (with the
+-- Comps extension), shared so anyone can see the deals and open the listing to
+-- buy. Only listing facts are kept, never who's selling or who reported it.
+-- Listings nobody has seen for 30 days are removed.
+create table if not exists public.market_listings (
+  id text primary key check (id ~ '^fb:[0-9]{5,25}$'),
+  card_id text not null check (card_id ~ '^tcg:[0-9]{1,12}$'),
+  variant text check (variant is null or length(variant) <= 40),
+  grade text check (grade is null or length(grade) <= 12),
+  title text not null check (length(title) between 1 and 200),
+  price numeric not null check (price > 0 and price < 1000000),
+  location text check (location is null or length(location) <= 80),
+  confident boolean not null default true,
+  status text not null default 'active' check (status in ('active', 'pending', 'sold')),
+  first_seen bigint not null default public.now_ms(),
+  seen_at bigint not null default public.now_ms()
+);
+create index if not exists market_listings_seen on public.market_listings (seen_at desc);
+create index if not exists market_listings_card on public.market_listings (card_id);
+alter table public.market_listings enable row level security;
+drop policy if exists "anyone can read" on public.market_listings;
+create policy "anyone can read" on public.market_listings for select to anon, authenticated using (true);
+
+-- Reports per hour, to keep a flood of junk out. Only report_listings touches it.
+create table if not exists public.market_report_log (hour bigint primary key, n integer not null default 0);
+alter table public.market_report_log enable row level security;
+
+-- The extension sends what it saw (up to 100 listings at a time). Bad rows are skipped.
+create or replace function public.report_listings(items jsonb) returns integer
+  language plpgsql security definer set search_path = public as $$
+declare
+  saved integer := 0;
+  it jsonb;
+  hr bigint := public.now_ms() / 3600000;
+  used integer;
+begin
+  if jsonb_typeof(items) <> 'array' or jsonb_array_length(items) > 100 then
+    raise exception 'Send a list of up to 100 listings' using errcode = 'check_violation';
+  end if;
+  insert into market_report_log as l (hour, n) values (hr, jsonb_array_length(items))
+    on conflict (hour) do update set n = l.n + excluded.n returning l.n into used;
+  if used > 20000 then raise exception 'Too many reports this hour' using errcode = 'check_violation'; end if;
+  for it in select * from jsonb_array_elements(items) loop
+    begin
+      insert into market_listings as m (id, card_id, variant, grade, title, price, location, confident, status)
+      values (it->>'id', it->>'card_id', it->>'variant', it->>'grade', left(it->>'title', 200), (it->>'price')::numeric,
+              left(it->>'location', 80), coalesce((it->>'confident')::boolean, true), coalesce(it->>'status', 'active'))
+      on conflict (id) do update set card_id = excluded.card_id, variant = excluded.variant, grade = excluded.grade,
+        title = excluded.title, price = excluded.price, location = coalesce(excluded.location, m.location),
+        confident = excluded.confident, status = excluded.status, seen_at = public.now_ms();
+      saved := saved + 1;
+    exception when check_violation or not_null_violation or invalid_text_representation or numeric_value_out_of_range then
+      null; -- skip a bad row, keep the rest
+    end;
+  end loop;
+  delete from market_report_log where hour < hr - 48;
+  delete from market_listings where seen_at < public.now_ms() - 30::bigint * 86400000;
+  return saved;
+end $$;
+revoke execute on function public.report_listings(jsonb) from public;
+grant execute on function public.report_listings(jsonb) to anon, authenticated;
+
 -- ---------------------------------------------------------------- removed features
 -- Drop alerts were taken out; running this file again clears what they stored.
 drop table if exists public.drop_events, public.drop_status, public.push_devices, public.watch_items, public.monitor_state;

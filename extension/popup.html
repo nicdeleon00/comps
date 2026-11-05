@@ -4,35 +4,57 @@
   <meta charset="utf-8">
   <title>Comps for Marketplace</title>
   <style>
-    :root { color-scheme: light dark; --bg: #fff; --fg: #1d1d1f; --sub: #6e6e73; --sep: rgba(60,60,67,.18); --accent: #0071e3; --good: #0a7d32; }
-    @media (prefers-color-scheme: dark) { :root { --bg: #1c1c1e; --fg: #f5f5f7; --sub: #98989d; --sep: rgba(235,235,245,.16); --accent: #0a84ff; --good: #30d158; } }
-    body { margin: 0; width: 320px; font: 13px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: var(--bg); color: var(--fg); }
-    header { display: flex; align-items: center; gap: 10px; padding: 14px 16px 10px; }
-    header img { width: 28px; height: 28px; border-radius: 7px; }
-    h1 { font-size: 15px; margin: 0; }
-    .sub { color: var(--sub); font-size: 12px; }
-    .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 16px; border-top: .5px solid var(--sep); }
-    ul { list-style: none; margin: 0; padding: 0 16px; max-height: 260px; overflow: auto; }
-    li { padding: 8px 0; border-top: .5px solid var(--sep); }
+    :root { color-scheme: light dark; --bg: #fff; --fg: #1d1d1f; --sub: #6e6e73; --fill: #f2f2f7; --sep: rgba(60,60,67,.16); --accent: #0071e3; --good: #0b7a35; --good-bg: #e3f6e9; }
+    @media (prefers-color-scheme: dark) { :root { --bg: #1c1c1e; --fg: #f5f5f7; --sub: #98989d; --fill: #2c2c2e; --sep: rgba(235,235,245,.14); --accent: #0a84ff; --good: #30d158; --good-bg: rgba(48,209,88,.16); } }
+    * { box-sizing: border-box; }
+    body { margin: 0; width: 360px; font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--fg); }
+    header { display: flex; align-items: center; gap: 10px; padding: 14px 16px 6px; }
+    header img { width: 30px; height: 30px; border-radius: 8px; }
+    h1 { font-size: 16px; margin: 0; }
+    .sub { color: var(--sub); font-size: 12.5px; }
+    main { padding: 8px 16px 14px; }
+    .big { width: 100%; height: 48px; border: 0; border-radius: 13px; background: var(--accent); color: #fff; font: 700 16px/1 inherit; font-family: inherit; cursor: pointer; }
+    .big.stop { background: #ff3b30; }
+    .status { margin: 8px 2px 0; font-size: 12.5px; color: var(--sub); min-height: 18px; }
+    .nums { display: flex; gap: 8px; margin: 12px 0; }
+    .num { flex: 1; background: var(--fill); border-radius: 11px; padding: 8px 11px; }
+    .num b { display: block; font-size: 20px; }
+    .num span { font-size: 11.5px; color: var(--sub); }
+    h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--sub); margin: 14px 2px 4px; }
+    ul { list-style: none; margin: 0; padding: 0; max-height: 250px; overflow: auto; }
+    li { display: flex; align-items: center; gap: 10px; padding: 8px 2px; border-top: .5px solid var(--sep); }
     li:first-child { border-top: 0; }
-    li a { color: inherit; text-decoration: none; font-weight: 600; }
-    .good { color: var(--good); font-weight: 600; }
-    .actions { display: flex; gap: 8px; padding: 12px 16px 14px; border-top: .5px solid var(--sep); }
-    button { flex: 1; height: 30px; border-radius: 8px; border: 0; font: inherit; font-weight: 600; cursor: pointer; background: rgba(120,120,128,.16); color: inherit; }
-    button.primary { background: var(--accent); color: #fff; }
-    .empty { padding: 4px 16px 12px; color: var(--sub); }
+    li .m { flex: 1; min-width: 0; }
+    li .t { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    li .s { font-size: 12px; color: var(--sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    li a.buy { flex: none; text-decoration: none; background: var(--good-bg); color: var(--good); font-weight: 700; font-size: 12.5px; padding: 6px 10px; border-radius: 99px; }
+    .empty { color: var(--sub); padding: 6px 2px; }
+    .opt { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 2px; border-top: .5px solid var(--sep); }
+    .opt input[type=text] { width: 170px; height: 28px; border-radius: 7px; border: .5px solid var(--sep); background: var(--fill); color: inherit; padding: 0 8px; font: inherit; font-size: 13px; }
+    footer { padding: 0 16px 14px; }
+    footer a { display: block; text-align: center; color: var(--accent); font-weight: 600; text-decoration: none; padding: 8px; }
   </style>
 </head>
 <body>
   <header>
     <img src="icons/icon48.png" alt="">
-    <div><h1>Comps for Marketplace</h1><div class="sub" id="count">—</div></div>
+    <div><h1>Comps for Marketplace</h1><div class="sub">Pokémon card prices on Facebook Marketplace</div></div>
   </header>
-  <div class="row"><label for="enabled">Show prices on Marketplace</label><input type="checkbox" id="enabled"></div>
-  <div class="row sub">Open Marketplace, search for Pokémon cards and scroll. Cards with a number in the title get a price tag.</div>
-  <ul id="list"></ul>
-  <div class="empty" id="empty" hidden>No underpriced cards yet.</div>
-  <div class="actions"><button id="clear">Clear</button><button class="primary" id="open">Open Deals</button></div>
+  <main>
+    <button class="big" id="scan">▶ Find deals for me</button>
+    <div class="status" id="status"></div>
+    <div class="nums">
+      <div class="num"><b id="priced">0</b><span>cards priced</span></div>
+      <div class="num"><b id="deals" style="color:var(--good)">0</b><span>deals found</span></div>
+    </div>
+    <h2>Best deals</h2>
+    <ul id="list"></ul>
+    <h2>Settings</h2>
+    <label class="opt">Price tags on Marketplace <input type="checkbox" id="enabled"></label>
+    <label class="opt">Share deals on Comps (anonymous) <input type="checkbox" id="share"></label>
+    <label class="opt">Search for <input type="text" id="queries" placeholder="pokemon cards, pokemon psa"></label>
+  </main>
+  <footer><a id="site" href="#" target="_blank" rel="noopener">See every deal on Comps ↗</a></footer>
   <script src="popup.js"></script>
 </body>
 </html>

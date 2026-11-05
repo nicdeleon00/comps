@@ -11,7 +11,7 @@ Everything runs on GitHub — nothing to host or keep running on your computer:
 ## What it does
 
 - **Deals** — cards priced under what they're worth: live eBay Buy It Now listings under fair value, price dips against 30-day history, TCGplayer asks 20–40% under market, and modern cards cheaper on Cardmarket than in the US.
-- **Facebook Marketplace** (Deals → Marketplace) — a small Chrome/Edge extension puts a Comps price tag on each Pokémon card listing as you scroll Marketplace (single cards with a number like 199/165 in the title; lots, sealed and non-English cards are skipped), and sends the underpriced ones to the Deals page. It only reads what's already on your screen; it never scrolls, clicks or messages anyone, and what it saves stays in your browser. Install: Deals → Marketplace → Download, then `chrome://extensions` → Developer mode → Load unpacked.
+- **Facebook Marketplace** (Deals → Marketplace) — card listings from Facebook Marketplace with what they're worth and a **Buy** link to each. They come from the free Comps extension for Chrome/Edge: it puts a price tag on every Pokémon card listing as you browse, and **Find deals for me** searches Marketplace near you, scrolls through the newest listings and prices everything (titles like "Charizard ex SIR 151" or "Moonbreon PSA 10" work; lots, sealed product and non-English cards are skipped). What it finds is shared on Comps (listing facts only, nothing about you or the seller), so everyone sees the deals; each card page lists its Marketplace copies too. Install: Deals → Marketplace → Get the extension.
 - **Raw to Graded** — cards that are cheap raw but sell for a multiple graded (graded prices from PokemonPriceTracker's free plan, learned daily). Expected profit after grading and selling fees, and the **break-even gem rate**: the share of PSA 10s you need to not lose money. Gem rates start from Pokémon-era defaults (WotC, EX–HGSS, BW/XY, Sun & Moon, modern) and you can set your own per card.
 - **Sets** — every set by era with its total value, and a binder view of each set.
 - **Master Sets** — every card in every printing (normal, reverse holo, Poké Ball, Master Ball, Energy Symbol and more), which ones you have, the value of what you have and the cost to complete. Tap a card to mark the printings you own; switch to "one of each" for a basic set. On the website and in the app.
@@ -55,7 +55,7 @@ Anyone can create an account (email + password) on the website or in the app. Ea
 1. Create a free project at supabase.com.
 2. **Authentication → Sign In / Providers → Email:** turn off **Confirm email** (Supabase's free email sender only reaches project members).
 3. **Authentication → URL Configuration:** Site URL = your site (e.g. `https://you.github.io/comps/`).
-4. **SQL Editor:** paste [`supabase/schema.sql`](supabase/schema.sql) and run it (safe to run again after updates).
+4. **SQL Editor:** paste [`supabase/schema.sql`](supabase/schema.sql) and run it (safe to run again after updates; run it again to turn on shared Marketplace deals).
 5. **Project Settings → API:** add the **Project URL** and **anon public** key to this repository as Actions **variables** `SUPABASE_URL` and `SUPABASE_ANON_KEY`. Both are public by design; row-level security keeps each person's data private. Keep the **service_role** key secret; nothing here needs it.
 
 The next website build turns accounts on, and each price refresh keeps the free project from pausing.

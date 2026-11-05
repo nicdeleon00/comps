@@ -10,6 +10,8 @@ import { Delta, Segmented, Counter, GradeBadge, Sheet, Field, MoneyInput, toast,
 import { HoldingSheet } from '../components/HoldingSheet';
 import { dealReason } from '../components/Rows';
 import { IconExternal, IconPlus, IconStar, IconStarFill, IconPencil, IconBack } from '../components/icons';
+import { ListingRow } from '../components/Marketplace';
+import { useListings } from '../lib/marketplace';
 
 const RANGES = [
   { value: '30', label: '1M' },
@@ -116,6 +118,19 @@ function GradingCalc({ d, v }: { d: CardDetail; v: VariantDetail }) {
           </div>
         )}
       </div>
+    </section>
+  );
+}
+
+/** Copies of this card for sale on Facebook Marketplace (found by people running the Comps extension). */
+function MarketplaceListings({ cardId }: { cardId: string }) {
+  const { items } = useListings(cardId);
+  const live = (items ?? []).filter((l) => l.status === 'active' || l.status === 'pending').sort((a, b) => a.price - b.price);
+  if (!live.length) return null;
+  return (
+    <section class="section">
+      <div class="section-head"><h2>For sale on Facebook Marketplace</h2><span class="faint" style={{ fontSize: 13 }}>{live.length} listing{live.length === 1 ? '' : 's'}</span></div>
+      <div class="mp-list compact">{live.map((l) => <ListingRow l={l} compact />)}</div>
     </section>
   );
 }
@@ -289,6 +304,8 @@ export function CardPage({ id, panel = false }: { id: string; panel?: boolean })
               })}
             </section>
           )}
+
+          {d && <MarketplaceListings cardId={d.card.id} />}
 
           {d && d.holdings.length > 0 && (
             <section class="section">

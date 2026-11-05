@@ -121,6 +121,9 @@ jobs:
           # Sign-up settings, for a quick health check in the log.
           curl -fsS "${SUPABASE_URL%/}/auth/v1/settings" -H "apikey: ${SUPABASE_ANON_KEY}" \
             | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s);console.log(`Sign-ups ${j.disable_signup?"OFF":"open"} · email confirmation ${j.mailer_autoconfirm?"off (instant sign-up)":"ON — turn off Confirm email in Supabase"}`)})' || true
+          # Shared Facebook Marketplace deals need the market_listings table from schema.sql.
+          curl -fsS "${SUPABASE_URL%/}/rest/v1/market_listings?select=id&limit=1" -H "apikey: ${SUPABASE_ANON_KEY}" -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" -o /dev/null \
+            && echo "Marketplace sharing is set up" || echo "::warning::Marketplace sharing is off: run supabase/schema.sql in the Supabase SQL Editor"
 
       - name: Keep the schedule alive
         # GitHub pauses scheduled workflows after 60 days without commits.

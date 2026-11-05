@@ -55,6 +55,28 @@ do $$ begin
 end $$;
 drop table public.cap_test;
 
+-- Marketplace listings: anyone can report and read them; junk rows are skipped; nobody writes the table directly.
+set role anon;
+select public.report_listings('[
+  {"id":"fb:1234567890","card_id":"tcg:517045","variant":"holofoil","title":"Charizard ex SIR 151","price":180,"location":"Austin, TX"},
+  {"id":"https://evil.example","card_id":"tcg:1","title":"bad link","price":5},
+  {"id":"fb:22222222","card_id":"tcg:1","title":"no price"},
+  {"id":"fb:33333333","card_id":"tcg:1","title":"silly price","price":"abc"}
+]'::jsonb);
+do $$ begin if (select count(*) from public.market_listings) <> 1 then raise exception 'only the good listing should be saved'; end if; end $$;
+select public.report_listings('[{"id":"fb:1234567890","card_id":"tcg:517045","title":"Charizard ex SIR 151","price":150,"status":"pending"}]'::jsonb);
+do $$ begin
+  if (select price from public.market_listings where id = 'fb:1234567890') <> 150 then raise exception 'price update'; end if;
+  if (select location from public.market_listings where id = 'fb:1234567890') <> 'Austin, TX' then raise exception 'location kept'; end if;
+  if (select status from public.market_listings where id = 'fb:1234567890') <> 'pending' then raise exception 'status update'; end if;
+end $$;
+do $$ begin
+  begin insert into public.market_listings (id, card_id, title, price) values ('fb:99999999', 'tcg:1', 'direct', 1); raise exception 'direct writes must fail';
+  exception when insufficient_privilege then null; end;
+end $$;
+do $$ begin if (select count(*) from public.market_report_log) <> 0 then raise exception 'report log must be private'; end if; end $$;
+reset role;
+
 -- Signed-out visitors see nothing.
 set role anon;
 do $$ begin
