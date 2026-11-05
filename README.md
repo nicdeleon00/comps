@@ -1,12 +1,17 @@
-# Comps — Pokémon card prices, deals and a scanner app
+# Comps — Pokémon card prices, deals and collection tracking
 
-**Website:** https://nicdeleon00.github.io/comps/
-**iPhone app:** [Comps.ipa](https://github.com/nicdeleon00/comps/releases/download/ios-latest/Comps.ipa) (sideload) · AltStore source: `https://github.com/nicdeleon00/comps/releases/download/ios-latest/altstore-source.json`
+Three parts, one account:
+
+- **Website** — https://nicdeleon00.github.io/comps/ — prices and price history for every English Pokémon card, deals, raw-to-graded, sets, master sets, your collection, and Facebook Marketplace deals with Buy links.
+- **iPhone app** — [Comps.ipa](https://github.com/nicdeleon00/comps/releases/download/ios-latest/Comps.ipa) (sideload) · AltStore source: `https://github.com/nicdeleon00/comps/releases/download/ios-latest/altstore-source.json` — card and binder scanner, collection, deals and master sets, with the whole price catalog on the phone so it works offline.
+- **Chrome/Edge extension** — Comps for Marketplace (download from Deals → Marketplace on the site) — prices every Pokémon card listing on Facebook Marketplace, searches for deals with one click or on a timer, alerts you, shares the deals on the site, and updates itself.
+
+Sign in with the same account on the website and in the app and your collection stays in step everywhere.
 
 Everything runs on GitHub — nothing to host or keep running on your computer:
 
 - Every 6 hours a GitHub Action downloads prices for **every English Pokémon card** (TCGplayer via [TCGCSV](https://tcgcsv.com), Cardmarket via [TCGdex](https://tcgdex.dev)), finds deals and grading spreads, saves price history, and publishes the website to GitHub Pages.
-- The iPhone app reads the same published data and keeps a copy of the whole catalog on the phone, so scanning, search and your collection's value work offline.
+- The iPhone app and the extension read the same published data.
 
 ## What it does
 
