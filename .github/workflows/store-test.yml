@@ -1,0 +1,24 @@
+name: Store rescue test
+
+# Saves a real 700-card SwiftData collection on a Mac, then checks the iPhone app's rescue
+# (ios/Comps/Services/StoreRescue.swift) gets every card back and leaves the file untouched.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["ios/Comps/Services/StoreRescue.swift", "ios/Comps/Models/Holding.swift", "ios/test/**", ".github/workflows/store-test.yml"]
+
+jobs:
+  test:
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the test
+        run: |
+          mkdir -p build
+          xcrun swiftc -sdk "$(xcrun --show-sdk-path --sdk macosx)" -target arm64-apple-macos14.0 \
+            ios/Comps/Models/Holding.swift ios/Comps/Services/StoreRescue.swift ios/test/main.swift -o build/rescue-test 2>&1 | tail -40
+          test -x build/rescue-test
+      - name: Rescue a real collection
+        run: ./build/rescue-test

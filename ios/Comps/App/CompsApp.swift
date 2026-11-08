@@ -5,17 +5,34 @@ import SwiftData
 struct CompsApp: App {
     /// True when the saved collection couldn't be opened (it stays on disk, untouched).
     static var storeProblem = false
+    /// Why it couldn't be opened, shown so it can be fixed.
+    static var storeError: String?
+    /// How many cards were rescued from a file that wouldn't open.
+    static var rescued: Int?
 
     let container: ModelContainer = {
-        let memory = ModelConfiguration(isStoredInMemoryOnly: true)
+        let schema = Schema([Holding.self, ValueSnapshot.self])
+        let memory = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         // Screenshots run on sample cards in memory, never on a real collection.
-        if Screenshots.on { return try! ModelContainer(for: Holding.self, ValueSnapshot.self, configurations: memory) }
+        if Screenshots.on { return try! ModelContainer(for: schema, configurations: memory) }
+        StoreRescue.backupOnce()
         do {
-            return try ModelContainer(for: Holding.self, ValueSnapshot.self)
+            // iCloud stays off: some ways of installing the app add iCloud to its signature, and
+            // SwiftData then tries to sync the collection with iCloud, which it can't open.
+            let saved = StoreRescue.isMoved
+                ? ModelConfiguration(schema: schema, url: StoreRescue.currentURL, cloudKitDatabase: .none)
+                : ModelConfiguration(schema: schema, isStoredInMemoryOnly: false, cloudKitDatabase: .none)
+            return try ModelContainer(for: schema, configurations: saved)
         } catch {
+            CompsApp.storeError = String(describing: error)
+            // Read the cards straight out of a copy of the file into a fresh one (the file stays as it is).
+            if let r = StoreRescue.recover(schema: schema) {
+                CompsApp.rescued = r.cards
+                return r.container
+            }
             // Don't brick the app, and don't touch the saved file: run in memory and say so.
             CompsApp.storeProblem = true
-            return try! ModelContainer(for: Holding.self, ValueSnapshot.self, configurations: memory)
+            return try! ModelContainer(for: schema, configurations: memory)
         }
     }()
 
@@ -37,6 +54,7 @@ struct RootView: View {
     @State private var selection: AppTab = RootView.firstTab
     @State private var scanning = false
     @State private var storeProblem = CompsApp.storeProblem
+    @State private var rescued = CompsApp.rescued != nil
 
     /// The Collection tab, unless screenshot mode asks for another one.
     private static var firstTab: AppTab {
@@ -86,9 +104,15 @@ struct RootView: View {
             }
         }
         .alert("Couldn’t open your saved cards", isPresented: $storeProblem) {
+            Button("Copy details") { UIPasteboard.general.string = CompsApp.storeError }
             Button("OK", role: .cancel) {}
         } message: {
-            Text("They’re still saved on this phone, untouched. Don’t delete the app: install the next update and they’ll be back. If you’re signed in, they also load from your account.")
+            Text("They’re still saved on this phone, untouched. Don’t delete the app, and don’t scan until it’s fixed: send the details to get it fixed. Cards in your account are safe on the website.\n\n\(CompsApp.storeError.map { String($0.prefix(300)) } ?? "")")
+        }
+        .alert("Your cards are back", isPresented: $rescued) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("The saved collection wouldn’t open, so \(CompsApp.rescued ?? 0) cards were copied out of it into a fresh file. The original is kept as a backup. Signed in? Everything in your account loads too.")
         }
         .task {
             if Screenshots.on { await Screenshots.seed(context) }
