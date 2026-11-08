@@ -128,7 +128,12 @@ struct CollectionView: View {
                 }
             }
             .task {
-                // Screenshot mode opens History the way taps would, once the sample cards are in.
+                // Screenshot mode opens Settings, or History, the way taps would.
+                if Screenshots.flag("-settings") {
+                    try? await Task.sleep(for: .seconds(3))
+                    showSettings = true
+                    return
+                }
                 guard Screenshots.flag("-history") else { return }
                 try? await Task.sleep(for: .seconds(6))
                 path.append(HistoryRoute.all)

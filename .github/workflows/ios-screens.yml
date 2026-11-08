@@ -66,6 +66,7 @@ jobs:
           shoot search -tab search
           shoot history -tab collection -history
           shoot history-session -tab collection -history -session
+          shoot signin -tab collection -settings -signin -focus
           xcrun simctl ui "$DEVICE" appearance dark
           shoot collection-dark -tab collection
           shoot masterset-dark -tab masterSets -set 23821

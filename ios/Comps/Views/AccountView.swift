@@ -67,6 +67,12 @@ struct SignInSheet: View {
             .navigationTitle(creating ? "Create account" : "Sign in")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
+            .task {
+                // Screenshot mode taps into the email field.
+                guard Screenshots.flag("-focus") else { return }
+                try? await Task.sleep(for: .seconds(2))
+                field = .email
+            }
             .animation(.snappy, value: creating)
         }
     }
@@ -147,6 +153,12 @@ struct AccountSection: View {
             }
         }
         .sheet(isPresented: $signingIn) { SignInSheet() }
+        .task {
+            // Screenshot mode opens Sign in the way a tap would.
+            guard Screenshots.flag("-signin"), !account.isSignedIn else { return }
+            try? await Task.sleep(for: .seconds(3))
+            signingIn = true
+        }
         .confirmationDialog("Sign out?", isPresented: $confirmSignOut, titleVisibility: .visible) {
             Button("Sign out", role: .destructive) { Task { await sync.signOut(context) } }
         } message: {
