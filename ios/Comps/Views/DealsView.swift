@@ -2,15 +2,17 @@ import SwiftUI
 
 @MainActor
 struct DealsView: View {
-    @State private var tab: Pane = .undervalued
+    @State private var tab: Pane = Screenshots.value("-pane") == "marketplace" ? .marketplace : .undervalued
     @State private var kind: String? = nil
     @State private var sort = "profit"
     @State private var allDeals: [Deal] = []
     @State private var allSpreads: [Spread] = []
+    @State private var market: [MarketListing] = []
+    @State private var marketDealsOnly = true
     @State private var loading = false
     @State private var error: String?
 
-    enum Pane: String, CaseIterable { case undervalued = "Undervalued", grading = "Raw → Graded" }
+    enum Pane: String, CaseIterable { case undervalued = "Undervalued", grading = "Raw → Graded", marketplace = "Marketplace" }
 
     private let kinds: [(String?, String)] = [(nil, "All"), ("listing", "Listings"), ("dip", "Dips"), ("ask", "Low asks"), ("momentum", "Momentum"), ("xmarket", "Cross-market")]
 
@@ -29,24 +31,13 @@ struct DealsView: View {
                     .pickerStyle(.segmented)
                     .listRowSeparator(.hidden)
                 if tab == .undervalued {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 8) {
-                            ForEach(kinds, id: \.1) { k in
-                                Button {
-                                    withAnimation(.snappy) { kind = k.0 }
-                                } label: {
-                                    Text(k.1)
-                                        .font(.subheadline.weight(.medium))
-                                        .padding(.horizontal, 12).padding(.vertical, 6)
-                                        .foregroundStyle(kind == k.0 ? Color(.systemBackground) : .primary)
-                                        .background(kind == k.0 ? Color.primary : Color(.tertiarySystemFill), in: Capsule())
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                    }
-                    .listRowSeparator(.hidden)
-                    .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                    ChipBar(options: kinds, selection: $kind)
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                } else if tab == .marketplace {
+                    ChipBar(options: [(true, "Under value"), (false, "All priced")], selection: $marketDealsOnly)
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
                 } else {
                     Picker("Sort", selection: $sort) {
                         Text("Profit").tag("profit")
@@ -64,25 +55,58 @@ struct DealsView: View {
             }
 
             Section {
-                if tab == .undervalued {
+                switch tab {
+                case .undervalued:
                     ForEach(shownDeals.prefix(150)) { d in
                         NavigationLink(value: d.card) { DealRow(deal: d) }
                     }
-                } else {
+                case .grading:
                     ForEach(shownSpreads.prefix(150)) { s in
                         NavigationLink(value: s.card) { SpreadRow(spread: s) }
                     }
+                case .marketplace:
+                    ForEach(shownMarket.prefix(200)) { l in
+                        if let card = l.card {
+                            NavigationLink(value: card) { MarketRow(listing: l) }
+                        } else {
+                            MarketRow(listing: l)
+                        }
+                    }
                 }
-                if !loading && (tab == .undervalued ? shownDeals.isEmpty : shownSpreads.isEmpty) && error == nil {
-                    Text(tab == .undervalued ? "Nothing under value right now." : "No profitable spreads yet. Graded prices need a PriceCharting token (see the website's Settings).")
-                        .font(.subheadline).foregroundStyle(.secondary)
+                if !loading && isEmpty && error == nil {
+                    Text(emptyText).font(.subheadline).foregroundStyle(.secondary)
                 }
             }
         }
         .listStyle(.plain)
-        .overlay { if loading && allDeals.isEmpty && allSpreads.isEmpty { ProgressView() } }
+        .overlay { if loading && isEmpty { ProgressView() } }
         .refreshable { await load() }
         .task(id: tab.rawValue) { await load() }
+    }
+
+    private var shownMarket: [MarketListing] {
+        let live = market.filter { $0.status != "sold" }
+        let xs = marketDealsOnly ? live.filter(\.isDeal) : live
+        // Most money saved first.
+        return xs.sorted { (($0.value ?? 0) - $0.price) > (($1.value ?? 0) - $1.price) }
+    }
+
+    private var isEmpty: Bool {
+        switch tab {
+        case .undervalued: shownDeals.isEmpty
+        case .grading: shownSpreads.isEmpty
+        case .marketplace: shownMarket.isEmpty
+        }
+    }
+
+    private var emptyText: String {
+        switch tab {
+        case .undervalued: "Nothing under value right now."
+        case .grading: "No profitable spreads yet. Graded prices fill in a little more every day."
+        case .marketplace: marketDealsOnly && !market.isEmpty
+            ? "Nothing under value on Marketplace right now. Try All priced."
+            : "No Marketplace listings yet. They come from the Comps extension for Chrome: get it from Deals → Marketplace on the website."
+        }
     }
 
     private var shownDeals: [Deal] {
@@ -104,12 +128,16 @@ struct DealsView: View {
         loading = true
         defer { loading = false }
         do {
-            if tab == .undervalued {
+            switch tab {
+            case .undervalued:
                 let d = try await HostedData.current.deals()
                 withAnimation(.snappy) { allDeals = d }
-            } else {
+            case .grading:
                 let s = try await HostedData.current.spreads()
                 withAnimation(.snappy) { allSpreads = s }
+            case .marketplace:
+                let m = try await Marketplace.listings()
+                withAnimation(.snappy) { market = m }
             }
             error = nil
         } catch {

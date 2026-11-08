@@ -14,8 +14,18 @@ struct ScannerView: View {
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
-            CameraPreview(session: model.camera.session, fill: model.mode != .binder) { point in model.camera.focus(at: point) }
+            CameraPreview(session: model.camera.session, fill: model.mode != .binder,
+                          onTap: { device, view in model.tapFocus(device: device, view: view) },
+                          onPinch: { model.pinch($0) })
                 .ignoresSafeArea()
+            // Softens the moment the camera switches between card and page set-ups.
+            Rectangle().fill(.ultraThinMaterial).ignoresSafeArea()
+                .opacity(model.switching ? 1 : 0)
+                .animation(.easeInOut(duration: 0.2), value: model.switching)
+                .allowsHitTesting(false)
+            if let mark = model.focusMark {
+                FocusMark().position(mark.point).id(mark.id).ignoresSafeArea().allowsHitTesting(false)
+            }
             if model.mode == .binder {
                 BinderOverlay(layout: model.layout, quads: model.pageQuads, frameSize: model.frameSize)
                     .ignoresSafeArea()
@@ -51,6 +61,9 @@ struct ScannerView: View {
         .persistentSystemOverlays(.hidden)
         .task { await model.start() }
         .onDisappear { model.stop() }
+        .onChange(of: model.notice?.id) {
+            if let text = model.notice?.text { show(text) }
+        }
         .onChange(of: model.flash) {
             flashOpacity = 0.55
             withAnimation(.easeOut(duration: 0.35)) { flashOpacity = 0 }
@@ -212,6 +225,8 @@ struct ScannerView: View {
                 }
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
+            if model.focusLocked { focusBar.transition(.move(edge: .bottom).combined(with: .opacity)) }
+            zoomBar
             HStack(spacing: 22) {
                 ForEach(ScannerModel.Mode.allCases, id: \.self) { m in
                     Button {
@@ -263,6 +278,56 @@ struct ScannerView: View {
         .padding(.bottom, 18)
     }
 
+    /// Quick zoom levels (pinch the preview for anything in between).
+    private var zoomBar: some View {
+        let steps: [CGFloat] = [1, 1.5, 2, 3]
+        let nearest = steps.min { abs($0 - model.zoom) < abs($1 - model.zoom) } ?? 1
+        return HStack(spacing: 8) {
+            ForEach(steps, id: \.self) { z in
+                let active = z == nearest
+                Button { model.setZoom(z) } label: {
+                    Text(active ? Self.zoomText(model.zoom) : Self.zoomText(z))
+                        .font(.system(size: active ? 13 : 12, weight: .bold).monospacedDigit())
+                        .foregroundStyle(active ? Color(red: 1, green: 0.84, blue: 0.04) : .white)
+                        .frame(width: active ? 44 : 36, height: active ? 44 : 36)
+                        .background(.ultraThinMaterial, in: Circle())
+                        .contentTransition(.numericText())
+                }
+                .pressable()
+                .accessibilityLabel("Zoom \(Self.zoomText(z))")
+            }
+        }
+        .animation(.snappy, value: nearest)
+        .sensoryFeedback(.selection, trigger: nearest)
+    }
+
+    private static func zoomText(_ z: CGFloat) -> String {
+        let r = (z * 10).rounded() / 10
+        return r == r.rounded() ? "\(Int(r))×" : String(format: "%.1f×", r)
+    }
+
+    /// Shown once focus is held (tap the preview): fine-tune it, or go back to automatic.
+    private var focusBar: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "scope").font(.system(size: 14, weight: .semibold))
+            Image(systemName: "flower").font(.system(size: 11)).opacity(0.7)
+            Slider(value: Binding(get: { Double(model.lensPosition) }, set: { model.setLens(Float($0)) }), in: 0...1)
+                .tint(Color(red: 1, green: 0.84, blue: 0.04))
+            Image(systemName: "mountain.2").font(.system(size: 11)).opacity(0.7)
+            Button("Auto") { withAnimation(.snappy) { model.autoFocus() } }
+                .font(.footnote.weight(.bold))
+                .foregroundStyle(.black)
+                .padding(.horizontal, 10).frame(height: 28)
+                .background(Color(red: 1, green: 0.84, blue: 0.04), in: Capsule())
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 14).frame(height: 44)
+        .background(.ultraThinMaterial, in: Capsule())
+        .padding(.horizontal, 20)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Focus")
+    }
+
     private var deniedView: some View {
         VStack(spacing: 14) {
             Image(systemName: "camera.fill").font(.system(size: 40)).foregroundStyle(.white.opacity(0.8))
@@ -276,6 +341,24 @@ struct ScannerView: View {
         .padding(30)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(.black)
+    }
+}
+
+/// The yellow square where you tapped to focus.
+private struct FocusMark: View {
+    @State private var settled = false
+    @State private var gone = false
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: 4, style: .continuous)
+            .stroke(Color(red: 1, green: 0.84, blue: 0.04), lineWidth: 1.5)
+            .frame(width: 76, height: 76)
+            .scaleEffect(settled ? 1 : 1.35)
+            .opacity(gone ? 0 : 1)
+            .onAppear {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) { settled = true }
+                withAnimation(.easeOut(duration: 0.4).delay(1.1)) { gone = true }
+            }
     }
 }
 

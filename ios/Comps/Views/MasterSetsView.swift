@@ -9,11 +9,12 @@ struct MasterSetsView: View {
     @State private var sets: [MSSetInfo] = []
     @State private var loaded = false
     @State private var query = ""
+    @State private var path: [MSSetInfo] = []
 
     private var mode: MSMode { MSMode(rawValue: modeRaw) ?? .master }
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             let owned = MasterSet.ownedMap(holdings)
             let rows = filtered.map { ($0, MasterSet.progress($0.slots, owned, mode)) }
             let started = rows.filter { $0.1.owned > 0 }.sorted { $0.1.fraction != $1.1.fraction ? $0.1.fraction > $1.1.fraction : $0.1.value > $1.1.value }
@@ -26,7 +27,7 @@ struct MasterSetsView: View {
                     .listRowBackground(Color.clear)
                     .listRowInsets(EdgeInsets())
                 } footer: {
-                    Text("Every card in every printing (normal, reverse holo, Poké Ball, Master Ball, Energy Symbol and more). Prices are raw market prices.")
+                    Text("Every card in every printing: normal, reverse holo, Poké Ball, Master Ball, Energy Symbol and more. Prices are raw market prices.")
                 }
 
                 if !loaded {
@@ -40,13 +41,13 @@ struct MasterSetsView: View {
                                 .font(.subheadline).foregroundStyle(.secondary)
                         }
                         ForEach(started, id: \.0.id) { row in
-                            NavigationLink(value: row.0) { MasterSetRow(set: row.0, progress: row.1, mode: mode, showProgress: true) }
+                            NavigationLink(value: row.0) { MasterSetRow(set: row.0, progress: row.1, mode: mode, started: true) }
                         }
                     }
                     ForEach(seriesGroups(rows), id: \.0) { group in
                         Section(group.0) {
                             ForEach(group.1, id: \.0.id) { row in
-                                NavigationLink(value: row.0) { MasterSetRow(set: row.0, progress: row.1, mode: mode, showProgress: false) }
+                                NavigationLink(value: row.0) { MasterSetRow(set: row.0, progress: row.1, mode: mode, started: false) }
                             }
                         }
                     }
@@ -83,6 +84,7 @@ struct MasterSetsView: View {
         await Catalog.shared.ensureLoaded(force: force)
         sets = await Catalog.shared.masterSets()
         loaded = true
+        if let id = Screenshots.value("-set"), path.isEmpty, let s = sets.first(where: { $0.id == id }) { path = [s] }
     }
 }
 
@@ -90,20 +92,17 @@ struct MasterSetRow: View {
     let set: MSSetInfo
     let progress: MSProgress
     let mode: MSMode
-    let showProgress: Bool
+    let started: Bool
 
     var body: some View {
         HStack(spacing: 12) {
             CardImage(url: set.art, name: set.name, game: .pokemon, corner: 3)
                 .frame(width: 38)
+                .cardShadow()
             VStack(alignment: .leading, spacing: 3) {
                 Text(set.name).font(.subheadline.weight(.semibold)).lineLimit(2)
-                if showProgress {
-                    Text("\(progress.owned) of \(progress.total) · \(progress.percentText)")
-                        .font(.caption).foregroundStyle(.secondary).monospacedDigit()
-                    ProgressView(value: progress.fraction)
-                        .tint(progress.isComplete ? Color.up : Color.accentColor)
-                    Text(progress.isComplete ? "Complete" : "\(Fmt.money(progress.toComplete)) to complete")
+                if started {
+                    Text("\(progress.owned) of \(progress.total) · \(progress.isComplete ? "Complete" : "\(Fmt.money(progress.toComplete)) to go")")
                         .font(.caption).foregroundStyle(.secondary).monospacedDigit()
                 } else {
                     Text([set.released.map { String($0.prefix(4)) }, "\(progress.total) \(mode == .master ? "printings" : "cards")",
@@ -112,14 +111,21 @@ struct MasterSetRow: View {
                 }
             }
             Spacer(minLength: 8)
-            Text(Fmt.money(showProgress ? progress.value : progress.full))
-                .font(.subheadline.weight(.semibold)).monospacedDigit()
+            if started {
+                ZStack {
+                    ProgressRing(value: progress.fraction, lineWidth: 4)
+                    Text(progress.percentText).font(.system(size: 10, weight: .bold)).monospacedDigit()
+                }
+                .frame(width: 42, height: 42)
+            } else {
+                Text(Fmt.money(progress.full)).font(.subheadline.weight(.semibold)).monospacedDigit()
+            }
         }
         .padding(.vertical, 2)
     }
 }
 
-/// One set: what you have, what it's worth, what's left, card by card.
+/// One set: what you have, what it's worth, what's left, card by card. Search finds a card in the set.
 @MainActor
 struct MasterSetDetailView: View {
     let set: MSSetInfo
@@ -127,6 +133,7 @@ struct MasterSetDetailView: View {
     @AppStorage("masterSetMode") private var modeRaw = MSMode.master.rawValue
     @State private var filter: Filter = .all
     @State private var byPrice = false
+    @State private var query = ""
     @State private var selected: MSSlot?
 
     enum Filter: String, CaseIterable { case all = "All", missing = "Missing", have = "Have" }
@@ -137,55 +144,104 @@ struct MasterSetDetailView: View {
         let p = MasterSet.progress(set.slots, owned, mode)
         let shown = visible(owned)
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                Text([set.series, set.released.map { String($0.prefix(4)) }, "\(set.slots.count) cards · \(set.printingCount) printings"].compactMap { $0 }.joined(separator: " · "))
-                    .font(.subheadline).foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 14) {
+                hero(p)
 
-                LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
-                    StatTile(title: mode == .master ? "Printings collected" : "Cards collected", value: "\(p.owned) / \(p.total)",
-                             note: p.isComplete ? "Complete" : "\(p.percentText) · \(p.total - p.owned) to go", progress: p.fraction)
-                    StatTile(title: "Your set's value", value: Fmt.money(p.value), note: "One of each you have, raw")
-                    StatTile(title: "Cost to complete", value: p.isComplete ? "—" : Fmt.money(p.toComplete),
-                             note: p.unpriced > 0 ? "\(p.unpriced) without a price yet" : mode == .master ? "Every missing printing" : "Cheapest printing of each")
-                    StatTile(title: mode == .master ? "Full master set" : "Full set", value: Fmt.money(p.full), note: "At today's raw prices")
+                HStack(spacing: 10) {
+                    StatTile(title: "You have", value: Fmt.money(p.value))
+                    StatTile(title: "To complete", value: p.isComplete ? "Done" : Fmt.money(p.toComplete), tint: p.isComplete ? .up : .primary)
+                    StatTile(title: mode == .master ? "Master set" : "Full set", value: Fmt.money(p.full))
+                }
+                if p.unpriced > 0 {
+                    Text("\(p.unpriced) printing\(p.unpriced == 1 ? "" : "s") without a price yet aren't in the cost.")
+                        .font(.caption).foregroundStyle(.secondary)
                 }
 
                 Picker("Count", selection: $modeRaw) { ForEach(MSMode.allCases) { Text($0.rawValue).tag($0.rawValue) } }
                     .pickerStyle(.segmented)
-                HStack {
-                    Picker("Show", selection: $filter) { ForEach(Filter.allCases, id: \.self) { Text($0.rawValue).tag($0) } }
-                        .pickerStyle(.segmented)
+                HStack(spacing: 8) {
+                    ChipBar(options: Filter.allCases.map { ($0, $0.rawValue) }, selection: $filter)
                     Menu {
                         Picker("Sort", selection: $byPrice) {
-                            Text("Card number").tag(false)
-                            Text("Most to buy").tag(true)
+                            Label("Card number", systemImage: "number").tag(false)
+                            Label("Most to buy", systemImage: "dollarsign").tag(true)
                         }
-                    } label: { Image(systemName: "arrow.up.arrow.down.circle").font(.title3) }
+                    } label: {
+                        Image(systemName: "arrow.up.arrow.down")
+                            .font(.subheadline.weight(.semibold))
+                            .frame(width: 34, height: 34)
+                            .background(Color(.tertiarySystemFill), in: Circle())
+                    }
                     .accessibilityLabel("Sort")
                 }
 
                 if shown.isEmpty {
-                    Text(filter == .missing ? "You have every card here." : "Tap a card to mark the printings you have.")
-                        .font(.subheadline).foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity).padding(.vertical, 40)
+                    ContentUnavailableView {
+                        Label(query.isEmpty ? (filter == .missing ? "Nothing missing" : "Nothing here yet") : "No cards match", systemImage: query.isEmpty ? "checkmark.seal" : "magnifyingglass")
+                    } description: {
+                        Text(!query.isEmpty ? "Try the card’s name or number." : filter == .missing ? "You have every card in this set." : "Tap a card to mark the printings you have.")
+                    }
+                    .padding(.top, 20)
                 }
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 104), spacing: 12)], spacing: 16) {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 104), spacing: 12)], spacing: 18) {
                     ForEach(shown) { s in
                         Button { selected = s } label: { SlotTile(slot: s, owned: owned, mode: mode) }
                             .buttonStyle(.plain)
+                            .pressable()
                     }
                 }
+                .animation(.snappy, value: shown.map(\.id))
             }
             .padding(.horizontal, 16)
             .padding(.bottom, 24)
         }
+        .background(Color(.systemGroupedBackground))
         .navigationTitle(set.name)
         .navigationBarTitleDisplayMode(.inline)
+        .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Find a card in this set")
         .sheet(item: $selected) { s in
             SlotSheet(slot: s, setName: set.name)
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
         }
+    }
+
+    /// Set art, name and a ring that fills as you collect.
+    private func hero(_ p: MSProgress) -> some View {
+        HStack(spacing: 16) {
+            ZStack {
+                ProgressRing(value: p.fraction, lineWidth: 8)
+                VStack(spacing: 0) {
+                    Text(p.percentText).font(.title3.weight(.bold)).monospacedDigit()
+                    Text(p.isComplete ? "complete" : "done").font(.caption2).foregroundStyle(.secondary)
+                }
+            }
+            .frame(width: 86, height: 86)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(set.name).font(.title3.weight(.bold)).lineLimit(2)
+                Text([set.series, set.released.map { String($0.prefix(4)) }].compactMap { $0 }.joined(separator: " · "))
+                    .font(.subheadline).foregroundStyle(.secondary)
+                Text("\(p.owned) of \(p.total) \(mode == .master ? "printings" : "cards")")
+                    .font(.subheadline.weight(.semibold)).monospacedDigit()
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background {
+            ZStack(alignment: .trailing) {
+                Color(.secondarySystemGroupedBackground)
+                CardImage(url: set.art, name: set.name, game: .pokemon, corner: 8)
+                    .frame(width: 150)
+                    .rotationEffect(.degrees(8))
+                    .offset(x: 40, y: 10)
+                    .opacity(0.22)
+                    .blur(radius: 1.5)
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .shadow(color: .black.opacity(0.06), radius: 10, y: 3)
+        .padding(.top, 4)
     }
 
     private func visible(_ owned: [String: Int]) -> [MSSlot] {
@@ -195,31 +251,18 @@ struct MasterSetDetailView: View {
         case .missing: xs = xs.filter { !MasterSet.isDone($0, owned, mode) }
         case .have: xs = xs.filter { s in s.printings.contains { MasterSet.have($0, owned) > 0 } }
         }
+        let words = query.lowercased().split(separator: " ").map(String.init)
+        if !words.isEmpty {
+            xs = xs.filter { s in
+                let number = s.number.lowercased()
+                let hay = ([s.name, s.rarity ?? "", number, "#\(number)", String(number.drop { $0 == "0" })] + s.printings.map(\.label)).joined(separator: " ").lowercased()
+                return words.allSatisfy { hay.contains($0) }
+            }
+        }
         if byPrice {
             xs.sort { MasterSet.missingCost($0, owned, mode) > MasterSet.missingCost($1, owned, mode) }
         }
         return xs
-    }
-}
-
-struct StatTile: View {
-    let title: String
-    let value: String
-    let note: String
-    var progress: Double? = nil
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(title).font(.caption).foregroundStyle(.secondary)
-            Text(value).font(.title3.weight(.bold)).monospacedDigit().lineLimit(1).minimumScaleFactor(0.7)
-            if let progress {
-                ProgressView(value: progress).tint(progress >= 1 ? Color.up : Color.accentColor)
-            }
-            Text(note).font(.caption2).foregroundStyle(.secondary).lineLimit(2)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
-        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 }
 
@@ -235,6 +278,7 @@ struct SlotTile: View {
             CardImage(url: slot.image, name: slot.name, game: .pokemon, corner: 5)
                 .opacity(any ? 1 : 0.45)
                 .saturation(any ? 1 : 0.2)
+                .cardShadow()
                 .overlay(alignment: .topTrailing) {
                     if done {
                         Image(systemName: "checkmark.circle.fill")

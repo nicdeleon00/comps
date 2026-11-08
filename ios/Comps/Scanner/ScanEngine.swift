@@ -88,6 +88,7 @@ final class ScanEngine {
 
     private let lock = NSLock()
     private var _retake: (id: UUID, attempt: Int)?
+    private var _pendingReset = false
     private var recent: [Quad] = []
     private var framesWithoutCard = 0
     private var frameCount = 0
@@ -100,7 +101,7 @@ final class ScanEngine {
         let r = VNDetectRectanglesRequest()
         r.minimumAspectRatio = 0.55   // slabs are ~0.6, raw cards 0.716
         r.maximumAspectRatio = 0.86
-        r.minimumSize = 0.3
+        r.minimumSize = 0.24          // a little smaller than before, for stands that hold the phone further away
         r.maximumObservations = 1
         r.quadratureTolerance = 22
         r.minimumConfidence = 0.55
@@ -128,15 +129,25 @@ final class ScanEngine {
         set { lock.lock(); _retake = newValue; lock.unlock() }
     }
 
+    /// Clears what the engine remembers. Safe from any thread: applied before the next frame.
     func reset() {
+        lock.lock(); _pendingReset = true; _retake = nil; lock.unlock()
+    }
+
+    private func applyPendingReset() {
+        lock.lock()
+        let pending = _pendingReset
+        _pendingReset = false
+        lock.unlock()
+        guard pending else { return }
         recent.removeAll()
         lastHash = nil
         cardLeftSinceCapture = true
         framesWithoutCard = 0
-        retake = nil
     }
 
     func process(_ buffer: CVPixelBuffer) {
+        applyPendingReset()
         frameCount += 1
         // Rectangle detection at ~20 fps is plenty and keeps the phone cool.
         guard frameCount % 3 != 0 else { return }
@@ -159,8 +170,9 @@ final class ScanEngine {
         try? handler.perform([rectangles])
         guard let obs = rectangles.results?.first else {
             framesWithoutCard += 1
-            if framesWithoutCard >= 5 {
-                recent.removeAll()
+            if framesWithoutCard >= 5 { recent.removeAll() }
+            // Glare or a stand can hide the card for a moment; it has only left once it's been gone ~0.6 s.
+            if framesWithoutCard >= 12 {
                 cardLeftSinceCapture = true
                 retake = nil
             }
@@ -203,8 +215,10 @@ final class ScanEngine {
             capture(flat, hash: hash, attempt: pendingRetake.attempt, retakeOf: pendingRetake.id)
             return
         }
-        if continuous, let last = lastHash, !cardLeftSinceCapture, CardImaging.hamming(hash, last) <= 10 {
-            return // same card still in frame
+        // Scan protection: the card just read, still there (or back within a few seconds), isn't read again.
+        if continuous, let last = lastHash, CardImaging.hamming(hash, last) <= 10,
+           !cardLeftSinceCapture || Date().timeIntervalSince(lastCapture) < 5 {
+            return
         }
         captureRequested = false
         onEvent?(.reading)

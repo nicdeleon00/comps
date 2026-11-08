@@ -17,6 +17,15 @@ final class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDele
 
     /// Called on the video queue for every frame.
     var onFrame: (@Sendable (CVPixelBuffer) -> Void)?
+    /// The zoom actually applied (after clamping), whenever it changes.
+    var onZoom: (@Sendable (CGFloat) -> Void)?
+    /// Where the lens sits and whether focus is held there (tap or slider) or automatic.
+    var onFocus: (@Sendable (_ lens: Float, _ locked: Bool) -> Void)?
+    /// After switching between card and page mode, once the camera is ready again.
+    var onReconfigured: (@Sendable () -> Void)?
+
+    /// The most the scanner zooms (the main camera's digital zoom stays sharp enough for reading cards up to here).
+    static let maxZoom: CGFloat = 6
 
     /// 4K frames give the OCR about twice the pixels on a card's tiny collector number.
     init(preset: AVCaptureSession.Preset = .hd4K3840x2160) {
@@ -111,22 +120,103 @@ final class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDele
     }
 
     /// Binder pages want the whole 4:3 sensor and full-resolution stills; single cards want 4K video frames.
-    func setPageMode(_ on: Bool) {
+    /// `zoom` and `lens` are the user's settings for the new mode (nil: automatic).
+    func setPageMode(_ on: Bool, zoom: CGFloat?, lens: Float?) {
         sessionQueue.async { [weak self] in
-            guard let self, self.configured, self.pagePhotos != on, let device = self.device else { return }
-            self.pagePhotos = on
-            self.session.beginConfiguration()
-            let preset: AVCaptureSession.Preset = on ? .photo : self.videoPreset
-            if self.session.canSetSessionPreset(preset) { self.session.sessionPreset = preset }
-            self.applyRotation()
-            self.session.commitConfiguration()
-            self.applyPhotoDimensions(device)
+            guard let self else { return }
+            defer { self.onReconfigured?() }
+            guard self.configured, let device = self.device else { return }
+            if self.pagePhotos != on {
+                self.pagePhotos = on
+                self.session.beginConfiguration()
+                let preset: AVCaptureSession.Preset = on ? .photo : self.videoPreset
+                if self.session.canSetSessionPreset(preset) { self.session.sessionPreset = preset }
+                self.applyRotation()
+                self.session.commitConfiguration()
+                self.applyPhotoDimensions(device)
+            }
+            // A new format resets zoom and can drop a held focus: put the user's back.
+            self.applyZoom(zoom, smooth: false)
+            if let lens { self.applyLens(lens) } else { self.applyAutoFocus() }
+        }
+    }
+
+    // MARK: Zoom and focus
+
+    /// Zoom to `factor` (nil: the automatic zoom for the current mode).
+    func setZoom(_ factor: CGFloat?, smooth: Bool = false) {
+        sessionQueue.async { [weak self] in self?.applyZoom(factor, smooth: smooth) }
+    }
+
+    private func applyZoom(_ factor: CGFloat?, smooth: Bool) {
+        guard let device else { return }
+        let target = factor ?? recommendedZoom(for: device, subjectMM: pagePhotos ? 290 : 88)
+        let zoom = min(max(target, 1), min(device.activeFormat.videoMaxZoomFactor, Self.maxZoom))
+        do {
+            try device.lockForConfiguration()
+            if smooth { device.ramp(toVideoZoomFactor: zoom, withRate: 8) } else { device.cancelVideoZoomRamp(); device.videoZoomFactor = zoom }
+            device.unlockForConfiguration()
+        } catch { return }
+        onZoom?(zoom)
+    }
+
+    /// Tap to focus: focus and expose on that spot, then hold focus there.
+    func focus(at point: CGPoint) {
+        sessionQueue.async { [weak self] in
+            guard let self, let device = self.device else { return }
             do {
                 try device.lockForConfiguration()
-                device.videoZoomFactor = self.recommendedZoom(for: device, subjectMM: on ? 290 : 88)
+                if device.isFocusPointOfInterestSupported, device.isFocusModeSupported(.autoFocus) {
+                    device.focusPointOfInterest = point
+                    device.focusMode = .autoFocus
+                }
+                if device.isExposurePointOfInterestSupported, device.isExposureModeSupported(.continuousAutoExposure) {
+                    device.exposurePointOfInterest = point
+                    device.exposureMode = .continuousAutoExposure
+                }
                 device.unlockForConfiguration()
-            } catch {}
+            } catch { return }
+            // Report where the lens settled, so the focus slider starts there.
+            self.sessionQueue.asyncAfter(deadline: .now() + 0.8) { [weak self] in
+                guard let device = self?.device else { return }
+                self?.onFocus?(device.lensPosition, true)
+            }
         }
+    }
+
+    /// Manual focus: 0 is closest, 1 is furthest. Held until set back to automatic.
+    func setLens(_ position: Float) {
+        sessionQueue.async { [weak self] in self?.applyLens(position) }
+    }
+
+    private func applyLens(_ position: Float) {
+        guard let device, device.isLockingFocusWithCustomLensPositionSupported else { return }
+        let p = min(max(position, 0), 1)
+        do {
+            try device.lockForConfiguration()
+            device.setFocusModeLocked(lensPosition: p, completionHandler: nil)
+            device.unlockForConfiguration()
+        } catch { return }
+        onFocus?(p, true)
+    }
+
+    /// Back to continuous autofocus and exposure, centred.
+    func autoFocus() {
+        sessionQueue.async { [weak self] in self?.applyAutoFocus() }
+    }
+
+    private func applyAutoFocus() {
+        guard let device else { return }
+        do {
+            try device.lockForConfiguration()
+            let center = CGPoint(x: 0.5, y: 0.5)
+            if device.isFocusPointOfInterestSupported { device.focusPointOfInterest = center }
+            if device.isFocusModeSupported(.continuousAutoFocus) { device.focusMode = .continuousAutoFocus }
+            if device.isExposurePointOfInterestSupported { device.exposurePointOfInterest = center }
+            if device.isExposureModeSupported(.continuousAutoExposure) { device.exposureMode = .continuousAutoExposure }
+            device.unlockForConfiguration()
+        } catch { return }
+        onFocus?(device.lensPosition, false)
     }
 
     /// Phones with a long minimum focus distance (Pro models) can't focus on a
@@ -174,20 +264,6 @@ final class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDele
             do {
                 try device.lockForConfiguration()
                 device.torchMode = on ? .on : .off
-                device.unlockForConfiguration()
-            } catch {}
-        }
-    }
-
-    func focus(at point: CGPoint) {
-        sessionQueue.async { [weak self] in
-            guard let device = self?.device else { return }
-            do {
-                try device.lockForConfiguration()
-                if device.isFocusPointOfInterestSupported {
-                    device.focusPointOfInterest = point
-                    device.focusMode = .autoFocus
-                }
                 device.unlockForConfiguration()
             } catch {}
         }

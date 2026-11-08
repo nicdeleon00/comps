@@ -113,6 +113,85 @@ struct CardRow<Trailing: View>: View {
 extension View {
     /// Springy press feedback for custom buttons.
     func pressable() -> some View { buttonStyle(PressableStyle()) }
+
+    /// A rounded card on the grouped background, like the website's panels.
+    func panel(padding: CGFloat = 14, radius: CGFloat = 18) -> some View {
+        self
+            .padding(padding)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: radius, style: .continuous))
+            .shadow(color: .black.opacity(0.06), radius: 10, y: 3)
+    }
+
+    /// The soft drop shadow card art gets in grids and headers.
+    func cardShadow() -> some View { shadow(color: .black.opacity(0.22), radius: 6, y: 3) }
+}
+
+/// A small number with a label, used in headers (Collection, Master Sets).
+struct StatTile: View {
+    let title: String
+    let value: String
+    var note: String? = nil
+    var progress: Double? = nil
+    var tint: Color = .primary
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(title).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+            Text(value).font(.title3.weight(.bold)).monospacedDigit().foregroundStyle(tint).lineLimit(1).minimumScaleFactor(0.6)
+                .contentTransition(.numericText())
+            if let progress {
+                ProgressView(value: min(1, max(0, progress))).tint(progress >= 1 ? Color.up : Color.accentColor)
+            }
+            if let note { Text(note).font(.caption2).foregroundStyle(.secondary).lineLimit(2) }
+        }
+        .panel(padding: 12, radius: 14)
+    }
+}
+
+/// A ring that fills as a set gets completed.
+struct ProgressRing: View {
+    let value: Double
+    var lineWidth: CGFloat = 5
+
+    var body: some View {
+        ZStack {
+            Circle().stroke(Color(.tertiarySystemFill), lineWidth: lineWidth)
+            Circle()
+                .trim(from: 0, to: min(1, max(0, value)))
+                .stroke(value >= 1 ? Color.up : Color.accentColor, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+                .animation(.smooth(duration: 0.6), value: value)
+        }
+    }
+}
+
+/// A row of pill buttons that scrolls sideways (filters such as deal types).
+struct ChipBar<Value: Hashable>: View {
+    let options: [(Value, String)]
+    @Binding var selection: Value
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(options, id: \.1) { option in
+                    let on = option.0 == selection
+                    Button {
+                        withAnimation(.snappy) { selection = option.0 }
+                    } label: {
+                        Text(option.1)
+                            .font(.subheadline.weight(.semibold))
+                            .padding(.horizontal, 13).padding(.vertical, 7)
+                            .foregroundStyle(on ? Color.white : .primary)
+                            .background(on ? Color.accentColor : Color(.tertiarySystemFill), in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .sensoryFeedback(.selection, trigger: on)
+                }
+            }
+            .padding(.horizontal, 1)
+        }
+    }
 }
 
 struct PressableStyle: ButtonStyle {

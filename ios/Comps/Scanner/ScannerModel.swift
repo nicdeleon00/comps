@@ -19,6 +19,7 @@ final class ScanItem: Identifiable {
     var quantity = 1
     /// Binder pocket ("Row 2 · 3"), when it came from a page.
     var pocket: String?
+    @ObservationIgnored let scannedAt = Date()
 
     @ObservationIgnored var lines: [OCRLine] = []
     @ObservationIgnored var scan: CGImage?
@@ -89,8 +90,21 @@ final class ScannerModel {
     var singleResult: ScanItem?
     var page: BinderPage?
     var flash = 0
+    /// A short message for the scanner to show ("Skipped a repeat…").
+    private(set) var notice: (text: String, id: UUID)?
     var lockedSet: SetOption?
     private(set) var layout: BinderLayout = BinderLayout(rawValue: UserDefaults.standard.string(forKey: "scan.binderLayout") ?? "") ?? .nine
+
+    // Camera controls. Zoom and a held focus are remembered for each mode, so a stand stays set up.
+    private(set) var zoom: CGFloat = 1
+    private(set) var focusLocked = false
+    private(set) var lensPosition: Float = 0.5
+    /// Where the last tap-to-focus landed (view coordinates), for the focus mark.
+    private(set) var focusMark: (point: CGPoint, id: UUID)?
+    /// True for the moment the camera switches between card and page set-ups.
+    private(set) var switching = false
+    @ObservationIgnored private var pageModeTask: Task<Void, Never>?
+    @ObservationIgnored private var pinchStart: CGFloat = 1
 
     func setLayout(_ l: BinderLayout) {
         layout = l
@@ -118,20 +132,97 @@ final class ScannerModel {
         engine.onEvent = { [weak self] event in
             Task { @MainActor in self?.handle(event) }
         }
+        camera.onZoom = { [weak self] z in Task { @MainActor in self?.zoom = z } }
+        camera.onFocus = { [weak self] lens, locked in
+            Task { @MainActor in
+                self?.lensPosition = lens
+                self?.focusLocked = locked
+            }
+        }
+        camera.onReconfigured = { [weak self] in
+            Task { @MainActor in withAnimation(.easeOut(duration: 0.25)) { self?.switching = false } }
+        }
     }
 
     func setMode(_ m: Mode) {
-        let wasBinder = mode == .binder
+        guard m != mode else { return }
+        let pageChange = (m == .binder) != (mode == .binder)
         mode = m
         engine.continuous = m == .continuous
         engine.binder = m == .binder
         engine.reset()
         quad = nil
         pageQuads = []
-        if (m == .binder) != wasBinder { camera.setPageMode(m == .binder) }
         if m == .continuous, singleResult == nil { setPaused(false) }
         if m == .binder { setPaused(false) }
         phase = .searching
+        if pageChange {
+            // Switching the camera between card and page set-ups takes a moment. Wait until the
+            // choice settles (tapping through modes switches once), and soften the change.
+            switching = true
+            pageModeTask?.cancel()
+            pageModeTask = Task { [weak self] in
+                try? await Task.sleep(for: .milliseconds(220))
+                guard let self, !Task.isCancelled else { return }
+                camera.setPageMode(mode == .binder, zoom: savedZoom(mode), lens: savedLens(mode))
+            }
+        } else {
+            camera.setZoom(savedZoom(m), smooth: true)
+            if let lens = savedLens(m) { camera.setLens(lens) } else if focusLocked { camera.autoFocus() }
+        }
+    }
+
+    // MARK: Zoom and focus
+
+    private func zoomKey(_ m: Mode) -> String { "scan.zoom.\(m.rawValue)" }
+    private func lensKey(_ m: Mode) -> String { "scan.lens.\(m.rawValue)" }
+    private func savedZoom(_ m: Mode) -> CGFloat? {
+        let z = UserDefaults.standard.double(forKey: zoomKey(m))
+        return z >= 1 ? CGFloat(z) : nil
+    }
+    private func savedLens(_ m: Mode) -> Float? {
+        (UserDefaults.standard.object(forKey: lensKey(m)) as? Double).map(Float.init)
+    }
+
+    /// Zoom to a level (the quick buttons), remembered for this mode.
+    func setZoom(_ z: CGFloat, smooth: Bool = true) {
+        let z = min(max(z, 1), CameraController.maxZoom)
+        zoom = z
+        camera.setZoom(z, smooth: smooth)
+        UserDefaults.standard.set(Double(z), forKey: zoomKey(mode))
+    }
+
+    func pinch(_ p: CameraPreview.Pinch) {
+        switch p {
+        case .began: pinchStart = zoom
+        case .changed(let scale):
+            let z = min(max(pinchStart * scale, 1), CameraController.maxZoom)
+            zoom = z
+            camera.setZoom(z)
+        case .ended: setZoom(zoom, smooth: false)
+        }
+    }
+
+    /// Tap to focus there; the slider can then fine-tune it.
+    func tapFocus(device: CGPoint, view: CGPoint) {
+        camera.focus(at: device)
+        focusLocked = true
+        focusMark = (view, UUID())
+        if haptics { light.impactOccurred(intensity: 0.5) }
+    }
+
+    /// Manual focus from the slider, remembered for this mode (handy on a stand).
+    func setLens(_ p: Float) {
+        lensPosition = p
+        focusLocked = true
+        camera.setLens(p)
+        UserDefaults.standard.set(Double(p), forKey: lensKey(mode))
+    }
+
+    func autoFocus() {
+        focusLocked = false
+        camera.autoFocus()
+        UserDefaults.standard.removeObject(forKey: lensKey(mode))
     }
 
     func setTorch(_ on: Bool) {
@@ -149,6 +240,9 @@ final class ScannerModel {
         light.prepare()
         notify.prepare()
         camera.start()
+        // The zoom and focus last used in this mode (a stand stays set up between sessions).
+        camera.setZoom(savedZoom(mode))
+        if let lens = savedLens(mode) { camera.setLens(lens) }
         Task { await Catalog.shared.ensureLoaded() }
         phase = .searching
     }
@@ -262,11 +356,28 @@ final class ScannerModel {
             }
         }
         guard item.pocket == nil else { return }
+        if mode == .continuous, isRepeat(item) {
+            // Scan protection: the same card read again right after itself is dropped.
+            withAnimation(.snappy) { items.removeAll { $0.id == item.id } }
+            notice = ("Skipped a repeat of \(item.choice?.card.name ?? "that card")", UUID())
+            if haptics { notify.notificationOccurred(.warning) }
+            return
+        }
         if haptics { item.status == .failed ? notify.notificationOccurred(.warning) : notify.notificationOccurred(.success) }
         if mode == .single, pendingSingle === item {
             pendingSingle = nil
             singleResult = item
         }
+    }
+
+    /// The same card and printing as the scan just before it, within a few seconds.
+    /// (A second copy on purpose: raise the quantity in Review.)
+    private func isRepeat(_ item: ScanItem) -> Bool {
+        guard let card = item.choice?.card.id,
+              let i = items.firstIndex(where: { $0.id == item.id }), i + 1 < items.count else { return false }
+        let previous = items[i + 1]
+        return previous.choice?.card.id == card && previous.variant == item.variant
+            && item.scannedAt.timeIntervalSince(previous.scannedAt) < 8
     }
 
     // MARK: Binder pages
@@ -328,6 +439,15 @@ final class ScannerModel {
     func closePage() {
         page = nil
         phase = .searching
+    }
+
+    /// Takes a card off a page before adding it (scanned by mistake, or a sleeve you don't want).
+    func removePocket(_ pocket: BinderPage.Pocket, from page: BinderPage) {
+        withAnimation(.snappy) {
+            page.pockets.removeAll { $0.id == pocket.id }
+            items.removeAll { $0.id == pocket.item.id }
+        }
+        if haptics { light.impactOccurred(intensity: 0.6) }
     }
 
     // MARK: Tray

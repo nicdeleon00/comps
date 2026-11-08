@@ -3,12 +3,19 @@ import SwiftData
 
 @main
 struct CompsApp: App {
+    /// True when the saved collection couldn't be opened (it stays on disk, untouched).
+    static var storeProblem = false
+
     let container: ModelContainer = {
+        let memory = ModelConfiguration(isStoredInMemoryOnly: true)
+        // Screenshots run on sample cards in memory, never on a real collection.
+        if Screenshots.on { return try! ModelContainer(for: Holding.self, ValueSnapshot.self, configurations: memory) }
         do {
             return try ModelContainer(for: Holding.self, ValueSnapshot.self)
         } catch {
-            // A schema we can't migrate shouldn't brick the app; start fresh in memory.
-            return try! ModelContainer(for: Holding.self, ValueSnapshot.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+            // Don't brick the app, and don't touch the saved file: run in memory and say so.
+            CompsApp.storeProblem = true
+            return try! ModelContainer(for: Holding.self, ValueSnapshot.self, configurations: memory)
         }
     }()
 
@@ -27,8 +34,14 @@ struct RootView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.scenePhase) private var scenePhase
     @AppStorage(Pref.dataURL) private var dataURL = ""
-    @State private var selection: AppTab = .collection
+    @State private var selection: AppTab = switch Screenshots.value("-tab") {
+        case "deals": .deals
+        case "masterSets": .masterSets
+        case "search": .search
+        default: .collection
+    }
     @State private var scanning = false
+    @State private var storeProblem = CompsApp.storeProblem
 
     var body: some View {
         TabView(selection: $selection) {
@@ -67,7 +80,13 @@ struct RootView: View {
                 }
             }
         }
+        .alert("Couldn’t open your saved cards", isPresented: $storeProblem) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("They’re still saved on this phone, untouched. Don’t delete the app: install the next update and they’ll be back. If you’re signed in, they also load from your account.")
+        }
         .task {
+            if Screenshots.on { await Screenshots.seed(context) }
             await Account.shared.loadConfig()
             await Catalog.shared.ensureLoaded()
             await Portfolio.migrateDefaultPrintings(context: context)

@@ -1,0 +1,62 @@
+name: iOS screenshots
+
+# Builds the app for the simulator and takes screenshots of the main screens, using
+# the app's screenshot mode (sample cards in memory). Run it by hand from Actions.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  screenshots:
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build for the simulator
+        run: |
+          OWNER_LC=$(echo "$GITHUB_REPOSITORY_OWNER" | tr '[:upper:]' '[:lower:]')
+          xcodebuild -project ios/Comps.xcodeproj -scheme Comps -configuration Debug \
+            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath build \
+            CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO \
+            COMPS_DATA_URL="https://${OWNER_LC}.github.io/${GITHUB_REPOSITORY#*/}/" \
+            build > build.log 2>&1 || { grep -E "error:" build.log | sort -u | head -60; tail -n 30 build.log; exit 1; }
+
+      - name: Take screenshots
+        run: |
+          DEVICE=$(xcrun simctl list devices available -j | python3 -c '
+          import json, sys
+          devices = json.load(sys.stdin)["devices"]
+          phones = [d for runtime, ds in devices.items() if "iOS" in runtime for d in ds if d["name"].startswith("iPhone")]
+          best = next((d for d in phones if d["name"] == "iPhone 16 Pro"), phones[-1])
+          print(best["udid"])')
+          xcrun simctl boot "$DEVICE"
+          xcrun simctl bootstatus "$DEVICE" -b
+          xcrun simctl status_bar "$DEVICE" override --time 9:41 --batteryState charged --batteryLevel 100 --cellularBars 4 --wifiBars 3
+          xcrun simctl install "$DEVICE" build/Build/Products/Debug-iphonesimulator/Comps.app
+          mkdir -p shots
+          shoot() {
+            name=$1; shift
+            xcrun simctl terminate "$DEVICE" com.comps.scanner 2>/dev/null || true
+            xcrun simctl launch "$DEVICE" com.comps.scanner -screenshots "$@"
+            sleep 30
+            xcrun simctl io "$DEVICE" screenshot "shots/$name.png"
+          }
+          shoot collection -tab collection
+          shoot collection-grid -tab collection -grid
+          shoot mastersets -tab masterSets
+          shoot masterset -tab masterSets -set 23821
+          shoot deals -tab deals
+          shoot marketplace -tab deals -pane marketplace
+          shoot search -tab search
+          xcrun simctl ui "$DEVICE" appearance dark
+          shoot collection-dark -tab collection
+          shoot masterset-dark -tab masterSets -set 23821
+          ls -la shots
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: shots

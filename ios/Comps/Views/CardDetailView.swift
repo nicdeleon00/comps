@@ -83,6 +83,7 @@ struct CardDetailView: View {
                 if let g = current?.grading { gradingCard(g).padding(.horizontal).padding(.top, 28) }
                 if let d = detail, !d.signals.isEmpty { signals(d.signals).padding(.horizontal).padding(.top, 28) }
                 if let d = detail, !d.listings.isEmpty { listings(d.listings).padding(.horizontal).padding(.top, 28) }
+                CardMarketplaceSection(cardID: cardID).padding(.horizontal).padding(.top, 28)
                 if let d = detail { links(d.links).padding(.horizontal).padding(.top, 28) }
                 if detail == nil && !loading && direct != nil {
                     Text("Price history and deal checks are kept for cards worth $1 or more.")

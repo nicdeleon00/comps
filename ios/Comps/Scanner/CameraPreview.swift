@@ -14,23 +14,29 @@ final class PreviewView: UIView {
 }
 
 struct CameraPreview: UIViewRepresentable {
+    enum Pinch { case began, changed(CGFloat), ended }
+
     let session: AVCaptureSession
     /// Binder pages show the whole 4:3 frame (aspect fit) so the page can fill the photo.
     var fill = true
-    var onTap: ((CGPoint) -> Void)?
+    /// Tap: the point in camera coordinates (for focus) and in the view (for the focus mark).
+    var onTap: ((_ device: CGPoint, _ view: CGPoint) -> Void)?
+    /// Pinch to zoom: the scale since the pinch began.
+    var onPinch: ((Pinch) -> Void)?
 
     func makeUIView(context: Context) -> PreviewView {
         let v = PreviewView()
         v.backgroundColor = .black
         v.previewLayer.session = session
         v.previewLayer.videoGravity = .resizeAspectFill
-        let tap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.tapped(_:)))
-        v.addGestureRecognizer(tap)
+        v.addGestureRecognizer(UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.tapped(_:))))
+        v.addGestureRecognizer(UIPinchGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.pinched(_:))))
         return v
     }
 
     func updateUIView(_ uiView: PreviewView, context: Context) {
         context.coordinator.onTap = onTap
+        context.coordinator.onPinch = onPinch
         let gravity: AVLayerVideoGravity = fill ? .resizeAspectFill : .resizeAspect
         if uiView.previewLayer.videoGravity != gravity { uiView.previewLayer.videoGravity = gravity }
     }
@@ -38,11 +44,22 @@ struct CameraPreview: UIViewRepresentable {
     func makeCoordinator() -> Coordinator { Coordinator() }
 
     final class Coordinator: NSObject {
-        var onTap: ((CGPoint) -> Void)?
+        var onTap: ((CGPoint, CGPoint) -> Void)?
+        var onPinch: ((Pinch) -> Void)?
+
         @objc func tapped(_ g: UITapGestureRecognizer) {
             guard let view = g.view as? PreviewView else { return }
-            let devicePoint = view.previewLayer.captureDevicePointConverted(fromLayerPoint: g.location(in: view))
-            onTap?(devicePoint)
+            let at = g.location(in: view)
+            onTap?(view.previewLayer.captureDevicePointConverted(fromLayerPoint: at), at)
+        }
+
+        @objc func pinched(_ g: UIPinchGestureRecognizer) {
+            switch g.state {
+            case .began: onPinch?(.began)
+            case .changed: onPinch?(.changed(g.scale))
+            case .ended, .cancelled, .failed: onPinch?(.ended)
+            default: break
+            }
         }
     }
 }

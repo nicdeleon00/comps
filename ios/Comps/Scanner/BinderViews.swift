@@ -50,6 +50,7 @@ struct BinderPageView: View {
     var onAdded: (Int) -> Void
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
+    @State private var removing: BinderPage.Pocket?
 
     private var addable: [ScanItem] { page.items.filter { $0.choice != nil } }
     private var toCheck: Int { page.items.filter { $0.status == .review || $0.status == .failed }.count }
@@ -58,7 +59,7 @@ struct BinderPageView: View {
         NavigationStack {
             List {
                 Section {
-                    PagePhoto(page: page)
+                    PagePhoto(page: page) { removing = $0 }
                         .listRowInsets(EdgeInsets(top: 8, leading: 8, bottom: 8, trailing: 8))
                 }
                 if page.reading && page.pockets.isEmpty {
@@ -83,11 +84,27 @@ struct BinderPageView: View {
                             } label: {
                                 PocketRow(item: pocket.item)
                             }
+                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                Button(role: .destructive) { model.removePocket(pocket, from: page) } label: { Label("Remove", systemImage: "trash") }
+                            }
+                            .contextMenu {
+                                Button(role: .destructive) { model.removePocket(pocket, from: page) } label: { Label("Remove from this page", systemImage: "trash") }
+                            }
                         }
                     } header: {
                         Text(page.reading ? "Matching…" : toCheck > 0 ? "\(toCheck) to check" : "All matched")
+                    } footer: {
+                        Text("Scanned one by mistake? Swipe it left, or tap its badge on the photo, to take it off before adding.")
                     }
                 }
+            }
+            .confirmationDialog("Remove this card from the page?", isPresented: Binding(get: { removing != nil }, set: { if !$0 { removing = nil } }), titleVisibility: .visible) {
+                Button("Remove", role: .destructive) {
+                    if let pocket = removing { model.removePocket(pocket, from: page) }
+                    removing = nil
+                }
+            } message: {
+                if let pocket = removing { Text([pocket.item.choice?.card.name, pocket.item.pocket].compactMap { $0 }.joined(separator: " · ")) }
             }
             .navigationTitle("\(page.pockets.count) card\(page.pockets.count == 1 ? "" : "s")")
             .navigationBarTitleDisplayMode(.inline)
@@ -121,9 +138,10 @@ struct BinderPageView: View {
     }
 }
 
-/// The page photo with a status badge on each pocket.
+/// The page photo with a status badge on each pocket (tap a badge to take that card off).
 private struct PagePhoto: View {
     let page: BinderPage
+    var onTapPocket: (BinderPage.Pocket) -> Void
 
     var body: some View {
         let size = page.photo.size
@@ -143,8 +161,10 @@ private struct PagePhoto: View {
                         }
                         .stroke(tint, style: StrokeStyle(lineWidth: 2.5, lineJoin: .round))
                         let c = mapper.point(pocket.quad.center)
-                        badge(pocket.item.status)
+                        Button { onTapPocket(pocket) } label: { badge(pocket.item.status).padding(8).contentShape(Circle()) }
+                            .buttonStyle(.plain)
                             .position(c)
+                            .accessibilityLabel("Remove \(pocket.item.choice?.card.name ?? "this card")")
                     }
                 }
             }
