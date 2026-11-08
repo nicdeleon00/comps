@@ -70,7 +70,8 @@ let backups = (try? fm.contentsOfDirectory(atPath: support.appending(path: "Stor
 check(backups.count == 1, "backup made only once (\(backups))")
 
 // 3. Rescue: read the rows straight out of a copy and move them into a fresh file.
-guard let result = StoreRescue.recover(schema: schema) else { fail("recover returned nil") }
+let result: StoreRescue.Result
+do { result = try StoreRescue.recover(schema: schema) } catch { fail("recover failed: \(error)") }
 let live = expected.values.filter { !$0.isTombstoned }
 check(result.cards == live.reduce(0) { $0 + $1.quantity }, "card count \(result.cards)")
 let context = ModelContext(result.container)

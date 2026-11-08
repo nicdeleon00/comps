@@ -26,9 +26,12 @@ struct CompsApp: App {
         } catch {
             CompsApp.storeError = String(describing: error)
             // Read the cards straight out of a copy of the file into a fresh one (the file stays as it is).
-            if let r = StoreRescue.recover(schema: schema) {
+            do {
+                let r = try StoreRescue.recover(schema: schema)
                 CompsApp.rescued = r.cards
                 return r.container
+            } catch {
+                CompsApp.storeError = (CompsApp.storeError ?? "") + "\n\nRescue: \(error)"
             }
             // Don't brick the app, and don't touch the saved file: run in memory and say so.
             CompsApp.storeProblem = true

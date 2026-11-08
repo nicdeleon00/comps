@@ -60,20 +60,27 @@ enum StoreRescue {
         let cards: Int
     }
 
-    /// Rescues the collection from the file the app couldn't open. Nil when there's nothing to
-    /// rescue or it didn't work (the file is left as it was either way).
-    static func recover(schema: Schema) -> Result? {
-        let source = currentURL
-        guard FileManager.default.fileExists(atPath: source.path) else { return nil }
-        guard let work = try? backup(source) else { return nil }
-        let holdings = rows(work, entity: "Holding")
-        let snapshots = rows(work, entity: "ValueSnapshot")
-        guard let holdings, !holdings.isEmpty else { return nil }
+    struct Failure: Error, CustomStringConvertible {
+        let description: String
+    }
 
-        let name = "collection-\(Int(Date().timeIntervalSince1970)).store"
+    /// Rescues the collection from the file the app couldn't open. Throws, saying why, when
+    /// there's nothing to rescue or it didn't work (the file is left as it was either way).
+    static func recover(schema: Schema) throws -> Result {
+        let source = currentURL
+        guard FileManager.default.fileExists(atPath: source.path) else { throw Failure(description: "No saved file at \(source.lastPathComponent)") }
+        let work: URL
+        do { work = try backup(source, label: "rescue") } catch { throw Failure(description: "Couldn’t copy the saved file: \(error)") }
+        let read = rows(work, entity: "Holding")
+        guard let holdings = read.rows else { throw Failure(description: "Couldn’t read the saved file: \(read.error ?? "?")") }
+        guard !holdings.isEmpty else { throw Failure(description: "The saved file has no cards in it") }
+        let snapshots = rows(work, entity: "ValueSnapshot").rows ?? []
+
+        let name = "collection-\(UUID().uuidString.prefix(8)).store"
         let target = support.appending(path: name)
         let config = ModelConfiguration(schema: schema, url: target, cloudKitDatabase: .none)
-        guard let container = try? ModelContainer(for: schema, configurations: config) else { return nil }
+        let container: ModelContainer
+        do { container = try ModelContainer(for: schema, configurations: config) } catch { throw Failure(description: "Couldn’t make a fresh file: \(error)") }
         let context = ModelContext(container)
         var cards = 0
         for r in holdings {
@@ -82,11 +89,11 @@ enum StoreRescue {
             if !h.isTombstoned { cards += h.quantity }
         }
         var days = Set<String>()
-        for r in snapshots ?? [] {
+        for r in snapshots {
             guard let day = r["day"]?.string, days.insert(day).inserted else { continue }
             context.insert(ValueSnapshot(day: day, value: r["value"]?.double ?? 0, cost: r["cost"]?.double ?? 0))
         }
-        do { try context.save() } catch { return nil }
+        do { try context.save() } catch { throw Failure(description: "Couldn’t save the rescued cards: \(error)") }
         UserDefaults.standard.set(name, forKey: fileKey)
         // The new file starts its account sync from scratch, so it gets everything from the account too.
         for key in UserDefaults.standard.dictionaryRepresentation().keys where key.hasPrefix("account.sync.") {
@@ -99,14 +106,15 @@ enum StoreRescue {
     static func backupOnce() {
         let key = "store.backedUp.1"
         guard !UserDefaults.standard.bool(forKey: key), FileManager.default.fileExists(atPath: currentURL.path) else { return }
-        if (try? backup(currentURL)) != nil { UserDefaults.standard.set(true, forKey: key) }
+        if (try? backup(currentURL, label: "before opening")) != nil { UserDefaults.standard.set(true, forKey: key) }
     }
 
     /// Copies the store and its journal files twice: "original" (never opened) and "read".
     /// Returns the copy to read.
-    private static func backup(_ source: URL) throws -> URL {
+    private static func backup(_ source: URL, label: String) throws -> URL {
+        // A folder of its own every time (two backups can happen in the same second).
         let stamp = ISO8601DateFormatter().string(from: .now).replacingOccurrences(of: ":", with: "-")
-        let dir = support.appending(path: "Store backups/\(stamp)", directoryHint: .isDirectory)
+        let dir = support.appending(path: "Store backups/\(stamp) \(label) \(UUID().uuidString.prefix(6))", directoryHint: .isDirectory)
         let fm = FileManager.default
         for sub in ["original", "read"] {
             let to = dir.appending(path: sub, directoryHint: .isDirectory)
@@ -121,16 +129,19 @@ enum StoreRescue {
     }
 
     /// Every row of an entity's table, keyed by attribute name in lower case ("ZCARDID" → "cardid").
-    static func rows(_ store: URL, entity: String) -> [[String: Value]]? {
+    static func rows(_ store: URL, entity: String) -> (rows: [[String: Value]]?, error: String?) {
         var db: OpaquePointer?
         guard sqlite3_open_v2(store.path, &db, SQLITE_OPEN_READWRITE, nil) == SQLITE_OK, let db else {
+            let message = db.map { String(cString: sqlite3_errmsg($0)) } ?? "can’t open"
             sqlite3_close(db)
-            return nil
+            return (nil, message)
         }
         defer { sqlite3_close(db) }
         let table = "Z" + entity.uppercased()
         var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, "SELECT * FROM \(table)", -1, &stmt, nil) == SQLITE_OK, let stmt else { return nil }
+        guard sqlite3_prepare_v2(db, "SELECT * FROM \(table)", -1, &stmt, nil) == SQLITE_OK, let stmt else {
+            return (nil, String(cString: sqlite3_errmsg(db)))
+        }
         defer { sqlite3_finalize(stmt) }
         let columns = (0..<sqlite3_column_count(stmt)).map { i -> String in
             let name = sqlite3_column_name(stmt, i).map { String(cString: $0) }?.lowercased() ?? ""
@@ -153,7 +164,7 @@ enum StoreRescue {
             }
             out.append(row)
         }
-        return out
+        return (out, nil)
     }
 
     static func holding(_ r: [String: Value]) -> Holding? {
