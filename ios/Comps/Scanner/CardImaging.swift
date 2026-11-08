@@ -34,6 +34,17 @@ enum CardImaging {
         context.createCGImage(image, from: image.extent)
     }
 
+    /// A smaller copy, at most `maxHeight` pixels tall.
+    static func scaled(_ image: CGImage, maxHeight: Int) -> CGImage? {
+        guard image.height > maxHeight else { return image }
+        let width = max(1, Int((CGFloat(image.width) * CGFloat(maxHeight) / CGFloat(image.height)).rounded()))
+        guard let ctx = CGContext(data: nil, width: width, height: maxHeight, bitsPerComponent: 8, bytesPerRow: 0,
+                                  space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue) else { return nil }
+        ctx.interpolationQuality = .high
+        ctx.draw(image, in: CGRect(x: 0, y: 0, width: width, height: maxHeight))
+        return ctx.makeImage()
+    }
+
     /// 64-bit difference hash: robust to lighting, sensitive to which card it is.
     static func dHash(_ image: CIImage) -> UInt64 {
         let sx = 9 / image.extent.width
@@ -112,5 +123,17 @@ enum CardImaging {
     static func quad(_ obs: VNRectangleObservation) -> Quad {
         let flip = { (p: CGPoint) in CGPoint(x: p.x, y: 1 - p.y) }
         return Quad(topLeft: flip(obs.topLeft), topRight: flip(obs.topRight), bottomRight: flip(obs.bottomRight), bottomLeft: flip(obs.bottomLeft))
+    }
+}
+
+/// What the tray keeps of a scan. A full scan is about 7 MB in memory, so only a small
+/// picture stays in memory; a sharper JPEG for the review screen goes to disk.
+struct ScanPhoto {
+    var thumb: UIImage
+    var jpeg: Data?
+
+    init(_ image: CGImage) {
+        thumb = UIImage(cgImage: CardImaging.scaled(image, maxHeight: 200) ?? image)
+        jpeg = CardImaging.scaled(image, maxHeight: 720).flatMap { UIImage(cgImage: $0).jpegData(compressionQuality: 0.75) }
     }
 }

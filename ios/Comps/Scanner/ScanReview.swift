@@ -8,19 +8,15 @@ struct ScanReviewView: View {
     var onDone: (Int) -> Void
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
+    @State private var confirmClear = false
 
     private var addable: [ScanItem] { model.items.filter { $0.choice != nil } }
 
     var body: some View {
         NavigationStack {
+            // One section that never comes or goes: changing the list's shape while a row is being
+            // swiped away is what crashed it.
             List {
-                if model.items.contains(where: { $0.status == .review }) {
-                    Section {
-                        Label("Cards marked with ? had a close second match. Tap one to check it, then swipe to the next.", systemImage: "questionmark.circle.fill")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    }
-                }
                 Section {
                     ForEach(Array(model.items.enumerated()), id: \.element.id) { i, item in
                         NavigationLink {
@@ -28,17 +24,37 @@ struct ScanReviewView: View {
                         } label: {
                             ReviewRow(item: item)
                         }
+                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                            Button(role: .destructive) { model.remove(item) } label: { Label("Remove", systemImage: "trash") }
+                        }
+                        .contextMenu {
+                            Button(role: .destructive) { model.remove(item, animated: true) } label: { Label("Remove", systemImage: "trash") }
+                        }
                     }
-                    .onDelete { idx in
-                        let doomed = idx.map { model.items[$0] }
-                        doomed.forEach(model.remove)
-                    }
+                } header: {
+                    Label(hint, systemImage: model.items.contains(where: { $0.status == .review }) ? "questionmark.circle.fill" : "hand.draw")
+                        .font(.footnote)
+                        .textCase(nil)
                 }
             }
             .navigationTitle("\(model.items.count) scanned")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Keep scanning") { dismiss() } }
+                ToolbarItem(placement: .primaryAction) {
+                    Menu {
+                        Button(role: .destructive) { confirmClear = true } label: { Label("Remove all", systemImage: "trash") }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                    }
+                    .disabled(model.items.isEmpty)
+                    .accessibilityLabel("More")
+                }
+            }
+            .confirmationDialog("Remove all \(model.items.count) scanned cards?", isPresented: $confirmClear, titleVisibility: .visible) {
+                Button("Remove all", role: .destructive) { model.removeAll() }
+            } message: {
+                Text("They won’t be added to your collection.")
             }
             .safeAreaInset(edge: .bottom) {
                 Button {
@@ -62,6 +78,12 @@ struct ScanReviewView: View {
                 .background(.bar)
             }
         }
+    }
+
+    private var hint: String {
+        model.items.contains(where: { $0.status == .review })
+            ? "Cards marked ? had a close second match. Tap one to check it. Swipe left to remove a card."
+            : "Tap a card to fix it. Swipe left to remove it. Saved as you go, so nothing’s lost if the app closes."
     }
 }
 
@@ -234,9 +256,7 @@ struct ScanItemEditor: View {
         VStack(spacing: 10) {
             HStack(alignment: .top, spacing: 12) {
                 compare(title: item.pocket.map { "Your scan · \($0)" } ?? "Your scan") {
-                    Image(uiImage: item.photo)
-                        .resizable()
-                        .aspectRatio(63.0 / 88.0, contentMode: .fill)
+                    ScanPhotoView(item: item)
                 }
                 compare(title: item.choice.map { "\($0.card.subtitle) · \(Fmt.money(item.unitValue))" } ?? "No match") {
                     if let c = item.choice {
@@ -426,5 +446,18 @@ struct SingleResultSheet: View {
                     .padding(.bottom, 8)
                 }
         }
+    }
+}
+
+/// The scan in the review screen: the small copy at once, then the sharper one from disk.
+private struct ScanPhotoView: View {
+    let item: ScanItem
+    @State private var large: UIImage?
+
+    var body: some View {
+        Image(uiImage: large ?? item.photo)
+            .resizable()
+            .aspectRatio(63.0 / 88.0, contentMode: .fill)
+            .task(id: item.id) { large = await item.largePhoto() }
     }
 }

@@ -5,6 +5,7 @@ import SwiftData
 struct ScannerView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
+    @Environment(\.scenePhase) private var scenePhase
     @State private var model = ScannerModel()
     @State private var showReview = false
     @State private var flashOpacity = 0.0
@@ -61,6 +62,11 @@ struct ScannerView: View {
         .persistentSystemOverlays(.hidden)
         .task { await model.start() }
         .onDisappear { model.stop() }
+        // Scanning holds still while the review list is open, so cards don't arrive mid-edit.
+        .onChange(of: showReview) { _, open in
+            if open { model.beginReview() } else { model.endReview() }
+        }
+        .onChange(of: scenePhase) { _, phase in if phase != .active { model.saveTray() } }
         .onChange(of: model.notice?.id) {
             if let text = model.notice?.text { show(text) }
         }

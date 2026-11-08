@@ -62,45 +62,43 @@ struct BinderPageView: View {
                     PagePhoto(page: page) { removing = $0 }
                         .listRowInsets(EdgeInsets(top: 8, leading: 8, bottom: 8, trailing: 8))
                 }
-                if page.reading && page.pockets.isEmpty {
-                    Section {
-                        HStack(spacing: 10) {
-                            ProgressView()
-                            Text("Finding cards on the page…").foregroundStyle(.secondary)
+                // The cards always live in this one section, so removing the last one
+                // doesn't change the list's shape mid-animation (that can crash it).
+                Section {
+                    if page.pockets.isEmpty {
+                        if page.reading {
+                            HStack(spacing: 10) {
+                                ProgressView()
+                                Text("Finding cards on the page…").foregroundStyle(.secondary)
+                            }
+                        } else {
+                            Label("No cards here. Fill the frame with the page, avoid glare, and try again.", systemImage: "exclamationmark.triangle.fill")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
                         }
                     }
-                } else if !page.reading && page.pockets.isEmpty {
-                    Section {
-                        Label("No cards found. Fill the frame with the page, avoid glare, and try again.", systemImage: "exclamationmark.triangle.fill")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                if !page.pockets.isEmpty {
-                    Section {
-                        ForEach(Array(page.pockets.enumerated()), id: \.element.id) { i, pocket in
-                            NavigationLink {
-                                ScanPager(items: page.items, start: i)
-                            } label: {
-                                PocketRow(item: pocket.item)
-                            }
-                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                Button(role: .destructive) { model.removePocket(pocket, from: page) } label: { Label("Remove", systemImage: "trash") }
-                            }
-                            .contextMenu {
-                                Button(role: .destructive) { model.removePocket(pocket, from: page) } label: { Label("Remove from this page", systemImage: "trash") }
-                            }
+                    ForEach(Array(page.pockets.enumerated()), id: \.element.id) { i, pocket in
+                        NavigationLink {
+                            ScanPager(items: page.items, start: i)
+                        } label: {
+                            PocketRow(item: pocket.item)
                         }
-                    } header: {
-                        Text(page.reading ? "Matching…" : toCheck > 0 ? "\(toCheck) to check" : "All matched")
-                    } footer: {
-                        Text("Scanned one by mistake? Swipe it left, or tap its badge on the photo, to take it off before adding.")
+                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                            Button(role: .destructive) { model.removePocket(pocket, from: page) } label: { Label("Remove", systemImage: "trash") }
+                        }
+                        .contextMenu {
+                            Button(role: .destructive) { model.removePocket(pocket, from: page, animated: true) } label: { Label("Remove from this page", systemImage: "trash") }
+                        }
                     }
+                } header: {
+                    Text(page.reading ? "Matching…" : page.pockets.isEmpty ? "Cards" : toCheck > 0 ? "\(toCheck) to check" : "All matched")
+                } footer: {
+                    Text("Scanned one by mistake? Swipe it left, or tap its badge on the photo, to take it off before adding.")
                 }
             }
             .confirmationDialog("Remove this card from the page?", isPresented: Binding(get: { removing != nil }, set: { if !$0 { removing = nil } }), titleVisibility: .visible) {
                 Button("Remove", role: .destructive) {
-                    if let pocket = removing { model.removePocket(pocket, from: page) }
+                    if let pocket = removing { model.removePocket(pocket, from: page, animated: true) }
                     removing = nil
                 }
             } message: {

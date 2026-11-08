@@ -57,7 +57,8 @@ struct Quad: Equatable {
 
 /// What the engine hands back after reading a card.
 struct CapturedCard {
-    var image: UIImage
+    /// Small copies for the tray and review screen; nil on a second look at a card already in the tray.
+    var photo: ScanPhoto?
     var cgImage: CGImage
     var lines: [OCRLine]
     var hash: UInt64
@@ -233,6 +234,7 @@ final class ScanEngine {
         lastHash = hash
         cardLeftSinceCapture = false
         busy = false
-        onEvent?(.captured(CapturedCard(image: UIImage(cgImage: cg), cgImage: cg, lines: lines, hash: hash, retakeOf: retakeOf)))
+        let photo = retakeOf == nil ? ScanPhoto(cg) : nil
+        onEvent?(.captured(CapturedCard(photo: photo, cgImage: cg, lines: lines, hash: hash, retakeOf: retakeOf)))
     }
 }

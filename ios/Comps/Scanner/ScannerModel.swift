@@ -5,9 +5,10 @@ import AudioToolbox
 /// One scanned card waiting in the tray.
 @Observable
 final class ScanItem: Identifiable {
-    enum Status { case matching, matched, review, failed }
+    enum Status: String { case matching, matched, review, failed }
 
-    let id = UUID()
+    let id: UUID
+    /// A small picture of the scan (the sharper one for the review screen is on disk).
     let photo: UIImage
     var status: Status = .matching
     var candidates: [ScanCandidate] = []
@@ -19,17 +20,43 @@ final class ScanItem: Identifiable {
     var quantity = 1
     /// Binder pocket ("Row 2 · 3"), when it came from a page.
     var pocket: String?
-    let scannedAt = Date()
+    let scannedAt: Date
 
     @ObservationIgnored var lines: [OCRLine] = []
     @ObservationIgnored var scan: CGImage?
     @ObservationIgnored var attempts = 0
     @ObservationIgnored var memoryKey: String?
     @ObservationIgnored var retakeToken: UUID?
+    /// Single scans keep their review photo in memory; tray scans keep it on disk.
+    @ObservationIgnored var jpeg: Data?
 
-    init(photo: UIImage, condition: String) {
+    init(id: UUID = UUID(), photo: UIImage, condition: String, scannedAt: Date = Date()) {
+        self.id = id
         self.photo = photo
         self.condition = condition
+        self.scannedAt = scannedAt
+    }
+
+    /// A card brought back from the saved tray.
+    convenience init(restoring e: ScanJournal.Entry, photo: UIImage?) {
+        self.init(id: e.id, photo: photo ?? UIImage(), condition: e.condition, scannedAt: e.scannedAt)
+        candidates = e.candidates
+        selected = e.candidates.indices.contains(e.selected) ? e.selected : 0
+        variant = e.variant
+        grader = e.grader
+        grade = e.grade
+        quantity = max(1, e.quantity)
+        pocket = e.pocket
+        memoryKey = e.memoryKey
+        // One still being matched when the app closed can't be read again: check it by hand.
+        let saved = Status(rawValue: e.status) ?? .review
+        status = saved == .matching ? (e.candidates.isEmpty ? .failed : .review) : saved
+    }
+
+    /// The sharper copy of the scan for the review screen.
+    func largePhoto() async -> UIImage? {
+        if let jpeg { return UIImage(data: jpeg) }
+        return await ScanJournal.photo(id)
     }
 
     var choice: ScanCandidate? { candidates.indices.contains(selected) ? candidates[selected] : nil }
@@ -105,6 +132,12 @@ final class ScannerModel {
     private(set) var switching = false
     @ObservationIgnored private var pageModeTask: Task<Void, Never>?
     @ObservationIgnored private var pinchStart: CGFloat = 1
+    // Crash protection: the tray is saved to disk as it changes (see ScanJournal).
+    @ObservationIgnored private var trayLoaded = false
+    @ObservationIgnored private var loadingTray = false
+    @ObservationIgnored private var saveTask: Task<Void, Never>?
+    /// Set while the review list is open: scanning pauses so the list holds still.
+    @ObservationIgnored private var pausedBeforeReview: Bool?
 
     func setLayout(_ l: BinderLayout) {
         layout = l
@@ -236,6 +269,7 @@ final class ScannerModel {
     }
 
     func start() async {
+        Task { await restoreTray() }
         guard await CameraController.requestAccess() else { phase = .denied; return }
         light.prepare()
         notify.prepare()
@@ -250,7 +284,75 @@ final class ScannerModel {
     func stop() {
         setTorch(false)
         camera.stop()
+        saveTray()
     }
+
+    // MARK: Crash protection
+
+    /// Brings back the cards from an earlier session that weren't added yet (after a crash,
+    /// or when the scanner was closed), before anything new is saved over them.
+    private func restoreTray() async {
+        guard !trayLoaded, !loadingTray else { return }
+        loadingTray = true
+        let saved = await ScanJournal.load()
+        let here = Set(items.map(\.id))
+        let back = saved.filter { !here.contains($0.0.id) }.map { ScanItem(restoring: $0.0, photo: $0.1) }
+        if !back.isEmpty {
+            items.append(contentsOf: back)
+            notice = ("Picked up \(back.count) card\(back.count == 1 ? "" : "s") you scanned last time", UUID())
+        }
+        trayLoaded = true
+        loadingTray = false
+        watchTray()
+        if !items.isEmpty { saveTray() }
+    }
+
+    /// Saves the tray shortly after anything in it changes: a card scanned, removed or added,
+    /// a match fixed, the grade, condition or quantity changed.
+    private func watchTray() {
+        withObservationTracking {
+            for item in items {
+                _ = (item.status, item.selected, item.candidates.count, item.variant, item.grader, item.grade, item.condition, item.quantity)
+            }
+        } onChange: { [weak self] in
+            Task { @MainActor in
+                self?.scheduleSave()
+                self?.watchTray()
+            }
+        }
+    }
+
+    private func scheduleSave() {
+        saveTask?.cancel()
+        saveTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(500))
+            guard !Task.isCancelled else { return }
+            self?.saveTray()
+        }
+    }
+
+    /// Saves the tray now. Never before the saved one has been read back, so it can't be wiped.
+    func saveTray() {
+        guard trayLoaded else { return }
+        saveTask?.cancel()
+        ScanJournal.save(items)
+    }
+
+    // MARK: Review
+
+    func beginReview() {
+        guard pausedBeforeReview == nil else { return }
+        pausedBeforeReview = paused
+        setPaused(true)
+    }
+
+    func endReview() {
+        if let was = pausedBeforeReview { setPaused(was) }
+        pausedBeforeReview = nil
+        saveTray()
+    }
+
+    private var reviewing: Bool { pausedBeforeReview != nil }
 
     func shutter() {
         switch mode {
@@ -287,22 +389,26 @@ final class ScannerModel {
             if haptics { light.impactOccurred(intensity: 0.7) }
         case .captured(let card):
             if let id = card.retakeOf {
-                // Second look: pool both reads and decide again.
-                if let item = items.first(where: { $0.id == id }) ?? (pendingSingle?.id == id ? pendingSingle : nil) {
+                // Second look: pool both reads and decide again (unless it was already settled).
+                if let item = items.first(where: { $0.id == id }) ?? (pendingSingle?.id == id ? pendingSingle : nil),
+                   item.status == .matching, item.scan != nil {
                     item.lines += card.lines
                     Task { await resolve(item) }
                 }
                 return
             }
+            guard let photo = card.photo else { return }
             flash += 1
             if sound { AudioServicesPlaySystemSound(1104) }
-            let item = ScanItem(photo: card.image, condition: defaultCondition)
+            let item = ScanItem(photo: photo.thumb, condition: defaultCondition)
             item.lines = card.lines
             item.scan = card.cgImage
             lastCaptured = item.id
             if mode == .continuous {
                 withAnimation(.spring(response: 0.42, dampingFraction: 0.8)) { items.insert(item, at: 0) }
+                ScanJournal.savePhoto(photo.jpeg, for: item.id)
             } else {
+                item.jpeg = photo.jpeg
                 setPaused(true)
                 pendingSingle = item
             }
@@ -343,6 +449,8 @@ final class ScannerModel {
 
     private func finish(_ item: ScanItem, _ candidates: [ScanCandidate]) {
         item.retakeToken = nil
+        // Matching is done: let go of the full-size scan (about 7 MB each).
+        item.scan = nil
         withAnimation(.snappy) {
             item.candidates = candidates
             item.selected = 0
@@ -356,7 +464,7 @@ final class ScannerModel {
             }
         }
         guard item.pocket == nil else { return }
-        if mode == .continuous, isRepeat(item) {
+        if mode == .continuous, !reviewing, isRepeat(item) {
             // Scan protection: the same card read again right after itself is dropped.
             withAnimation(.snappy) { items.removeAll { $0.id == item.id } }
             notice = ("Skipped a repeat of \(item.choice?.card.name ?? "that card")", UUID())
@@ -396,25 +504,29 @@ final class ScannerModel {
             flash += 1
             let page = BinderPage(photo: UIImage(cgImage: photo))
             self.page = page
-            let cells: [BinderCell] = await withCheckedContinuation { continuation in
+            let cells: [(BinderCell, ScanPhoto?)] = await withCheckedContinuation { continuation in
                 DispatchQueue.global(qos: .userInitiated).async {
-                    continuation.resume(returning: BinderReader.read(photo, layout: layout, guide: guide))
+                    let read = BinderReader.read(photo, layout: layout, guide: guide)
+                    continuation.resume(returning: read.map { cell in (cell, cell.isEmpty ? nil : cell.image.map(ScanPhoto.init)) })
                 }
             }
             let condition = defaultCondition
             var pockets: [BinderPage.Pocket] = []
-            for cell in cells where !cell.isEmpty {
-                guard let image = cell.image else { continue }
-                let item = ScanItem(photo: UIImage(cgImage: image), condition: condition)
+            var jpegs: [(UUID, Data?)] = []
+            for (cell, shot) in cells where !cell.isEmpty {
+                guard let image = cell.image, let shot else { continue }
+                let item = ScanItem(photo: shot.thumb, condition: condition)
                 item.lines = cell.lines
                 item.scan = image
                 item.pocket = layout.rows > 1 ? "Row \(cell.row + 1) · \(cell.column + 1)" : "\(cell.column + 1)"
                 pockets.append(BinderPage.Pocket(quad: cell.quad, item: item))
+                jpegs.append((item.id, shot.jpeg))
             }
             withAnimation(.snappy) {
                 page.pockets = pockets
                 items.insert(contentsOf: pockets.map(\.item), at: 0)
             }
+            for (id, jpeg) in jpegs { ScanJournal.savePhoto(jpeg, for: id) }
             // A few at a time: each match may fetch card images for the visual check.
             await withTaskGroup(of: Void.self) { group in
                 var next = 0
@@ -442,18 +554,33 @@ final class ScannerModel {
     }
 
     /// Takes a card off a page before adding it (scanned by mistake, or a sleeve you don't want).
-    func removePocket(_ pocket: BinderPage.Pocket, from page: BinderPage) {
-        withAnimation(.snappy) {
+    /// From a swipe, the list animates the row away itself, so `animated` is false there
+    /// (animating it twice can crash the list).
+    func removePocket(_ pocket: BinderPage.Pocket, from page: BinderPage, animated: Bool = false) {
+        let change = {
             page.pockets.removeAll { $0.id == pocket.id }
-            items.removeAll { $0.id == pocket.item.id }
+            self.items.removeAll { $0.id == pocket.item.id }
         }
+        if animated { withAnimation(.snappy, change) } else { change() }
         if haptics { light.impactOccurred(intensity: 0.6) }
     }
 
     // MARK: Tray
 
-    func remove(_ item: ScanItem) {
-        withAnimation(.snappy) { items.removeAll { $0.id == item.id } }
+    /// Same as removePocket: false when the list's own swipe already animates it.
+    func remove(_ item: ScanItem, animated: Bool = false) {
+        if animated {
+            withAnimation(.snappy) { items.removeAll { $0.id == item.id } }
+        } else {
+            items.removeAll { $0.id == item.id }
+        }
+        if haptics { light.impactOccurred(intensity: 0.6) }
+    }
+
+    /// Clears the tray (after a confirmation in the review list).
+    func removeAll() {
+        items.removeAll()
+        saveTray()
     }
 
     func resumeSingle() {
@@ -489,7 +616,10 @@ final class ScannerModel {
         try? context.save()
         Portfolio.snapshot(context: context)
         CollectionSync.shared.syncSoon(context)
-        withAnimation(.snappy) { items.removeAll { item in list.contains { $0.id == item.id } } }
+        let done = Set(list.map(\.id))
+        withAnimation(.snappy) { items.removeAll { done.contains($0.id) } }
+        // Straight away, so a crash now can't bring back cards that were just added.
+        saveTray()
         return added
     }
 }

@@ -16,10 +16,17 @@ actor ImageLoader {
         config.timeoutIntervalForRequest = 20
         session = URLSession(configuration: config)
         memory.countLimit = 400
+        // Capped by size too: a long scan session shows hundreds of card images.
+        memory.totalCostLimit = 96 << 20
     }
 
     nonisolated func cached(_ url: URL) -> UIImage? {
         memory.object(forKey: url as NSURL)
+    }
+
+    private static func bytes(_ image: UIImage) -> Int {
+        if let cg = image.cgImage { return cg.bytesPerRow * cg.height }
+        return Int(image.size.width * image.scale * image.size.height * image.scale * 4)
     }
 
     func image(for url: URL) async -> UIImage? {
@@ -35,7 +42,7 @@ actor ImageLoader {
         inflight[url] = task
         let image = await task.value
         inflight[url] = nil
-        if let image { memory.setObject(image, forKey: url as NSURL) }
+        if let image { memory.setObject(image, forKey: url as NSURL, cost: Self.bytes(image)) }
         return image
     }
 }
