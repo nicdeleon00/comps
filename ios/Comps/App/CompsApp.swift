@@ -11,6 +11,7 @@ struct CompsApp: App {
     static var rescued: Int?
 
     let container: ModelContainer = {
+        CrashLog.install()
         let schema = Schema([Holding.self, ValueSnapshot.self])
         let memory = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         // Screenshots run on sample cards in memory, never on a real collection.
@@ -58,6 +59,7 @@ struct RootView: View {
     @State private var scanning = false
     @State private var storeProblem = CompsApp.storeProblem
     @State private var rescued = CompsApp.rescued != nil
+    @State private var crashed = CrashLog.last != nil
 
     /// The Collection tab, unless screenshot mode asks for another one.
     private static var firstTab: AppTab {
@@ -111,6 +113,12 @@ struct RootView: View {
             Button("OK", role: .cancel) {}
         } message: {
             Text("They’re still saved on this phone, untouched. Don’t delete the app, and don’t scan until it’s fixed: send the details to get it fixed. Cards in your account are safe on the website.\n\n\(CompsApp.storeError.map { String($0.prefix(300)) } ?? "")")
+        }
+        .alert("Comps closed unexpectedly last time", isPresented: $crashed) {
+            Button("Copy details") { UIPasteboard.general.string = CrashLog.last }
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Your cards are fine. Tap Copy details and send it, so it can be fixed.")
         }
         .alert("Your cards are back", isPresented: $rescued) {
             Button("OK", role: .cancel) {}

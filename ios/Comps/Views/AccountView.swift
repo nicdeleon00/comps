@@ -28,16 +28,17 @@ struct SignInSheet: View {
                     .listRowInsets(EdgeInsets())
                 }
                 Section {
+                    // No password AutoFill here: with some ways of installing the app, it crashed this screen.
                     TextField("Email", text: $email)
                         .keyboardType(.emailAddress)
-                        .textContentType(.username)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .focused($field, equals: .email)
                         .submitLabel(.next)
                         .onSubmit { field = .password }
                     SecureField(creating ? "Password (6+ characters)" : "Password", text: $password)
-                        .textContentType(creating ? .newPassword : .password)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
                         .focused($field, equals: .password)
                         .submitLabel(.go)
                         .onSubmit { Task { await submit() } }
@@ -66,7 +67,6 @@ struct SignInSheet: View {
             .navigationTitle(creating ? "Create account" : "Sign in")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
-            .onAppear { field = .email }
             .animation(.snappy, value: creating)
         }
     }
@@ -117,7 +117,7 @@ struct AccountSection: View {
                     }
                 }
                 if changing {
-                    SecureField("New password (6+)", text: $newPassword).textContentType(.newPassword)
+                    SecureField("New password (6+)", text: $newPassword).textInputAutocapitalization(.never)
                     Button("Save new password") {
                         Task {
                             do {
