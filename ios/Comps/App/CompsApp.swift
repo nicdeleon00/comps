@@ -34,14 +34,19 @@ struct RootView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.scenePhase) private var scenePhase
     @AppStorage(Pref.dataURL) private var dataURL = ""
-    @State private var selection: AppTab = switch Screenshots.value("-tab") ?? "" {
-        case "deals": .deals
-        case "masterSets": .masterSets
-        case "search": .search
-        default: .collection
-    }
+    @State private var selection: AppTab = RootView.firstTab
     @State private var scanning = false
     @State private var storeProblem = CompsApp.storeProblem
+
+    /// The Collection tab, unless screenshot mode asks for another one.
+    private static var firstTab: AppTab {
+        switch Screenshots.value("-tab") {
+        case "deals": return .deals
+        case "masterSets": return .masterSets
+        case "search": return .search
+        default: return .collection
+        }
+    }
 
     var body: some View {
         TabView(selection: $selection) {
