@@ -125,7 +125,7 @@ export async function refreshGraded(db, settings, progress = () => {}, { fetchIm
       sampled = true;
     }
     const graded = gradedFrom(card);
-    upsertQuotes(db, [{ cardId: c.card_id, variant: c.variant, source: 'ppt', currency: 'USD', data: { ...(graded ?? {}), found: Boolean(graded), fetchedAt: now } }]);
+    upsertQuotes(db, [{ cardId: c.card_id, variant: c.variant, source: 'ppt', currency: 'USD', data: { ...(graded ?? {}), found: Boolean(graded), fetchedAt: now }, updatedAt: now }]);
     if (graded) learned++;
     progress(i + 1, cards.length);
     const remaining = res.headers.get('x-ratelimit-daily-remaining');

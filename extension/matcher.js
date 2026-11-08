@@ -10,7 +10,7 @@
 const SKIP = new RegExp([
   String.raw`\b(lots?|bundles?|bulk|collections?|binders?|bags?|box(es)?|etb|elite trainer|boosters?|packs?|tins?|sealed|mystery|repacks?|random|blind`,
   String.raw`|proxy|proxies|custom|fake|orica|replica|metal|gold plated|jumbo|oversized|coin|code cards?|online codes?|sleeves?|playmats?|deck boxes|decks?`,
-  String.raw`|plush|figures?|toys?|funko|lego|shirt|hoodie|poster|keychain|stickers?|empty|display|case|portfolio|album`,
+  String.raw`|plush|figures?|figurines?|statues?|sculptures?|resin|3d|3d[\s-]*print(ed|s)?|printed|toys?|funko|lego|shirt|hoodie|poster|keychain|stickers?|empty|display|case|portfolio|album`,
   String.raw`|japanese|japan|jpn|jp|korean|kor|chinese|chn|french|german|spanish|italian|portuguese|thai|indonesian`,
   String.raw`|wtb|iso|buying|looking for|want to buy|trade only|trades only`,
   String.raw`|\d+\s*x\b|x\s*\d+\b|\d+\s*\+?\s*cards|\d+\s*pcs)\b`,
