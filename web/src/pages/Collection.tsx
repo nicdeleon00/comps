@@ -5,10 +5,11 @@ import { money, pct, signedMoney, GAME_LABEL, cardHref, cardApi } from '../lib/f
 import type { Holding, CollectionSummary, Game } from '../lib/types';
 import { Thumb } from '../components/Thumb';
 import { AreaChart, type Pt } from '../components/Chart';
-import { Segmented, Delta, Counter, GradeBadge, Empty, SkRows } from '../components/ui';
+import { Segmented, Delta, Counter, GradeBadge, Empty, SkRows, toast } from '../components/ui';
 import { HoldingSheet } from '../components/HoldingSheet';
 import { openPalette } from '../components/Palette';
-import { IconPlus, IconStack, IconPencil, IconHistory } from '../components/icons';
+import { IconPlus, IconStack, IconPencil, IconHistory, IconDownload } from '../components/icons';
+import { downloadBackup } from '../lib/backup';
 import { Header } from './shared';
 import { useAccount } from '../components/Account';
 import { accountsEnabled } from '../lib/supabase';
@@ -44,6 +45,8 @@ export function CollectionPage() {
   return (
     <div class="page">
       <Header title="Collection" actions={<>
+        <button class="btn" disabled={!data?.items.length} title="Download your whole collection as a JSON and a CSV file"
+          onClick={() => data && toast(`Saved ${downloadBackup(data.items)} cards to your Downloads`)}><IconDownload size={17} />Download backup</button>
         <Link class="btn" href="/history"><IconHistory size={17} />History</Link>
         <button class="btn primary" onClick={add}><IconPlus size={17} />Add card</button>
       </>}>

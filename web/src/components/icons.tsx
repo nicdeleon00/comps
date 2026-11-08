@@ -25,6 +25,7 @@ export const IconExternal = make(<><path d="M14 4h6v6" /><path d="M20 4l-9 9" />
 export const IconRefresh = make(<><path d="M20 11.5A8 8 0 0 0 6.3 6.3L4 8.5" /><path d="M4 4v4.5h4.5" /><path d="M4 12.5a8 8 0 0 0 13.7 5.2L20 15.5" /><path d="M20 20v-4.5h-4.5" /></>);
 export const IconChecklist = make(<><rect x="4" y="3.5" width="16" height="17" rx="2.6" /><path d="M7.8 9.2l1.7 1.7 3-3" /><path d="M14.8 9.6h1.8" /><path d="M7.8 15.2l1.7 1.7 3-3" /><path d="M14.8 15.6h1.8" /></>);
 export const IconHistory = make(<><path d="M4.2 12a7.8 7.8 0 1 0 2.3-5.5" /><path d="M4 4.6v3.8h3.8" /><path d="M12 8v4.2l2.8 1.7" /></>);
+export const IconDownload = make(<><path d="M12 4.5v10.5" /><path d="M7.5 10.5L12 15l4.5-4.5" /><path d="M5 19.5h14" /></>);
 export const IconPencil = make(<><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z" /><path d="M13.5 6.5l4 4" /></>);
 
 /** The Comps mark: a graded slab with a price line in the window. */
