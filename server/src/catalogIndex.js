@@ -10,8 +10,11 @@ const r2 = (x) => (x == null || !Number.isFinite(x) ? null : Math.round(x * 100)
 
 // The regular printing comes first: it's what a scanned or added card defaults to.
 // Reverse holo and 1st edition are only used when picked.
-const PRINTING_RANK = { normal: 0, holofoil: 1, unlimitedHolofoil: 2, reverseHolofoil: 3, '1stEditionNormal': 4, '1stEditionHolofoil': 5 };
-export const byPrinting = (a, b) => (PRINTING_RANK[a[0]] ?? 9) - (PRINTING_RANK[b[0]] ?? 9) || (b[1] ?? 0) - (a[1] ?? 0);
+// The regular printing first (what a card defaults to); 1st Edition always last, after any printing
+// not listed here, so it's never the default while another printing exists.
+const PRINTING_RANK = { normal: 0, holofoil: 1, unlimitedHolofoil: 2, reverseHolofoil: 3, '1stEditionNormal': 50, '1stEditionHolofoil': 51 };
+const rank = (v) => PRINTING_RANK[v] ?? (/^1stEdition/i.test(v) ? 52 : 9);
+export const byPrinting = (a, b) => rank(a[0]) - rank(b[0]) || (b[1] ?? 0) - (a[1] ?? 0);
 
 export function buildIndex(db) {
   const reprints = reprintGroups(db);

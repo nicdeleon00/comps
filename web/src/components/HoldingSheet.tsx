@@ -41,7 +41,9 @@ export function HoldingSheet({ cardId: startCard, holding, onClose }: { cardId: 
 
   const v = useMemo(() => {
     if (!data) return null;
-    return data.variants.find((x) => x.variant === (variant ?? data.variants[0]?.variant)) ?? data.variants[0] ?? null;
+    // Unless a printing is picked: the regular one, never 1st Edition while another exists.
+    const regular = data.variants.find((x) => !/^1stEdition/i.test(x.variant)) ?? data.variants[0];
+    return (variant ? data.variants.find((x) => x.variant === variant) : null) ?? regular ?? null;
   }, [data, variant]);
   const unit = estimate(v?.price, v?.grades, graded === 'graded' ? grader : null, graded === 'graded' ? grade : null, cond);
 

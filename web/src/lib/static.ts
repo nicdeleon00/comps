@@ -49,9 +49,12 @@ function index() {
   return indexMap;
 }
 
+/** The printing a card defaults to: the regular one, never 1st Edition unless it's the only one. */
+const regular = (r: IndexRow) => r[6].find((x) => !/^1stEdition/i.test(x[0])) ?? r[6][0];
+
 function cardFromRow(r: IndexRow, idx: Index, variant?: string): Card {
   const set = idx.sets[r[2]];
-  const v = (variant && r[6].find((x) => x[0] === variant)) || r[6][0];
+  const v = (variant && r[6].find((x) => x[0] === variant)) || regular(r);
   return {
     id: `tcg:${r[0]}`, game: 'pokemon', name: r[1], set: set?.[0] ?? null, setCode: set?.[1] ?? null, number: r[3], total: r[4], rarity: r[5],
     year: set?.[3] ? Number(set[3].slice(0, 4)) : null, image: `${idx.imageBase}${r[0]}_200w.jpg`, imageLarge: `${idx.imageBase}${r[0]}_400w.jpg`,
@@ -103,7 +106,7 @@ async function valued(): Promise<Holding[]> {
   const { byId, idx } = await index();
   return list.map((h) => {
     const r = byId.get(h.cardId);
-    const v = r ? (r[6].find((x) => x[0] === h.variant) ?? r[6][0]) : null;
+    const v = r ? (r[6].find((x) => x[0] === h.variant) ?? regular(r)) : null;
     let value: number | null = null;
     let basis = 'raw';
     if (v) {

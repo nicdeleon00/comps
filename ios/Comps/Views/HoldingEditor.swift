@@ -47,7 +47,7 @@ struct HoldingEditor: View {
         existing = nil
         self.card = card
         _variants = State(initialValue: variants)
-        _variant = State(initialValue: card.variant ?? variants.first?.variant ?? "")
+        _variant = State(initialValue: Catalog.defaultPrinting(variants, card: card.variant) ?? "")
         _graded = State(initialValue: false)
         _grader = State(initialValue: "PSA")
         _grade = State(initialValue: "10")
@@ -150,7 +150,7 @@ struct HoldingEditor: View {
                     withAnimation(.snappy) {
                         replacement = c
                         variants = c.variants
-                        variant = c.card.variant ?? c.variants.first?.variant ?? ""
+                        variant = Catalog.defaultPrinting(c) ?? ""
                     }
                 }
             }

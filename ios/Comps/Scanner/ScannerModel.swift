@@ -74,7 +74,7 @@ final class ScanItem: Identifiable {
         guard candidates.indices.contains(index) else { return }
         let c = candidates[index]
         selected = index
-        variant = c.card.variant ?? c.variants.first?.variant
+        variant = Catalog.defaultPrinting(c)
         status = .matched
         if let memoryKey { ScanMemory.remember(memoryKey, cardID: c.id) }
     }
@@ -475,7 +475,7 @@ final class ScannerModel {
             item.candidates = candidates
             item.selected = 0
             if let top = candidates.first {
-                item.variant = top.card.variant ?? top.variants.first?.variant
+                item.variant = Catalog.defaultPrinting(top)
                 item.status = isConfident(candidates) ? .matched : .review
                 if item.pocket == nil { phase = .matched(top.card.name) }
             } else {

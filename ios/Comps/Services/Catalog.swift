@@ -91,13 +91,28 @@ actor Catalog {
     }
 
     /// The regular printing comes first: it's what a scanned or added card defaults to.
-    /// Reverse holo and 1st edition are only used when picked.
-    static let printingRank = ["normal": 0, "holofoil": 1, "unlimitedHolofoil": 2, "reverseHolofoil": 3, "1stEditionNormal": 4, "1stEditionHolofoil": 5]
+    /// Reverse holo is only used when picked, and 1st Edition always sorts last (after any
+    /// printing not listed here), so it's never the default while another printing exists.
+    static let printingRank = ["normal": 0, "holofoil": 1, "unlimitedHolofoil": 2, "reverseHolofoil": 3, "1stEditionNormal": 50, "1stEditionHolofoil": 51]
 
     static func regularFirst(_ a: CatalogPrice, _ b: CatalogPrice) -> Bool {
-        let ra = printingRank[a.variant] ?? 9, rb = printingRank[b.variant] ?? 9
+        let ra = rank(a.variant), rb = rank(b.variant)
         return ra != rb ? ra < rb : (a.raw ?? 0) > (b.raw ?? 0)
     }
+
+    private static func rank(_ v: String) -> Int { printingRank[v] ?? (isFirstEdition(v) ? 52 : 9) }
+
+    static func isFirstEdition(_ v: String) -> Bool { v.lowercased().hasPrefix("1stedition") }
+
+    /// The printing a scanned or added card starts on: the regular one. 1st Edition only when
+    /// it's the card's only printing; otherwise it has to be picked by hand.
+    static func defaultPrinting(_ variants: [VariantPrice], card: String?) -> String? {
+        if let regular = variants.first(where: { !isFirstEdition($0.variant) }) { return regular.variant }
+        if let card, !isFirstEdition(card) { return card }
+        return variants.first?.variant ?? card
+    }
+
+    static func defaultPrinting(_ c: ScanCandidate) -> String? { defaultPrinting(c.variants, card: c.card.variant) }
 
     static func numberKey(_ n: String) -> String {
         let up = n.uppercased().trimmingCharacters(in: .whitespaces)
