@@ -4,6 +4,11 @@ name: iOS screenshots
 # the app's screenshot mode (sample cards in memory). Run it by hand from Actions.
 on:
   workflow_dispatch:
+    inputs:
+      only:
+        description: "Only these shots (names separated by spaces); empty takes them all"
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -25,6 +30,8 @@ jobs:
             build > build.log 2>&1 || { grep -E "error:" build.log | sort -u | head -60; tail -n 30 build.log; exit 1; }
 
       - name: Take screenshots
+        env:
+          ONLY: ${{ inputs.only }}
         run: |
           DEVICE=$(xcrun simctl list devices available -j | python3 -c '
           import json, sys
@@ -39,10 +46,16 @@ jobs:
           mkdir -p shots
           shoot() {
             name=$1; shift
+            if [ -n "$ONLY" ] && ! echo " $ONLY " | grep -q " $name "; then return; fi
             xcrun simctl terminate "$DEVICE" com.comps.scanner 2>/dev/null || true
             xcrun simctl launch "$DEVICE" com.comps.scanner -screenshots "$@"
             sleep 30
             xcrun simctl io "$DEVICE" screenshot "shots/$name.png"
+            # When only some shots are taken, also record what the app is doing (to catch a hang).
+            if [ -n "$ONLY" ]; then
+              PID=$(pgrep -f "Comps.app/Comps" | head -1)
+              if [ -n "$PID" ]; then sample "$PID" 2 -file "shots/$name-sample.txt" >/dev/null 2>&1 || true; else echo "not running" > "shots/$name-sample.txt"; fi
+            fi
           }
           shoot collection -tab collection
           shoot collection-grid -tab collection -grid

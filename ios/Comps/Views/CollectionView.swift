@@ -15,7 +15,7 @@ struct CollectionView: View {
     @State private var refreshing = false
     @State private var editing: Holding?
     @State private var showSettings = false
-    @State private var showHistory = Screenshots.flag("-history")
+    @State private var showHistory = false
     @State private var query = ""
     @AppStorage("collection.layout") private var layoutRaw = Layout.list.rawValue
     var onScan: () -> Void
@@ -122,6 +122,12 @@ struct CollectionView: View {
             }
             .navigationDestination(for: Holding.self) { h in CardDetailView(cardID: h.cardID, holding: h) }
             .navigationDestination(isPresented: $showHistory) { HistoryView() }
+            .task {
+                // Screenshot mode opens History the way a tap would, once the app is up.
+                guard Screenshots.flag("-history") else { return }
+                try? await Task.sleep(for: .seconds(4))
+                showHistory = true
+            }
             .refreshable { await refresh() }
             .task { await refresh() }
             .sheet(item: $editing) { h in HoldingEditor(holding: h) }

@@ -65,7 +65,7 @@ enum AddHistory {
 @MainActor
 struct HistoryView: View {
     @Query(filter: #Predicate<Holding> { $0.isTombstoned == false }, sort: \Holding.createdAt, order: .reverse) private var holdings: [Holding]
-    @State private var openFirst = Screenshots.flag("-session")
+    @State private var openFirst = false
 
     var body: some View {
         let groups = AddHistory.days(holdings)
@@ -95,6 +95,12 @@ struct HistoryView: View {
         }
         .navigationDestination(isPresented: $openFirst) {
             if let s = groups.first?.sessions.first { HistorySessionView(session: s) }
+        }
+        .task {
+            // Screenshot mode opens the newest add, once the sample cards are in.
+            guard Screenshots.flag("-session") else { return }
+            try? await Task.sleep(for: .seconds(6))
+            openFirst = true
         }
     }
 }
