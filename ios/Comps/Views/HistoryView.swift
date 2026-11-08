@@ -12,6 +12,15 @@ struct AddSession: Identifiable {
     var value: Double { holdings.reduce(0) { $0 + ($1.totalValue ?? 0) } }
 }
 
+/// Where History goes. Registered once, at the root of the Collection tab (a destination
+/// declared inside a pushed screen can make the stack update itself in a loop).
+enum HistoryRoute: Hashable {
+    case all
+    case session(ids: Set<UUID>, start: Date)
+
+    init(_ s: AddSession) { self = .session(ids: Set(s.holdings.map(\.id)), start: s.start) }
+}
+
 enum AddHistory {
     /// Cards added within this many seconds of each other were added together: one "Add to
     /// Collection" saves all of its cards in a split second. The website uses the same rule
@@ -65,7 +74,6 @@ enum AddHistory {
 @MainActor
 struct HistoryView: View {
     @Query(filter: #Predicate<Holding> { $0.isTombstoned == false }, sort: \Holding.createdAt, order: .reverse) private var holdings: [Holding]
-    @State private var openFirst = false
 
     var body: some View {
         let groups = AddHistory.days(holdings)
@@ -73,7 +81,7 @@ struct HistoryView: View {
             ForEach(groups) { group in
                 Section {
                     ForEach(group.sessions) { s in
-                        NavigationLink { HistorySessionView(session: s) } label: { SessionRow(session: s) }
+                        NavigationLink(value: HistoryRoute(s)) { SessionRow(session: s) }
                     }
                 } header: {
                     HStack {
@@ -92,15 +100,6 @@ struct HistoryView: View {
                 ContentUnavailableView("Nothing added yet", systemImage: "clock.arrow.circlepath",
                                        description: Text("Every time you add cards they show up here, so you can check a scan and fix it later."))
             }
-        }
-        .navigationDestination(isPresented: $openFirst) {
-            if let s = groups.first?.sessions.first { HistorySessionView(session: s) }
-        }
-        .task {
-            // Screenshot mode opens the newest add, once the sample cards are in.
-            guard Screenshots.flag("-session") else { return }
-            try? await Task.sleep(for: .seconds(6))
-            openFirst = true
         }
     }
 }
@@ -164,9 +163,9 @@ struct HistorySessionView: View {
     @State private var query = ""
     @State private var confirmRemoveAll = false
 
-    init(session: AddSession) {
-        ids = Set(session.holdings.map(\.id))
-        start = session.start
+    init(ids: Set<UUID>, start: Date) {
+        self.ids = ids
+        self.start = start
     }
 
     private var cards: [Holding] { all.filter { ids.contains($0.id) } }

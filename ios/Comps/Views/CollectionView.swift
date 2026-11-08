@@ -15,7 +15,7 @@ struct CollectionView: View {
     @State private var refreshing = false
     @State private var editing: Holding?
     @State private var showSettings = false
-    @State private var showHistory = false
+    @State private var path = NavigationPath()
     @State private var query = ""
     @AppStorage("collection.layout") private var layoutRaw = Layout.list.rawValue
     var onScan: () -> Void
@@ -81,7 +81,7 @@ struct CollectionView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             Group {
                 if holdings.isEmpty {
                     ContentUnavailableView {
@@ -103,7 +103,7 @@ struct CollectionView: View {
                 ToolbarItemGroup(placement: .topBarLeading) {
                     Button { showSettings = true } label: { Image(systemName: "gearshape") }
                         .accessibilityLabel("Settings")
-                    Button { showHistory = true } label: { Image(systemName: "clock.arrow.circlepath") }
+                    Button { path.append(HistoryRoute.all) } label: { Image(systemName: "clock.arrow.circlepath") }
                         .accessibilityLabel("History")
                 }
                 ToolbarItemGroup(placement: .topBarTrailing) {
@@ -121,12 +121,20 @@ struct CollectionView: View {
                 }
             }
             .navigationDestination(for: Holding.self) { h in CardDetailView(cardID: h.cardID, holding: h) }
-            .navigationDestination(isPresented: $showHistory) { HistoryView() }
+            .navigationDestination(for: HistoryRoute.self) { route in
+                switch route {
+                case .all: HistoryView()
+                case let .session(ids, start): HistorySessionView(ids: ids, start: start)
+                }
+            }
             .task {
-                // Screenshot mode opens History the way a tap would, once the app is up.
+                // Screenshot mode opens History the way taps would, once the sample cards are in.
                 guard Screenshots.flag("-history") else { return }
-                try? await Task.sleep(for: .seconds(4))
-                showHistory = true
+                try? await Task.sleep(for: .seconds(6))
+                path.append(HistoryRoute.all)
+                guard Screenshots.flag("-session") else { return }
+                try? await Task.sleep(for: .seconds(2))
+                if let s = AddHistory.sessions(holdings).first { path.append(HistoryRoute(s)) }
             }
             .refreshable { await refresh() }
             .task { await refresh() }
