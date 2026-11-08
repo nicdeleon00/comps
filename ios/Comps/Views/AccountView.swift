@@ -1,9 +1,13 @@
 import SwiftUI
 import SwiftData
 
-/// Sign in or create an account (the same one as on the website).
+/// Pages inside Settings.
+enum SettingsRoute: Hashable { case signIn }
+
+/// Sign in or create an account (the same one as on the website). A page inside Settings,
+/// not a sheet on top of the Settings sheet.
 @MainActor
-struct SignInSheet: View {
+struct SignInView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
     @State private var creating = false
@@ -16,65 +20,62 @@ struct SignInSheet: View {
     private enum Field { case email, password }
 
     var body: some View {
-        NavigationStack {
-            Form {
-                Section {
-                    Picker("", selection: $creating) {
-                        Text("Sign in").tag(false)
-                        Text("Create account").tag(true)
-                    }
-                    .pickerStyle(.segmented)
-                    .listRowBackground(Color.clear)
-                    .listRowInsets(EdgeInsets())
+        Form {
+            Section {
+                Picker("", selection: $creating) {
+                    Text("Sign in").tag(false)
+                    Text("Create account").tag(true)
                 }
-                Section {
-                    // No password AutoFill here: with some ways of installing the app, it crashed this screen.
-                    TextField("Email", text: $email)
-                        .keyboardType(.emailAddress)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .focused($field, equals: .email)
-                        .submitLabel(.next)
-                        .onSubmit { field = .password }
-                    SecureField(creating ? "Password (6+ characters)" : "Password", text: $password)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .focused($field, equals: .password)
-                        .submitLabel(.go)
-                        .onSubmit { Task { await submit() } }
-                } footer: {
-                    if let error {
-                        Text(error).foregroundStyle(Color.down)
-                    } else {
-                        Text(creating
-                             ? "Your collection, watchlist and settings follow you to the website and any phone. Cards already on this phone are added to your new account."
-                             : "Use the same email and password as on the website.")
-                    }
-                }
-                Section {
-                    Button {
-                        Task { await submit() }
-                    } label: {
-                        HStack {
-                            Spacer()
-                            if busy { ProgressView() } else { Text(creating ? "Create account" : "Sign in").bold() }
-                            Spacer()
-                        }
-                    }
-                    .disabled(busy || !email.contains("@") || password.count < 6)
+                .pickerStyle(.segmented)
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets())
+            }
+            Section {
+                // No password AutoFill here: with some ways of installing the app, it crashed this screen.
+                TextField("Email", text: $email)
+                    .keyboardType(.emailAddress)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .focused($field, equals: .email)
+                    .submitLabel(.next)
+                    .onSubmit { field = .password }
+                SecureField(creating ? "Password (6+ characters)" : "Password", text: $password)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .focused($field, equals: .password)
+                    .submitLabel(.go)
+                    .onSubmit { Task { await submit() } }
+            } footer: {
+                if let error {
+                    Text(error).foregroundStyle(Color.down)
+                } else {
+                    Text(creating
+                         ? "Your collection, watchlist and settings follow you to the website and any phone. Cards already on this phone are added to your new account."
+                         : "Use the same email and password as on the website.")
                 }
             }
-            .navigationTitle(creating ? "Create account" : "Sign in")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
-            .task {
-                // Screenshot mode taps into the email field.
-                guard Screenshots.flag("-focus") else { return }
-                try? await Task.sleep(for: .seconds(2))
-                field = .email
+            Section {
+                Button {
+                    Task { await submit() }
+                } label: {
+                    HStack {
+                        Spacer()
+                        if busy { ProgressView() } else { Text(creating ? "Create account" : "Sign in").bold() }
+                        Spacer()
+                    }
+                }
+                .disabled(busy || !email.contains("@") || password.count < 6)
             }
-            .animation(.snappy, value: creating)
         }
+        .navigationTitle(creating ? "Create account" : "Sign in")
+        .navigationBarTitleDisplayMode(.inline)
+        .task {
+            // Screenshot mode taps into the email field.
+            guard Screenshots.flag("-focus") else { return }
+            try? await Task.sleep(for: .seconds(2))
+            field = .email
+        }
+        .animation(.snappy, value: creating)
     }
 
     private func submit() async {
@@ -98,7 +99,6 @@ struct SignInSheet: View {
 @MainActor
 struct AccountSection: View {
     @Environment(\.modelContext) private var context
-    @State private var signingIn = false
     @State private var changing = false
     @State private var newPassword = ""
     @State private var message: String?
@@ -140,8 +140,15 @@ struct AccountSection: View {
                 }
                 if let message { Text(message).font(.footnote).foregroundStyle(.secondary) }
                 Button("Sign out", role: .destructive) { confirmSignOut = true }
+                    .confirmationDialog("Sign out?", isPresented: $confirmSignOut, titleVisibility: .visible) {
+                        Button("Sign out", role: .destructive) { Task { await sync.signOut(context) } }
+                    } message: {
+                        Text("Your cards stay in your account. This phone forgets them until you sign in again.")
+                    }
             } else {
-                Button { signingIn = true } label: { Label("Sign in or create account", systemImage: "person.crop.circle.badge.plus") }
+                NavigationLink(value: SettingsRoute.signIn) {
+                    Label("Sign in or create account", systemImage: "person.crop.circle.badge.plus")
+                }
             }
         } header: {
             Text("Account")
@@ -151,18 +158,6 @@ struct AccountSection: View {
                      ? "Your collection, watchlist and settings stay in step with the website and any phone signed in to this account."
                      : "Sign in to keep your collection in your account and see it on the website.")
             }
-        }
-        .sheet(isPresented: $signingIn) { SignInSheet() }
-        .task {
-            // Screenshot mode opens Sign in the way a tap would.
-            guard Screenshots.flag("-signin"), !account.isSignedIn else { return }
-            try? await Task.sleep(for: .seconds(3))
-            signingIn = true
-        }
-        .confirmationDialog("Sign out?", isPresented: $confirmSignOut, titleVisibility: .visible) {
-            Button("Sign out", role: .destructive) { Task { await sync.signOut(context) } }
-        } message: {
-            Text("Your cards stay in your account. This phone forgets them until you sign in again.")
         }
     }
 

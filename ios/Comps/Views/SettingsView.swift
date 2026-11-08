@@ -18,9 +18,10 @@ struct SettingsView: View {
     @State private var updating = false
     @State private var error: String?
     @State private var showPairing = false
+    @State private var path: [SettingsRoute] = []
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             Form {
                 Section {
                     LabeledContent("Cards", value: catalogCount > 0 ? catalogCount.formatted() : "Not downloaded")
@@ -83,7 +84,18 @@ struct SettingsView: View {
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+            .navigationDestination(for: SettingsRoute.self) { route in
+                switch route {
+                case .signIn: SignInView()
+                }
+            }
             .task { await refreshInfo() }
+            .task {
+                // Screenshot mode opens Sign in the way a tap would.
+                guard Screenshots.flag("-signin"), !Account.shared.isSignedIn else { return }
+                try? await Task.sleep(for: .seconds(3))
+                path.append(.signIn)
+            }
             .sheet(isPresented: $showPairing) {
                 PairingScanner { code in
                     showPairing = false

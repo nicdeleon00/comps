@@ -49,12 +49,19 @@ jobs:
             if [ -n "$ONLY" ] && ! echo " $ONLY " | grep -q " $name "; then return; fi
             xcrun simctl terminate "$DEVICE" com.comps.scanner 2>/dev/null || true
             xcrun simctl launch "$DEVICE" com.comps.scanner -screenshots "$@"
-            sleep 30
+            if [ -n "$ONLY" ]; then
+              for t in 4 7 10 14; do sleep 3; xcrun simctl io "$DEVICE" screenshot "shots/$name-at-$t.png" >/dev/null 2>&1 || true; done
+              sleep 16
+            else
+              sleep 30
+            fi
             xcrun simctl io "$DEVICE" screenshot "shots/$name.png"
             # When only some shots are taken, also record what the app is doing (to catch a hang).
             if [ -n "$ONLY" ]; then
               PID=$(pgrep -f "Comps.app/Comps" | head -1)
               if [ -n "$PID" ]; then sample "$PID" 2 -file "shots/$name-sample.txt" >/dev/null 2>&1 || true; else echo "not running" > "shots/$name-sample.txt"; fi
+              xcrun simctl spawn "$DEVICE" log show --last 2m --style compact --predicate 'process == "Comps"' 2>/dev/null | grep -iE "error|fault|crash|exception|present|assert" | tail -80 > "shots/$name-log.txt" || true
+              for f in $(ls -t ~/Library/Logs/DiagnosticReports/ 2>/dev/null | grep -i comps | head -2); do cp ~/Library/Logs/DiagnosticReports/"$f" "shots/$name-crash-$f" || true; done
             fi
           }
           shoot collection -tab collection
