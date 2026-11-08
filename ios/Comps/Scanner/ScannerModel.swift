@@ -19,7 +19,7 @@ final class ScanItem: Identifiable {
     var quantity = 1
     /// Binder pocket ("Row 2 · 3"), when it came from a page.
     var pocket: String?
-    @ObservationIgnored let scannedAt = Date()
+    let scannedAt = Date()
 
     @ObservationIgnored var lines: [OCRLine] = []
     @ObservationIgnored var scan: CGImage?

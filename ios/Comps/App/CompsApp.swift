@@ -34,7 +34,7 @@ struct RootView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.scenePhase) private var scenePhase
     @AppStorage(Pref.dataURL) private var dataURL = ""
-    @State private var selection: AppTab = switch Screenshots.value("-tab") {
+    @State private var selection: AppTab = switch Screenshots.value("-tab") ?? "" {
         case "deals": .deals
         case "masterSets": .masterSets
         case "search": .search
