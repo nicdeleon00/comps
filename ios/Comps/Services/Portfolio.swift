@@ -74,12 +74,18 @@ enum Portfolio {
     }
 
     static func remove(_ h: Holding, context: ModelContext) {
-        if CollectionSync.shared.isConnected {
-            // Kept as a deletion so it also disappears from the website.
-            h.isTombstoned = true
-            h.touch()
-        } else {
-            context.delete(h)
+        remove([h], context: context)
+    }
+
+    static func remove(_ list: [Holding], context: ModelContext) {
+        for h in list {
+            if CollectionSync.shared.isConnected {
+                // Kept as a deletion so it also disappears from the website.
+                h.isTombstoned = true
+                h.touch()
+            } else {
+                context.delete(h)
+            }
         }
         try? context.save()
         snapshot(context: context)

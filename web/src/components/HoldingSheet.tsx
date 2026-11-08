@@ -4,6 +4,7 @@ import { money, cardApi } from '../lib/format';
 import type { CardDetail, Holding, Grades } from '../lib/types';
 import { Sheet, Segmented, Field, MoneyInput, toast } from './ui';
 import { Thumb } from './Thumb';
+import { openPalette } from './Palette';
 
 const GRADERS = ['PSA', 'BGS', 'CGC', 'SGC'];
 const GRADES = ['10', '9.5', '9', '8.5', '8', '7', '6', '5'];
@@ -19,9 +20,14 @@ function estimate(raw: number | null | undefined, g: Grades | null | undefined, 
   return raw != null ? raw * (COND_FACTOR[cond] ?? 1) : null;
 }
 
-/** Add or edit a holding. Pass `holding` to edit, or `cardId` to add. */
-export function HoldingSheet({ cardId, holding, onClose }: { cardId: string; holding?: Holding; onClose: () => void }) {
+/**
+ * Add or edit a holding. Pass `holding` to edit, or `cardId` to add. Editing can swap in the
+ * right card when a scan matched the wrong one (it keeps its place in History).
+ */
+export function HoldingSheet({ cardId: startCard, holding, onClose }: { cardId: string; holding?: Holding; onClose: () => void }) {
+  const [cardId, setCardId] = useState(startCard);
   const { data } = useData<CardDetail>(cardApi(cardId));
+  const swapped = Boolean(holding && cardId !== holding.cardId);
   const [variant, setVariant] = useState<string | null>(holding?.variant ?? null);
   const [graded, setGraded] = useState<'raw' | 'graded'>(holding?.grader ? 'graded' : 'raw');
   const [grader, setGrader] = useState(holding?.grader ?? 'PSA');
@@ -41,8 +47,9 @@ export function HoldingSheet({ cardId, holding, onClose }: { cardId: string; hol
 
   const save = async (close: () => void) => {
     setSaving(true);
+    const card = swapped && data ? { name: data.card.name, setName: data.card.set ?? null, number: data.card.number ?? null, image: data.card.image ?? null } : {};
     const body = {
-      cardId, variant: v?.variant ?? variant, grader: graded === 'graded' ? grader : null, grade: graded === 'graded' ? grade : null,
+      cardId, ...card, variant: v?.variant ?? variant, grader: graded === 'graded' ? grader : null, grade: graded === 'graded' ? grade : null,
       condition: graded === 'graded' ? 'NM' : cond, quantity: qty, costBasis: cost === '' ? null : Number(cost), acquiredAt: date, notes: notes || null,
     };
     try {
@@ -83,7 +90,18 @@ export function HoldingSheet({ cardId, holding, onClose }: { cardId: string; hol
               <div style={{ marginTop: 6, fontSize: 13 }}>
                 <span class="muted">Est. value </span><b class="num">{money(unit)}</b>{qty > 1 && <span class="muted"> × {qty} = <b class="num" style={{ color: 'var(--label)' }}>{money(unit != null ? unit * qty : null)}</b></span>}
               </div>
+              {holding && (
+                <button class="btn sm" style={{ marginTop: 8 }}
+                  onClick={() => openPalette({ placeholder: 'Find the right card', onPick: (c) => { setCardId(c.id); setVariant(null); } })}>
+                  {swapped ? 'Pick a different card' : 'Wrong card? Change it'}
+                </button>
+              )}
             </div>
+          </div>
+        )}
+        {swapped && holding && (
+          <div class="muted" style={{ fontSize: 13, margin: '-8px 0 16px' }}>
+            Was {holding.name}{holding.setName ? ` · ${holding.setName}` : ''}{holding.number ? ` #${holding.number}` : ''}. Saves as this card, in the same place in History.
           </div>
         )}
         <div style={{ display: 'grid', gap: 16 }}>

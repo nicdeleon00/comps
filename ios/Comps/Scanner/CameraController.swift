@@ -14,6 +14,10 @@ final class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDele
     private var pagePhotos = false
     private let videoPreset: AVCaptureSession.Preset
     private var inFlight: [Int64: PhotoCaptureDelegate] = [:]
+    /// Zoom is in the Camera app's terms: 1× is the main lens, 0.5× the ultra-wide. On phones with
+    /// an ultra-wide the device is the multi-lens camera, whose zoom factor 1 is the ultra-wide;
+    /// this is the factor where the main lens takes over (1 on phones with only the main lens).
+    private var zoomBase: CGFloat = 1
 
     /// Called on the video queue for every frame.
     var onFrame: (@Sendable (CVPixelBuffer) -> Void)?
@@ -23,8 +27,11 @@ final class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDele
     var onFocus: (@Sendable (_ lens: Float, _ locked: Bool) -> Void)?
     /// After switching between card and page mode, once the camera is ready again.
     var onReconfigured: (@Sendable () -> Void)?
+    /// Once the camera is set up: the widest zoom on offer (0.5 with an ultra-wide) and whether
+    /// focus can be set by hand with the slider (the multi-lens camera only takes a tapped spot).
+    var onLenses: (@Sendable (_ minZoom: CGFloat, _ manualFocus: Bool) -> Void)?
 
-    /// The most the scanner zooms (the main camera's digital zoom stays sharp enough for reading cards up to here).
+    /// The most the scanner zooms, in Camera app terms (sharp enough for reading cards up to here).
     static let maxZoom: CGFloat = 6
 
     /// 4K frames give the OCR about twice the pixels on a card's tiny collector number.
@@ -68,13 +75,18 @@ final class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDele
     private func addInputsAndOutputs() -> Bool {
         session.sessionPreset = session.canSetSessionPreset(videoPreset) ? videoPreset : .hd1920x1080
 
-        let preferred: [AVCaptureDevice.DeviceType] = [.builtInWideAngleCamera]
-        let discovery = AVCaptureDevice.DiscoverySession(deviceTypes: preferred, mediaType: .video, position: .back)
-        guard let device = discovery.devices.first,
+        // The multi-lens camera when there is one: it offers 0.5×, and moves to the ultra-wide by itself
+        // when a card is too close for the main lens to focus (how the Camera app does close-ups).
+        let preferred: [AVCaptureDevice.DeviceType] = [.builtInTripleCamera, .builtInDualWideCamera, .builtInWideAngleCamera]
+        guard let device = preferred.lazy.compactMap({ AVCaptureDevice.default($0, for: .video, position: .back) }).first,
               let input = try? AVCaptureDeviceInput(device: device),
               session.canAddInput(input) else { return false }
         session.addInput(input)
         self.device = device
+        if device.isVirtualDevice, device.constituentDevices.contains(where: { $0.deviceType == .builtInUltraWideCamera }),
+           let mainLens = device.virtualDeviceSwitchOverVideoZoomFactors.first {
+            zoomBase = CGFloat(truncating: mainLens)
+        }
 
         // Bi-planar YUV is half the memory traffic of BGRA at 4K; Vision and Core Image read it directly.
         let yuv = kCVPixelFormatType_420YpCbCr8BiPlanarFullRange
@@ -96,9 +108,13 @@ final class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDele
             if device.isAutoFocusRangeRestrictionSupported { device.autoFocusRangeRestriction = .near }
             if device.isExposureModeSupported(.continuousAutoExposure) { device.exposureMode = .continuousAutoExposure }
             if device.isSmoothAutoFocusSupported { device.isSmoothAutoFocusEnabled = false }
-            device.videoZoomFactor = recommendedZoom(for: device, subjectMM: 88)
+            if device.isVirtualDevice {
+                device.setPrimaryConstituentDeviceSwitchingBehavior(.auto, restrictedSwitchingBehaviorConditions: [])
+            }
+            device.videoZoomFactor = factor(defaultZoom(device, subjectMM: 88), device)
             device.unlockForConfiguration()
         } catch {}
+        onLenses?(device.minAvailableVideoZoomFactor / zoomBase, device.isLockingFocusWithCustomLensPositionSupported)
         return true
     }
 
@@ -120,8 +136,8 @@ final class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDele
     }
 
     /// Binder pages want the whole 4:3 sensor and full-resolution stills; single cards want 4K video frames.
-    /// `zoom` and `lens` are the user's settings for the new mode (nil: automatic).
-    func setPageMode(_ on: Bool, zoom: CGFloat?, lens: Float?) {
+    /// `zoom`, `lens` and `point` are the user's settings for the new mode (nil: automatic).
+    func setPageMode(_ on: Bool, zoom: CGFloat?, lens: Float?, point: CGPoint?) {
         sessionQueue.async { [weak self] in
             guard let self else { return }
             defer { self.onReconfigured?() }
@@ -137,50 +153,73 @@ final class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDele
             }
             // A new format resets zoom and can drop a held focus: put the user's back.
             self.applyZoom(zoom, smooth: false)
-            if let lens { self.applyLens(lens) } else { self.applyAutoFocus() }
+            self.applyHeldFocus(lens: lens, point: point)
         }
     }
 
     // MARK: Zoom and focus
 
-    /// Zoom to `factor` (nil: the automatic zoom for the current mode).
-    func setZoom(_ factor: CGFloat?, smooth: Bool = false) {
-        sessionQueue.async { [weak self] in self?.applyZoom(factor, smooth: smooth) }
+    /// Zoom to `zoom` (0.5 = ultra-wide, 1 = main lens; nil: the automatic zoom for the current mode).
+    func setZoom(_ zoom: CGFloat?, smooth: Bool = false) {
+        sessionQueue.async { [weak self] in self?.applyZoom(zoom, smooth: smooth) }
     }
 
-    private func applyZoom(_ factor: CGFloat?, smooth: Bool) {
+    /// The device's zoom factor for a Camera-app zoom, within what the camera can do.
+    private func factor(_ zoom: CGFloat, _ device: AVCaptureDevice) -> CGFloat {
+        let most = min(device.activeFormat.videoMaxZoomFactor, device.maxAvailableVideoZoomFactor, Self.maxZoom * zoomBase)
+        return min(max(zoom * zoomBase, device.minAvailableVideoZoomFactor), most)
+    }
+
+    private func applyZoom(_ zoom: CGFloat?, smooth: Bool) {
         guard let device else { return }
-        let target = factor ?? recommendedZoom(for: device, subjectMM: pagePhotos ? 290 : 88)
-        let zoom = min(max(target, 1), min(device.activeFormat.videoMaxZoomFactor, Self.maxZoom))
+        let f = factor(zoom ?? defaultZoom(device, subjectMM: pagePhotos ? 290 : 88), device)
         do {
             try device.lockForConfiguration()
-            if smooth { device.ramp(toVideoZoomFactor: zoom, withRate: 8) } else { device.cancelVideoZoomRamp(); device.videoZoomFactor = zoom }
+            if smooth { device.ramp(toVideoZoomFactor: f, withRate: 8) } else { device.cancelVideoZoomRamp(); device.videoZoomFactor = f }
             device.unlockForConfiguration()
         } catch { return }
-        onZoom?(zoom)
+        onZoom?(f / zoomBase)
     }
 
     /// Tap to focus: focus and expose on that spot, then hold focus there.
     func focus(at point: CGPoint) {
-        sessionQueue.async { [weak self] in
-            guard let self, let device = self.device else { return }
-            do {
-                try device.lockForConfiguration()
-                if device.isFocusPointOfInterestSupported, device.isFocusModeSupported(.autoFocus) {
-                    device.focusPointOfInterest = point
-                    device.focusMode = .autoFocus
-                }
-                if device.isExposurePointOfInterestSupported, device.isExposureModeSupported(.continuousAutoExposure) {
-                    device.exposurePointOfInterest = point
-                    device.exposureMode = .continuousAutoExposure
-                }
-                device.unlockForConfiguration()
-            } catch { return }
-            // Report where the lens settled, so the focus slider starts there.
-            self.sessionQueue.asyncAfter(deadline: .now() + 0.8) { [weak self] in
-                guard let device = self?.device else { return }
-                self?.onFocus?(device.lensPosition, true)
+        sessionQueue.async { [weak self] in self?.applyFocus(at: point) }
+    }
+
+    private func applyFocus(at point: CGPoint) {
+        guard let device else { return }
+        do {
+            try device.lockForConfiguration()
+            if device.isFocusPointOfInterestSupported, device.isFocusModeSupported(.autoFocus) {
+                device.focusPointOfInterest = point
+                device.focusMode = .autoFocus
             }
+            if device.isExposurePointOfInterestSupported, device.isExposureModeSupported(.continuousAutoExposure) {
+                device.exposurePointOfInterest = point
+                device.exposureMode = .continuousAutoExposure
+            }
+            device.unlockForConfiguration()
+        } catch { return }
+        // Report where the lens settled, so the focus slider starts there.
+        sessionQueue.asyncAfter(deadline: .now() + 0.8) { [weak self] in
+            guard let device = self?.device else { return }
+            self?.onFocus?(device.lensPosition, true)
+        }
+    }
+
+    /// Puts back a mode's held focus: the slider's lens position where this camera takes one,
+    /// else the spot that was tapped, else automatic.
+    func holdFocus(lens: Float?, point: CGPoint?) {
+        sessionQueue.async { [weak self] in self?.applyHeldFocus(lens: lens, point: point) }
+    }
+
+    private func applyHeldFocus(lens: Float?, point: CGPoint?) {
+        if let lens, device?.isLockingFocusWithCustomLensPositionSupported == true {
+            applyLens(lens)
+        } else if let point {
+            applyFocus(at: point)
+        } else {
+            applyAutoFocus()
         }
     }
 
@@ -219,9 +258,14 @@ final class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDele
         onFocus?(device.lensPosition, false)
     }
 
-    /// Phones with a long minimum focus distance (Pro models) can't focus on a
-    /// card held close. Zoom in a little so the subject fills the frame from
-    /// further away — the approach Apple recommends for scanning small objects.
+    /// The zoom a mode starts at. The multi-lens camera starts at 1× and handles close-ups itself.
+    private func defaultZoom(_ device: AVCaptureDevice, subjectMM: Float) -> CGFloat {
+        zoomBase > 1 ? 1 : recommendedZoom(for: device, subjectMM: subjectMM)
+    }
+
+    /// Main lens only: a long minimum focus distance can't focus on a card held
+    /// close. Zoom in a little so the subject fills the frame from further away,
+    /// the approach Apple recommends for scanning small objects.
     private func recommendedZoom(for device: AVCaptureDevice, subjectMM: Float) -> CGFloat {
         let minFocus = Float(device.minimumFocusDistance)
         guard minFocus > 0 else { return 1 }

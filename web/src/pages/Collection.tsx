@@ -8,7 +8,7 @@ import { AreaChart, type Pt } from '../components/Chart';
 import { Segmented, Delta, Counter, GradeBadge, Empty, SkRows } from '../components/ui';
 import { HoldingSheet } from '../components/HoldingSheet';
 import { openPalette } from '../components/Palette';
-import { IconPlus, IconStack, IconPencil } from '../components/icons';
+import { IconPlus, IconStack, IconPencil, IconHistory } from '../components/icons';
 import { Header } from './shared';
 import { useAccount } from '../components/Account';
 import { accountsEnabled } from '../lib/supabase';
@@ -44,6 +44,7 @@ export function CollectionPage() {
   return (
     <div class="page">
       <Header title="Collection" actions={<>
+        <Link class="btn" href="/history"><IconHistory size={17} />History</Link>
         <button class="btn primary" onClick={add}><IconPlus size={17} />Add card</button>
       </>}>
         {s && <span>{s.count} card{s.count === 1 ? '' : 's'} · {s.unique} unique{token() ? '' : ''}</span>}

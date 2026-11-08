@@ -15,6 +15,7 @@ struct CollectionView: View {
     @State private var refreshing = false
     @State private var editing: Holding?
     @State private var showSettings = false
+    @State private var showHistory = Screenshots.flag("-history")
     @State private var query = ""
     @AppStorage("collection.layout") private var layoutRaw = Layout.list.rawValue
     var onScan: () -> Void
@@ -99,8 +100,11 @@ struct CollectionView: View {
             .navigationTitle("Collection")
             .searchable(text: $query, prompt: "Search your cards")
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItemGroup(placement: .topBarLeading) {
                     Button { showSettings = true } label: { Image(systemName: "gearshape") }
+                        .accessibilityLabel("Settings")
+                    Button { showHistory = true } label: { Image(systemName: "clock.arrow.circlepath") }
+                        .accessibilityLabel("History")
                 }
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     Button {
@@ -117,6 +121,7 @@ struct CollectionView: View {
                 }
             }
             .navigationDestination(for: Holding.self) { h in CardDetailView(cardID: h.cardID, holding: h) }
+            .navigationDestination(isPresented: $showHistory) { HistoryView() }
             .refreshable { await refresh() }
             .task { await refresh() }
             .sheet(item: $editing) { h in HoldingEditor(holding: h) }

@@ -51,6 +51,8 @@ jobs:
           shoot deals -tab deals
           shoot marketplace -tab deals -pane marketplace
           shoot search -tab search
+          shoot history -tab collection -history
+          shoot history-session -tab collection -history -session
           xcrun simctl ui "$DEVICE" appearance dark
           shoot collection-dark -tab collection
           shoot masterset-dark -tab masterSets -set 23821

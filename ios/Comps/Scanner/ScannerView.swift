@@ -286,7 +286,8 @@ struct ScannerView: View {
 
     /// Quick zoom levels (pinch the preview for anything in between).
     private var zoomBar: some View {
-        let steps: [CGFloat] = [1, 1.5, 2, 3]
+        // 0.5× is the ultra-wide: wider, and it focuses much closer (a phone on a stand).
+        let steps: [CGFloat] = model.minZoom < 0.9 ? [(model.minZoom * 10).rounded() / 10, 1, 2, 3] : [1, 1.5, 2, 3]
         let nearest = steps.min { abs($0 - model.zoom) < abs($1 - model.zoom) } ?? 1
         return HStack(spacing: 8) {
             ForEach(steps, id: \.self) { z in
@@ -307,19 +308,30 @@ struct ScannerView: View {
         .sensoryFeedback(.selection, trigger: nearest)
     }
 
+    /// As the Camera app writes it: .5×, 1×, 1.5×.
     private static func zoomText(_ z: CGFloat) -> String {
         let r = (z * 10).rounded() / 10
+        if r < 1 { return ".\(Int((r * 10).rounded()))×" }
         return r == r.rounded() ? "\(Int(r))×" : String(format: "%.1f×", r)
     }
 
     /// Shown once focus is held (tap the preview): fine-tune it, or go back to automatic.
+    /// The multi-lens camera can't be set by hand, so there it holds the tapped spot instead.
     private var focusBar: some View {
         HStack(spacing: 10) {
             Image(systemName: "scope").font(.system(size: 14, weight: .semibold))
-            Image(systemName: "flower").font(.system(size: 11)).opacity(0.7)
-            Slider(value: Binding(get: { Double(model.lensPosition) }, set: { model.setLens(Float($0)) }), in: 0...1)
-                .tint(Color(red: 1, green: 0.84, blue: 0.04))
-            Image(systemName: "mountain.2").font(.system(size: 11)).opacity(0.7)
+            if model.manualFocus {
+                Image(systemName: "flower").font(.system(size: 11)).opacity(0.7)
+                Slider(value: Binding(get: { Double(model.lensPosition) }, set: { model.setLens(Float($0)) }), in: 0...1)
+                    .tint(Color(red: 1, green: 0.84, blue: 0.04))
+                Image(systemName: "mountain.2").font(.system(size: 11)).opacity(0.7)
+            } else {
+                Text("Focus held · tap again to move it")
+                    .font(.footnote.weight(.semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                Spacer(minLength: 0)
+            }
             Button("Auto") { withAnimation(.snappy) { model.autoFocus() } }
                 .font(.footnote.weight(.bold))
                 .foregroundStyle(.black)

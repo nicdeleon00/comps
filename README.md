@@ -29,6 +29,7 @@ Everything runs on GitHub. There's no server to host and nothing to keep running
   - Tap a card to mark the printings you own.
   - "One of each" counts a basic set instead.
 - **Collection** — what you own, its value over time, gains against what you paid, and raw and graded copies.
+- **History** — every time cards were added (a scan session, a binder page, a card by hand), grouped by day, so you can check a scan later. Fix any card from there, including swapping in the right card when a scan matched the wrong one, or remove everything one add brought in.
 - **Card pages** — price history (daily for 90 days, weekly for a year, monthly back to early 2024) for raw, PSA 9 and PSA 10. Also: prices by grade, "should you grade it?", live eBay listings, copies for sale on Facebook Marketplace, and every source used.
 - **Watchlist** — cards you're watching, with a target price.
 - **Accounts** — sign in with email and password. Your collection syncs with the iPhone app automatically, and your watchlist and settings follow you to any browser.
@@ -40,7 +41,7 @@ Install `Comps.ipa` with [Sideloadly](https://sideloadly.io) (Windows/Mac), [Alt
 - For updates, add this AltStore source: `https://github.com/nicdeleon00/comps/releases/download/ios-latest/altstore-source.json`.
 - Requires iOS 17.
 
-Tabs: **Collection**, **Scan**, **Deals** (undervalued and raw-to-graded), **Master Sets** and **Search**. Sign in under Settings with the same account as the website.
+Tabs: **Collection** (with **History**, the same as the website's), **Scan**, **Deals** (undervalued and raw-to-graded), **Master Sets** and **Search**. Sign in under Settings with the same account as the website.
 
 **Scanning.** Point the camera at a card. The app finds its outline, waits until it's steady, flattens it, and reads:
 - the name, the collector number and set size (`025/198`, `TG05/TG30`, `SWSH050`);
@@ -59,6 +60,8 @@ Modes:
 - **Continuous:** keep feeding cards. Each one lands in the tray with a haptic tick, and you can flip through a stack without it re-reading the card still in view. Unsure matches are marked **?** for review, with your scan and the match side by side.
 - **Single:** tap the shutter, confirm, add.
 - **Binder:** fit a 4-, 9- or 12-pocket page in the guide and tap the shutter. Every pocket is found, read and matched, and you add the whole page at once or fix a pocket first. Lay the page flat and avoid glare on the sleeves.
+
+Camera: pinch or tap **.5× / 1× / 2× / 3×** to zoom. On phones with an ultra-wide lens, .5× and close-ups use it, so a phone on a scanning stand can sit close and still focus. Tap the preview to focus on a spot; the zoom and focus are remembered for each mode. Cards waiting in the tray are saved as you go, so a crash or closing the app never loses a session.
 
 ## Comps for Marketplace (Chrome / Edge extension)
 

@@ -29,10 +29,15 @@ enum Screenshots {
             ("Charmander 004/165", 2, nil, nil), ("Squirtle 007/165", 3, nil, nil), ("Espeon VMAX 270/264", 1, nil, nil),
             ("Dragonite V 192/203", 1, nil, nil), ("Sylveon ex 156/131", 1, nil, nil), ("Leafeon 005/131", 1, nil, nil),
         ]
-        for (query, quantity, grader, grade) in picks {
+        // Spread over a few adds for History: a scan this afternoon, one yesterday, two by hand.
+        let adds: [TimeInterval] = [-2.2 * 3600, -26 * 3600, -26 * 3600 - 1800, -75 * 3600]
+        for (i, (query, quantity, grader, grade)) in picks.enumerated() {
             guard let c = await Catalog.shared.search(query, limit: 1).first else { continue }
-            context.insert(Holding(cardID: c.id, game: c.game, name: c.name, setName: c.setName, number: c.number, imageURL: c.image,
-                                   variant: c.variant, grader: grader, grade: grade, quantity: quantity, costBasis: c.price.map { ($0 * 0.8).rounded() }))
+            let h = Holding(cardID: c.id, game: c.game, name: c.name, setName: c.setName, number: c.number, imageURL: c.image,
+                            variant: c.variant, grader: grader, grade: grade, quantity: quantity, costBasis: c.price.map { ($0 * 0.8).rounded() })
+            let add = i < 10 ? adds[0] : i < 16 ? adds[1] : i == 16 ? adds[2] : adds[3]
+            h.createdAt = Date().addingTimeInterval(add + Double(i) * 0.05)
+            context.insert(h)
         }
         try? context.save()
         await Portfolio.reprice(context: context)

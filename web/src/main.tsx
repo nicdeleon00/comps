@@ -7,7 +7,7 @@ import { useData, setToken, invalidate, STATIC } from './lib/api';
 import { startSync } from './lib/sync';
 import { ago, num } from './lib/format';
 import type { Status } from './lib/types';
-import { Mark, IconMarket, IconTag, IconSlab, IconStack, IconStar, IconGear, IconSearch, IconBinder, IconChecklist, IconX, IconBack } from './components/icons';
+import { Mark, IconMarket, IconTag, IconSlab, IconStack, IconStar, IconGear, IconSearch, IconBinder, IconChecklist, IconX, IconBack, IconHistory } from './components/icons';
 import { Palette, openPalette, type PaletteOpts } from './components/Palette';
 import { Sheet, Field } from './components/ui';
 import { MarketPage, lastRefresh } from './pages/Market';
@@ -15,6 +15,7 @@ import { DealsPage } from './pages/Deals';
 import { GradingPage } from './pages/Grading';
 import { CardPage } from './pages/CardPage';
 import { CollectionPage } from './pages/Collection';
+import { HistoryPage } from './pages/History';
 import { WatchlistPage } from './pages/Watchlist';
 import { SettingsPage } from './pages/Settings';
 import { SetsPage, SetPage } from './pages/Sets';
@@ -29,6 +30,7 @@ const NAV = [
   { href: '/sets', label: 'Sets', short: 'Sets', icon: IconBinder, tab: true },
   { href: '/mastersets', label: 'Master Sets', short: 'Master Sets', icon: IconChecklist, tab: true },
   { href: '/collection', label: 'Collection', short: 'Collection', icon: IconStack, count: 'holdings' as const, tab: true },
+  { href: '/history', label: 'History', short: 'History', icon: IconHistory, tab: false },
   { href: '/watchlist', label: 'Watchlist', short: 'Watchlist', icon: IconStar, tab: false },
 ];
 
@@ -37,6 +39,7 @@ function route(path: string, panel = false) {
   if (path === '/deals') return { title: 'Deals', el: <DealsPage /> };
   if (path === '/grading') return { title: 'Raw to Graded', el: <GradingPage /> };
   if (path === '/collection') return { title: 'Collection', el: <CollectionPage /> };
+  if (path === '/history') return { title: 'History', el: <HistoryPage /> };
   if (path === '/watchlist') return { title: 'Watchlist', el: <WatchlistPage /> };
   if (path === '/settings') return { title: 'Settings', el: <SettingsPage /> };
   if (path === '/sets') return { title: 'Sets', el: <SetsPage /> };
@@ -109,7 +112,7 @@ function CardPanel({ children }: { children: preact.ComponentChildren }) {
 }
 
 const TOP_LEVEL = new Set(['/', '/deals', '/grading', '/sets', '/mastersets', '/collection']);
-const parentOf = (path: string) => (path.startsWith('/sets/') ? '/sets' : path.startsWith('/mastersets/') ? '/mastersets' : '/');
+const parentOf = (path: string) => (path.startsWith('/sets/') ? '/sets' : path.startsWith('/mastersets/') ? '/mastersets' : path === '/history' ? '/collection' : '/');
 
 function App() {
   const loc = useLocation();

@@ -124,6 +124,10 @@ final class ScannerModel {
 
     // Camera controls. Zoom and a held focus are remembered for each mode, so a stand stays set up.
     private(set) var zoom: CGFloat = 1
+    /// The widest zoom: 0.5 on phones with an ultra-wide lens.
+    private(set) var minZoom: CGFloat = 1
+    /// Whether this camera takes a focus set by hand (the slider); otherwise a tapped spot is held.
+    private(set) var manualFocus = true
     private(set) var focusLocked = false
     private(set) var lensPosition: Float = 0.5
     /// Where the last tap-to-focus landed (view coordinates), for the focus mark.
@@ -166,6 +170,12 @@ final class ScannerModel {
             Task { @MainActor in self?.handle(event) }
         }
         camera.onZoom = { [weak self] z in Task { @MainActor in self?.zoom = z } }
+        camera.onLenses = { [weak self] widest, manual in
+            Task { @MainActor in
+                self?.minZoom = widest
+                self?.manualFocus = manual
+            }
+        }
         camera.onFocus = { [weak self] lens, locked in
             Task { @MainActor in
                 self?.lensPosition = lens
@@ -197,11 +207,11 @@ final class ScannerModel {
             pageModeTask = Task { [weak self] in
                 try? await Task.sleep(for: .milliseconds(220))
                 guard let self, !Task.isCancelled else { return }
-                camera.setPageMode(mode == .binder, zoom: savedZoom(mode), lens: savedLens(mode))
+                camera.setPageMode(mode == .binder, zoom: savedZoom(mode), lens: savedLens(mode), point: savedPoint(mode))
             }
         } else {
             camera.setZoom(savedZoom(m), smooth: true)
-            if let lens = savedLens(m) { camera.setLens(lens) } else if focusLocked { camera.autoFocus() }
+            if savedLens(m) != nil || savedPoint(m) != nil || focusLocked { camera.holdFocus(lens: savedLens(m), point: savedPoint(m)) }
         }
     }
 
@@ -209,9 +219,15 @@ final class ScannerModel {
 
     private func zoomKey(_ m: Mode) -> String { "scan.zoom.\(m.rawValue)" }
     private func lensKey(_ m: Mode) -> String { "scan.lens.\(m.rawValue)" }
+    private func pointKey(_ m: Mode) -> String { "scan.focusPoint.\(m.rawValue)" }
     private func savedZoom(_ m: Mode) -> CGFloat? {
         let z = UserDefaults.standard.double(forKey: zoomKey(m))
-        return z >= 1 ? CGFloat(z) : nil
+        return z > 0 ? CGFloat(z) : nil
+    }
+    /// The spot last tapped to focus, held for next time (a stand keeps the card in the same place).
+    private func savedPoint(_ m: Mode) -> CGPoint? {
+        guard let xy = UserDefaults.standard.array(forKey: pointKey(m)) as? [Double], xy.count == 2 else { return nil }
+        return CGPoint(x: xy[0], y: xy[1])
     }
     private func savedLens(_ m: Mode) -> Float? {
         (UserDefaults.standard.object(forKey: lensKey(m)) as? Double).map(Float.init)
@@ -219,7 +235,7 @@ final class ScannerModel {
 
     /// Zoom to a level (the quick buttons), remembered for this mode.
     func setZoom(_ z: CGFloat, smooth: Bool = true) {
-        let z = min(max(z, 1), CameraController.maxZoom)
+        let z = min(max(z, minZoom), CameraController.maxZoom)
         zoom = z
         camera.setZoom(z, smooth: smooth)
         UserDefaults.standard.set(Double(z), forKey: zoomKey(mode))
@@ -229,7 +245,7 @@ final class ScannerModel {
         switch p {
         case .began: pinchStart = zoom
         case .changed(let scale):
-            let z = min(max(pinchStart * scale, 1), CameraController.maxZoom)
+            let z = min(max(pinchStart * scale, minZoom), CameraController.maxZoom)
             zoom = z
             camera.setZoom(z)
         case .ended: setZoom(zoom, smooth: false)
@@ -241,6 +257,9 @@ final class ScannerModel {
         camera.focus(at: device)
         focusLocked = true
         focusMark = (view, UUID())
+        // A tapped spot replaces a slider setting, and is remembered for this mode.
+        UserDefaults.standard.set([Double(device.x), Double(device.y)], forKey: pointKey(mode))
+        UserDefaults.standard.removeObject(forKey: lensKey(mode))
         if haptics { light.impactOccurred(intensity: 0.5) }
     }
 
@@ -256,6 +275,7 @@ final class ScannerModel {
         focusLocked = false
         camera.autoFocus()
         UserDefaults.standard.removeObject(forKey: lensKey(mode))
+        UserDefaults.standard.removeObject(forKey: pointKey(mode))
     }
 
     func setTorch(_ on: Bool) {
@@ -276,7 +296,7 @@ final class ScannerModel {
         camera.start()
         // The zoom and focus last used in this mode (a stand stays set up between sessions).
         camera.setZoom(savedZoom(mode))
-        if let lens = savedLens(mode) { camera.setLens(lens) }
+        if savedLens(mode) != nil || savedPoint(mode) != nil { camera.holdFocus(lens: savedLens(mode), point: savedPoint(mode)) }
         Task { await Catalog.shared.ensureLoaded() }
         phase = .searching
     }
@@ -596,7 +616,8 @@ final class ScannerModel {
     func commit(_ list: [ScanItem], context: ModelContext) -> Int {
         var added = 0
         var merged: [String: Holding] = [:]
-        for item in list {
+        // In the order they were scanned, so History lists them like the stack they came from.
+        for item in list.sorted(by: { $0.scannedAt < $1.scannedAt }) {
             guard let c = item.choice else { continue }
             let key = [c.card.id, item.variant ?? "", item.grader ?? "", item.grade ?? "", item.condition].joined(separator: "|")
             if let existing = merged[key] {
