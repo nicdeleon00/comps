@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   screenshots:
@@ -60,3 +60,11 @@ jobs:
         with:
           name: screenshots
           path: shots
+
+      - name: Publish to the screenshots branch
+        run: |
+          cd shots
+          git init -q -b screenshots
+          git add -A
+          git -c user.name="comps-bot" -c user.email="comps-bot@users.noreply.github.com" commit -qm "App screenshots $(date -u +%Y-%m-%dT%H:%MZ)"
+          git push -qf "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git" screenshots
