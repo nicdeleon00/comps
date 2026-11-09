@@ -1,0 +1,80 @@
+2026-11-09 03:58:51.651 Df Comps[5414:52a4] [com.apple.CFNetwork:Default] Task <0211F9C3-D1D3-4E86-BE12-B3FE54DEF56C>.<9> received response, status 200 content K
+2026-11-09 03:58:51.652 Df Comps[5414:52a4] [com.apple.CFNetwork:Default] Task <0211F9C3-D1D3-4E86-BE12-B3FE54DEF56C>.<9> done using Connection 2
+2026-11-09 03:58:51.652 Df Comps[5414:52a4] [com.apple.CFNetwork:Default] Task <0211F9C3-D1D3-4E86-BE12-B3FE54DEF56C>.<9> response ended
+2026-11-09 03:58:51.652 Df Comps[5414:52a4] [com.apple.CFNetwork:Default] Task <0211F9C3-D1D3-4E86-BE12-B3FE54DEF56C>.<9> finished successfully
+2026-11-09 03:58:51.854 Df Comps[5414:52a5] [com.apple.CFNetwork:Default] Task <71DB4D95-4BE2-4C1F-B223-BEFDB2A87F41>.<10> resuming, timeouts(20.0, 604800.0) qos(0x19) voucher((null)) activity(00000000-0000-0000-0000-000000000000)
+2026-11-09 03:58:51.854 Df Comps[5414:52a5] [com.apple.CFNetwork:Default] Task <1E8F85B1-A7AA-4F95-99D7-2DBB76A37938>.<11> resuming, timeouts(20.0, 604800.0) qos(0x19) voucher((null)) activity(00000000-0000-0000-0000-000000000000)
+2026-11-09 03:58:51.857 Df Comps[5414:52a5] [com.apple.CFNetwork:Default] Task <71DB4D95-4BE2-4C1F-B223-BEFDB2A87F41>.<10> now using Connection 2
+2026-11-09 03:58:51.858 Df Comps[5414:52a5] [com.apple.CFNetwork:Default] Task <1E8F85B1-A7AA-4F95-99D7-2DBB76A37938>.<11> now using Connection 2
+2026-11-09 03:58:51.861 Df Comps[5414:52a5] [com.apple.CFNetwork:Default] Task <DB535CD7-0927-4B90-8BFF-CB72AA74259E>.<8> received response, status 200 content K
+2026-11-09 03:58:51.863 Df Comps[5414:52a5] [com.apple.CFNetwork:Default] Task <DB535CD7-0927-4B90-8BFF-CB72AA74259E>.<8> done using Connection 2
+2026-11-09 03:58:51.863 Df Comps[5414:52a5] [com.apple.CFNetwork:Default] Task <71DB4D95-4BE2-4C1F-B223-BEFDB2A87F41>.<10> sent request, body N 0
+2026-11-09 03:58:51.863 Df Comps[5414:52a5] [com.apple.CFNetwork:Default] Task <1E8F85B1-A7AA-4F95-99D7-2DBB76A37938>.<11> sent request, body N 0
+2026-11-09 03:58:51.863 Df Comps[5414:52a5] [com.apple.CFNetwork:Default] Task <DB535CD7-0927-4B90-8BFF-CB72AA74259E>.<8> response ended
+2026-11-09 03:58:51.863 Df Comps[5414:52a5] [com.apple.CFNetwork:Default] Task <DB535CD7-0927-4B90-8BFF-CB72AA74259E>.<8> finished successfully
+2026-11-09 03:58:51.980 Df Comps[5414:52a5] [com.apple.CFNetwork:Default] Task <1E8F85B1-A7AA-4F95-99D7-2DBB76A37938>.<11> received response, status 200 content K
+2026-11-09 03:58:51.981 Df Comps[5414:52a5] [com.apple.CFNetwork:Default] Task <1E8F85B1-A7AA-4F95-99D7-2DBB76A37938>.<11> done using Connection 2
+2026-11-09 03:58:51.981 Df Comps[5414:52a5] [com.apple.CFNetwork:Default] Task <1E8F85B1-A7AA-4F95-99D7-2DBB76A37938>.<11> response ended
+2026-11-09 03:58:51.981 Df Comps[5414:52a5] [com.apple.CFNetwork:Default] Task <1E8F85B1-A7AA-4F95-99D7-2DBB76A37938>.<11> finished successfully
+2026-11-09 03:58:52.015 Df Comps[5414:52a6] [com.apple.CFNetwork:Default] Task <52A3F52E-DAC4-4645-85CE-C8DA9C2BC5C1>.<12> resuming, timeouts(20.0, 604800.0) qos(0x19) voucher((null)) activity(00000000-0000-0000-0000-000000000000)
+2026-11-09 03:58:52.015 Df Comps[5414:52a6] [com.apple.CFNetwork:Default] Task <3CB8AB9B-F62F-4365-85FF-5130F2B952C4>.<13> resuming, timeouts(20.0, 604800.0) qos(0x19) voucher((null)) activity(00000000-0000-0000-0000-000000000000)
+2026-11-09 03:58:52.017 Df Comps[5414:529e] [com.apple.CFNetwork:Default] Task <52A3F52E-DAC4-4645-85CE-C8DA9C2BC5C1>.<12> now using Connection 2
+2026-11-09 03:58:52.017 Df Comps[5414:529e] [com.apple.CFNetwork:Default] Task <3CB8AB9B-F62F-4365-85FF-5130F2B952C4>.<13> now using Connection 2
+2026-11-09 03:58:52.022 Df Comps[5414:529e] [com.apple.CFNetwork:Default] Task <52A3F52E-DAC4-4645-85CE-C8DA9C2BC5C1>.<12> sent request, body N 0
+2026-11-09 03:58:52.022 Df Comps[5414:529e] [com.apple.CFNetwork:Default] Task <3CB8AB9B-F62F-4365-85FF-5130F2B952C4>.<13> sent request, body N 0
+2026-11-09 03:58:52.131 Df Comps[5414:52a1] [com.apple.CFNetwork:Default] Task <71DB4D95-4BE2-4C1F-B223-BEFDB2A87F41>.<10> received response, status 200 content K
+2026-11-09 03:58:52.131 Df Comps[5414:52a1] [com.apple.CFNetwork:Default] Task <71DB4D95-4BE2-4C1F-B223-BEFDB2A87F41>.<10> done using Connection 2
+2026-11-09 03:58:52.131 Df Comps[5414:52a1] [com.apple.CFNetwork:Default] Task <71DB4D95-4BE2-4C1F-B223-BEFDB2A87F41>.<10> response ended
+2026-11-09 03:58:52.131 Df Comps[5414:52a1] [com.apple.CFNetwork:Default] Task <71DB4D95-4BE2-4C1F-B223-BEFDB2A87F41>.<10> finished successfully
+2026-11-09 03:58:52.137 Df Comps[5414:52a5] [com.apple.CFNetwork:Default] Task <52A3F52E-DAC4-4645-85CE-C8DA9C2BC5C1>.<12> received response, status 200 content K
+2026-11-09 03:58:52.137 Df Comps[5414:52a5] [com.apple.CFNetwork:Default] Task <52A3F52E-DAC4-4645-85CE-C8DA9C2BC5C1>.<12> done using Connection 2
+2026-11-09 03:58:52.141 Df Comps[5414:52a5] [com.apple.CFNetwork:Default] Task <52A3F52E-DAC4-4645-85CE-C8DA9C2BC5C1>.<12> response ended
+2026-11-09 03:58:52.141 Df Comps[5414:52a5] [com.apple.CFNetwork:Default] Task <52A3F52E-DAC4-4645-85CE-C8DA9C2BC5C1>.<12> finished successfully
+2026-11-09 03:58:52.190 Df Comps[5414:529e] [com.apple.CFNetwork:Default] Task <C32617A6-7325-4BA8-BCE4-CA95624BF4A0>.<14> resuming, timeouts(20.0, 604800.0) qos(0x19) voucher((null)) activity(00000000-0000-0000-0000-000000000000)
+2026-11-09 03:58:52.190 Df Comps[5414:529e] [com.apple.CFNetwork:Default] Task <192CD890-4672-44CF-A4D7-7CD59ABF2E2F>.<15> resuming, timeouts(20.0, 604800.0) qos(0x19) voucher((null)) activity(00000000-0000-0000-0000-000000000000)
+2026-11-09 03:58:52.191 Df Comps[5414:529e] [com.apple.CFNetwork:Default] Task <7A4D5B1B-DFF3-4187-AD4D-1BDEB26E24DA>.<16> resuming, timeouts(20.0, 604800.0) qos(0x19) voucher((null)) activity(00000000-0000-0000-0000-000000000000)
+2026-11-09 03:58:52.192 Df Comps[5414:52a4] [com.apple.CFNetwork:Default] Task <C32617A6-7325-4BA8-BCE4-CA95624BF4A0>.<14> now using Connection 2
+2026-11-09 03:58:52.193 Df Comps[5414:52a4] [com.apple.CFNetwork:Default] Task <192CD890-4672-44CF-A4D7-7CD59ABF2E2F>.<15> now using Connection 2
+2026-11-09 03:58:52.193 Df Comps[5414:52a4] [com.apple.CFNetwork:Default] Task <7A4D5B1B-DFF3-4187-AD4D-1BDEB26E24DA>.<16> now using Connection 2
+2026-11-09 03:58:52.206 Df Comps[5414:52a4] [com.apple.CFNetwork:Default] Task <C32617A6-7325-4BA8-BCE4-CA95624BF4A0>.<14> sent request, body N 0
+2026-11-09 03:58:52.206 Df Comps[5414:52a4] [com.apple.CFNetwork:Default] Task <192CD890-4672-44CF-A4D7-7CD59ABF2E2F>.<15> sent request, body N 0
+2026-11-09 03:58:52.206 Df Comps[5414:52a4] [com.apple.CFNetwork:Default] Task <7A4D5B1B-DFF3-4187-AD4D-1BDEB26E24DA>.<16> sent request, body N 0
+2026-11-09 03:58:52.270 Df Comps[5414:529e] [com.apple.CFNetwork:Default] Task <3CB8AB9B-F62F-4365-85FF-5130F2B952C4>.<13> received response, status 200 content K
+2026-11-09 03:58:52.271 Df Comps[5414:529e] [com.apple.CFNetwork:Default] Task <3CB8AB9B-F62F-4365-85FF-5130F2B952C4>.<13> done using Connection 2
+2026-11-09 03:58:52.271 Df Comps[5414:529e] [com.apple.CFNetwork:Default] Task <3CB8AB9B-F62F-4365-85FF-5130F2B952C4>.<13> response ended
+2026-11-09 03:58:52.272 Df Comps[5414:529e] [com.apple.CFNetwork:Default] Task <3CB8AB9B-F62F-4365-85FF-5130F2B952C4>.<13> finished successfully
+2026-11-09 03:58:52.319 Df Comps[5414:52a6] [com.apple.CFNetwork:Default] Task <7A4D5B1B-DFF3-4187-AD4D-1BDEB26E24DA>.<16> received response, status 200 content K
+2026-11-09 03:58:52.321 Df Comps[5414:52a4] [com.apple.CFNetwork:Default] Task <7A4D5B1B-DFF3-4187-AD4D-1BDEB26E24DA>.<16> done using Connection 2
+2026-11-09 03:58:52.321 Df Comps[5414:52a4] [com.apple.CFNetwork:Default] Task <7A4D5B1B-DFF3-4187-AD4D-1BDEB26E24DA>.<16> response ended
+2026-11-09 03:58:52.321 Df Comps[5414:52a6] [com.apple.CFNetwork:Default] Task <7A4D5B1B-DFF3-4187-AD4D-1BDEB26E24DA>.<16> finished successfully
+2026-11-09 03:58:52.347 Df Comps[5414:52a1] [com.apple.CFNetwork:Default] Task <5689E62E-C59A-43DA-9472-F6D4EF6F29BF>.<17> resuming, timeouts(20.0, 604800.0) qos(0x19) voucher((null)) activity(00000000-0000-0000-0000-000000000000)
+2026-11-09 03:58:52.348 Df Comps[5414:52a1] [com.apple.CFNetwork:Default] Task <5689E62E-C59A-43DA-9472-F6D4EF6F29BF>.<17> now using Connection 2
+2026-11-09 03:58:52.350 Df Comps[5414:52a1] [com.apple.CFNetwork:Default] Task <5689E62E-C59A-43DA-9472-F6D4EF6F29BF>.<17> sent request, body N 0
+2026-11-09 03:58:52.433 Df Comps[5414:52a6] [com.apple.CFNetwork:Default] Task <C32617A6-7325-4BA8-BCE4-CA95624BF4A0>.<14> received response, status 200 content K
+2026-11-09 03:58:52.435 Df Comps[5414:52a1] [com.apple.CFNetwork:Default] Task <C32617A6-7325-4BA8-BCE4-CA95624BF4A0>.<14> done using Connection 2
+2026-11-09 03:58:52.435 Df Comps[5414:52a1] [com.apple.CFNetwork:Default] Task <C32617A6-7325-4BA8-BCE4-CA95624BF4A0>.<14> response ended
+2026-11-09 03:58:52.435 Df Comps[5414:52a1] [com.apple.CFNetwork:Default] Task <C32617A6-7325-4BA8-BCE4-CA95624BF4A0>.<14> finished successfully
+2026-11-09 03:58:52.474 Df Comps[5414:52a6] [com.apple.CFNetwork:Default] Task <8A529058-0D38-4A8E-A732-FDD4CCE8B28C>.<18> resuming, timeouts(20.0, 604800.0) qos(0x19) voucher((null)) activity(00000000-0000-0000-0000-000000000000)
+2026-11-09 03:58:52.475 Df Comps[5414:52a6] [com.apple.CFNetwork:Default] Task <8A529058-0D38-4A8E-A732-FDD4CCE8B28C>.<18> now using Connection 2
+2026-11-09 03:58:52.476 Df Comps[5414:52a6] [com.apple.CFNetwork:Default] Task <8A529058-0D38-4A8E-A732-FDD4CCE8B28C>.<18> sent request, body N 0
+2026-11-09 03:58:52.478 Df Comps[5414:52a6] [com.apple.CFNetwork:Default] Task <192CD890-4672-44CF-A4D7-7CD59ABF2E2F>.<15> received response, status 200 content K
+2026-11-09 03:58:52.480 Df Comps[5414:52a4] [com.apple.CFNetwork:Default] Task <192CD890-4672-44CF-A4D7-7CD59ABF2E2F>.<15> done using Connection 2
+2026-11-09 03:58:52.480 Df Comps[5414:52a4] [com.apple.CFNetwork:Default] Task <192CD890-4672-44CF-A4D7-7CD59ABF2E2F>.<15> response ended
+2026-11-09 03:58:52.481 Df Comps[5414:52a4] [com.apple.CFNetwork:Default] Task <192CD890-4672-44CF-A4D7-7CD59ABF2E2F>.<15> finished successfully
+2026-11-09 03:58:52.520 Df Comps[5414:52a1] [com.apple.CFNetwork:Default] Task <8A529058-0D38-4A8E-A732-FDD4CCE8B28C>.<18> received response, status 200 content K
+2026-11-09 03:58:52.521 Df Comps[5414:52a1] [com.apple.CFNetwork:Default] Task <8A529058-0D38-4A8E-A732-FDD4CCE8B28C>.<18> done using Connection 2
+2026-11-09 03:58:52.521 Df Comps[5414:52a1] [com.apple.CFNetwork:Default] Task <8A529058-0D38-4A8E-A732-FDD4CCE8B28C>.<18> response ended
+2026-11-09 03:58:52.521 Df Comps[5414:52a1] [com.apple.CFNetwork:Default] Task <8A529058-0D38-4A8E-A732-FDD4CCE8B28C>.<18> finished successfully
+2026-11-09 03:58:52.566 Df Comps[5414:529e] [com.apple.CFNetwork:Default] Task <068BA803-779C-42C3-B783-653835E3CC6C>.<4> resuming, timeouts(30.0, 604800.0) qos(0x19) voucher((null)) activity(00000000-0000-0000-0000-000000000000)
+2026-11-09 03:58:52.568 Df Comps[5414:529e] [com.apple.CFNetwork:Default] Task <068BA803-779C-42C3-B783-653835E3CC6C>.<4> now using Connection 1
+2026-11-09 03:58:52.569 Df Comps[5414:529e] [com.apple.CFNetwork:Default] Task <068BA803-779C-42C3-B783-653835E3CC6C>.<4> sent request, body N 0
+2026-11-09 03:58:52.599 Df Comps[5414:52a4] [com.apple.CFNetwork:Default] Task <5689E62E-C59A-43DA-9472-F6D4EF6F29BF>.<17> received response, status 200 content K
+2026-11-09 03:58:52.599 Df Comps[5414:52a4] [com.apple.CFNetwork:Default] Task <5689E62E-C59A-43DA-9472-F6D4EF6F29BF>.<17> done using Connection 2
+2026-11-09 03:58:52.599 Df Comps[5414:52a4] [com.apple.CFNetwork:Default] Task <5689E62E-C59A-43DA-9472-F6D4EF6F29BF>.<17> response ended
+2026-11-09 03:58:52.599 Df Comps[5414:52a4] [com.apple.CFNetwork:Default] Task <5689E62E-C59A-43DA-9472-F6D4EF6F29BF>.<17> finished successfully
+2026-11-09 03:58:52.678 Df Comps[5414:52a1] [com.apple.CFNetwork:Default] Task <068BA803-779C-42C3-B783-653835E3CC6C>.<4> received response, status 200 content K
+2026-11-09 03:58:52.681 Df Comps[5414:52a1] [com.apple.CFNetwork:Default] Task <068BA803-779C-42C3-B783-653835E3CC6C>.<4> done using Connection 1
+2026-11-09 03:58:52.691 Df Comps[5414:52a1] [com.apple.CFNetwork:Default] Task <068BA803-779C-42C3-B783-653835E3CC6C>.<4> response ended
+2026-11-09 03:58:52.692 Df Comps[5414:52a1] [com.apple.CFNetwork:Default] Task <068BA803-779C-42C3-B783-653835E3CC6C>.<4> finished successfully
+2026-11-09 03:58:52.838 E  Comps[5414:5293] (libCoreFSCache.dylib) Errors found! Invalidating cache...
+2026-11-09 03:58:53.678 E  Comps[5414:5293] (libCoreFSCache.dylib) Errors found! Invalidating cache...
