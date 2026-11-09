@@ -281,9 +281,12 @@ actor Catalog {
     private func searchIndices(_ q: String, setId: String?, limit: Int) -> [Int] {
         let numberPattern = #"([A-Za-z]*\d+[a-z]?)\s*/\s*([A-Za-z]*\d+)"#
         var number: String?
+        var total: String?
         var text = q
         if let r = q.range(of: numberPattern, options: .regularExpression) {
-            number = String(q[r]).components(separatedBy: "/").first.map { Self.numberKey($0) }
+            let parts = String(q[r]).components(separatedBy: "/")
+            number = parts.first.map { Self.numberKey($0) }
+            total = parts.count > 1 ? Self.numberKey(parts[1].trimmingCharacters(in: .whitespaces)) : nil
             text.removeSubrange(r)
         }
         var words = Similarity.normalize(text).split(separator: " ").map(String.init)
@@ -307,6 +310,8 @@ actor Catalog {
                 else { ok = false; break }
             }
             guard ok else { continue }
+            // "001/165": the set size picks the set, so those cards come first.
+            if let total, let ct = c.total, Self.numberKey(ct) == total { s += 3 }
             s += min(1.5, log10((c.prices.first?.raw ?? 0) + 1) / 2)
             if c.japanese && !onlyJapanese && setId == nil { s -= 2.5 }
             scored.append((i, s))

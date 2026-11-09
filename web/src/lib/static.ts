@@ -117,6 +117,8 @@ async function search(q: string, limit = 24) {
     }
     if (!ok) continue;
     if (name === words.join(' ')) s += 3;
+    // "001/165": the set size picks the set, so those cards come first.
+    if (num && r[4] && stripZeros(r[4]) === stripZeros(num[2])) s += 3;
     s += Math.min(1.5, Math.log10((r[6][0]?.[1] ?? 0) + 1) / 2);
     if (!onlyJapanese && japaneseIds.has(r[0])) s -= 2.5;
     out.push({ r, s });
