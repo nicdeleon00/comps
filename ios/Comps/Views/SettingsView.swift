@@ -14,6 +14,7 @@ struct SettingsView: View {
 
     @State private var status: HostedStatus?
     @State private var catalogCount = 0
+    @State private var japaneseCount = 0
     @State private var catalogDate: Date?
     @State private var updating = false
     @State private var error: String?
@@ -24,7 +25,8 @@ struct SettingsView: View {
         NavigationStack(path: $path) {
             Form {
                 Section {
-                    LabeledContent("Cards", value: catalogCount > 0 ? catalogCount.formatted() : "Not downloaded")
+                    LabeledContent("Cards", value: catalogCount > 0 ? (catalogCount - japaneseCount).formatted() : "Not downloaded")
+                    LabeledContent("Japanese cards", value: japaneseCount > 0 ? japaneseCount.formatted() : "Downloading…")
                     LabeledContent("Prices from", value: catalogDate.map { $0.formatted(.relative(presentation: .named)) } ?? "—")
                     if let status {
                         LabeledContent("Open deals", value: status.counts.deals.formatted())
@@ -111,6 +113,7 @@ struct SettingsView: View {
 
     private func refreshInfo() async {
         catalogCount = await Catalog.shared.count
+        japaneseCount = await Catalog.shared.japaneseCount
         catalogDate = await Catalog.shared.updatedAt
         status = try? await HostedData.current.status()
     }

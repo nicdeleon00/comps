@@ -71,9 +71,12 @@ actor Catalog {
     private var japaneseCacheFile: URL { cacheFile.deletingLastPathComponent().appendingPathComponent("catalog-index-ja.json") }
     /// The Japanese catalog, kept so it's added back whenever the English one is reloaded.
     private var japaneseData: Data?
+    /// When the Japanese catalog was last asked for (offline, it's retried every 10 minutes, not on every scan).
+    private var japaneseAskedAt: Date?
 
     var isLoaded: Bool { !cards.isEmpty }
     var count: Int { cards.count }
+    var japaneseCount: Int { cards.reduce(0) { $0 + ($1.japanese ? 1 : 0) } }
 
     /// Loads the cached copy, then downloads a fresh one if it's older than 6 hours (or `force`).
     func ensureLoaded(force: Bool = false) async {
@@ -90,7 +93,18 @@ actor Catalog {
             try? parse(data)
         }
         let stale = updatedAt.map { Date().timeIntervalSince($0) > 6 * 3600 } ?? true
-        guard force || stale || cards.isEmpty else { return }
+        guard force || stale || cards.isEmpty else {
+            // The English cards are fresh, but this phone doesn't have the Japanese ones yet: get them now
+            // (they used to wait for the next refresh, so Japanese cards couldn't be scanned until then).
+            guard japaneseData == nil, Date().timeIntervalSince(japaneseAskedAt ?? .distantPast) > 600 else { return }
+            japaneseAskedAt = Date()
+            guard let ja = try? await HostedData.current.data("data/index-ja.json", fresh: true),
+                  let en = try? Data(contentsOf: cacheFile) else { return }
+            japaneseData = ja
+            try? ja.write(to: japaneseCacheFile, options: .atomic)
+            try? parse(en)
+            return
+        }
         do {
             let data = try await HostedData.current.data("data/index.json", fresh: true)
             // Japanese cards are extra: without the file (or offline) the last copy is kept.
@@ -398,7 +412,9 @@ actor Catalog {
         for i in pool {
             let c = cards[i]
             let set = sets[c.setId]
-            let sim = names.isEmpty ? 0.5 : nameSim(c)
+            // A Japanese card's name is printed in Japanese and can't be compared with the catalog's
+            // English names; its number, set size, set code and art decide it instead.
+            let sim = japanese && c.japanese ? 0.75 : names.isEmpty ? 0.5 : nameSim(c)
             var s = 0.40 * sim * sim
             let numbered = numberEvidence[i]
             if let numbered {
