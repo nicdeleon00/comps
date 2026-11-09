@@ -74,6 +74,8 @@ jobs:
           shoot history -tab collection -history
           shoot history-session -tab collection -history -session
           shoot signin -tab collection -settings -signin -focus
+          shoot search-jp -tab search -query "mew ex jp"
+          shoot search-mixed -tab search -query "charizard ex 201"
           xcrun simctl ui "$DEVICE" appearance dark
           shoot collection-dark -tab collection
           shoot masterset-dark -tab masterSets -set 23821

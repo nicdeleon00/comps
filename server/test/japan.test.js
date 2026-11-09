@@ -30,7 +30,15 @@ const server = createServer((req, res) => {
 });
 await new Promise((r) => server.listen(0, r));
 process.env.TCGCSV_BASE = `http://127.0.0.1:${server.address().port}`;
-const { refreshJapan, buildJapaneseIndex, cleanJapaneseSetName, japaneseSeries } = await import('../src/japan.js');
+const { refreshJapan, buildJapaneseIndex, cleanJapaneseSetName, cleanJapaneseName, japaneseSeries } = await import('../src/japan.js');
+
+test('card names without the number TCGplayer adds', () => {
+  assert.equal(cleanJapaneseName('Pikachu - 025/165 (Poke Ball Pattern)'), 'Pikachu (Poke Ball Pattern)');
+  assert.equal(cleanJapaneseName('Mew ex - 205/165'), 'Mew ex');
+  assert.equal(cleanJapaneseName("N's Zoroark ex - 131/100"), "N's Zoroark ex");
+  assert.equal(cleanJapaneseName('Ho-Oh'), 'Ho-Oh');
+  assert.equal(cleanJapaneseName('Porygon-Z - 120/172'), 'Porygon-Z');
+});
 
 test('set names and eras from Japanese set codes', () => {
   assert.equal(cleanJapaneseSetName('SV2a: Pokemon Card 151'), 'Pokemon Card 151');

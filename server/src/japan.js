@@ -31,12 +31,17 @@ export function japaneseSeries(code, name, released) {
   return seriesFor(name, released);
 }
 
+/** "Pikachu - 025/165 (Poke Ball Pattern)" -> "Pikachu (Poke Ball Pattern)": the number is shown separately. */
+export function cleanJapaneseName(name) {
+  return String(name).replace(/\s+-\s+[A-Za-z]*\d+[a-z]?(?:\/[A-Za-z]*\d+)?(?=\s*(?:\(|\[|$))/, '').replace(/\s+/g, ' ').trim();
+}
+
 /** One product to a catalog row ([id, name, set, number, total, rarity]), or null for sealed product. */
 export function japaneseCard(p, groupId) {
   const numberRaw = p.extendedData?.find((e) => e.name === 'Number')?.value;
   if (!numberRaw) return null;
   const [number, total] = String(numberRaw).split('/').map((s) => s.trim());
-  const name = String(p.name).replace(/\s+-\s+[A-Za-z]*\d+[a-z]?(?:\/[A-Za-z]*\d+)?\s*$/, '').trim();
+  const name = cleanJapaneseName(p.name);
   const rarity = p.extendedData?.find((e) => e.name === 'Rarity')?.value;
   return [p.productId, name, String(groupId), number, total || null, rarity && rarity !== 'None' ? rarity : null];
 }
@@ -104,7 +109,7 @@ export function buildJapaneseIndex(db) {
       const pv = (data.prices[c[0]] ?? []).map(([variant, raw]) => [variant, raw, null, null, null]);
       if (!pv.length) continue;
       pv.sort(byPrinting);
-      cards.push([...c, pv]);
+      cards.push([c[0], cleanJapaneseName(c[1]), ...c.slice(2), pv]);
       n++;
     }
     if (n) sets[r.id] = data.set;

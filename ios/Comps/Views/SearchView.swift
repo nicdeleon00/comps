@@ -2,7 +2,7 @@ import SwiftUI
 
 @MainActor
 struct SearchView: View {
-    @State private var query = ""
+    @State private var query = Screenshots.value("-query") ?? ""
     @State private var results: [CardSummary] = []
     @State private var searching = false
     @State private var adding: CardSummary?
