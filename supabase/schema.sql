@@ -58,29 +58,46 @@ drop policy if exists "own holdings" on public.holdings;
 create policy "own holdings" on public.holdings for all to authenticated
   using (user_id = auth.uid()) with check (user_id = auth.uid());
 
+-- Chinese cards (no market price) carry their language, and a value you set yourself is used
+-- instead of the market price. Added later, so they're added to an existing table here too.
+alter table public.holdings add column if not exists language text;
+alter table public.holdings add column if not exists custom_value numeric;
+
 -- Save changes from a device. A row only overwrites the stored one if it's newer
--- (the same "newest change wins" rule the app and website use).
+-- (the same "newest change wins" rule the app and website use). Language and your own
+-- value only change when the device sends them, so an older app version that doesn't
+-- know about them can't erase them.
 create or replace function public.upsert_holdings(items jsonb) returns integer
   language plpgsql security invoker set search_path = public as $$
-declare n integer;
+declare updated integer; inserted integer;
 begin
-  insert into public.holdings as h (id, user_id, card_id, name, set_name, number, image, variant, grader, grade,
-                                    condition, quantity, cost, acquired_at, notes, created_at, updated_at, deleted)
-  select x.id, auth.uid(), x.card_id, coalesce(x.name, 'Card'), x.set_name, x.number, x.image, x.variant, x.grader, x.grade,
-         coalesce(nullif(x.condition, ''), 'NM'), greatest(1, coalesce(x.quantity, 1)), x.cost, x.acquired_at, x.notes,
-         x.created_at, x.updated_at, coalesce(x.deleted, false)
-  from jsonb_to_recordset(items) as x(id uuid, card_id text, name text, set_name text, number text, image text, variant text,
-                                      grader text, grade text, condition text, quantity integer, cost numeric, acquired_at text,
-                                      notes text, created_at bigint, updated_at bigint, deleted boolean)
-  on conflict (id) do update set
-    card_id = excluded.card_id, name = excluded.name, set_name = excluded.set_name, number = excluded.number,
-    image = excluded.image, variant = excluded.variant, grader = excluded.grader, grade = excluded.grade,
-    condition = excluded.condition, quantity = excluded.quantity, cost = excluded.cost, acquired_at = excluded.acquired_at,
-    notes = excluded.notes, created_at = coalesce(h.created_at, excluded.created_at), updated_at = excluded.updated_at,
-    deleted = excluded.deleted
-  where h.updated_at < excluded.updated_at or (h.updated_at = excluded.updated_at and excluded.deleted and not h.deleted);
-  get diagnostics n = row_count;
-  return n;
+  update public.holdings h set
+    card_id = x.e->>'card_id', name = coalesce(x.e->>'name', 'Card'), set_name = x.e->>'set_name', number = x.e->>'number',
+    image = x.e->>'image', variant = x.e->>'variant', grader = x.e->>'grader', grade = x.e->>'grade',
+    condition = coalesce(nullif(x.e->>'condition', ''), 'NM'), quantity = greatest(1, coalesce((x.e->>'quantity')::integer, 1)),
+    cost = (x.e->>'cost')::numeric, acquired_at = x.e->>'acquired_at', notes = x.e->>'notes',
+    created_at = coalesce(h.created_at, (x.e->>'created_at')::bigint), updated_at = (x.e->>'updated_at')::bigint,
+    deleted = coalesce((x.e->>'deleted')::boolean, false),
+    language = case when x.e ? 'language' then x.e->>'language' else h.language end,
+    custom_value = case when x.e ? 'custom_value' then (x.e->>'custom_value')::numeric else h.custom_value end
+  from jsonb_array_elements(items) as x(e)
+  where h.id = (x.e->>'id')::uuid
+    and (h.updated_at < (x.e->>'updated_at')::bigint
+         or (h.updated_at = (x.e->>'updated_at')::bigint and coalesce((x.e->>'deleted')::boolean, false) and not h.deleted));
+  get diagnostics updated = row_count;
+
+  insert into public.holdings (id, user_id, card_id, name, set_name, number, image, variant, grader, grade,
+                               condition, quantity, cost, acquired_at, notes, created_at, updated_at, deleted, language, custom_value)
+  select (x.e->>'id')::uuid, auth.uid(), x.e->>'card_id', coalesce(x.e->>'name', 'Card'), x.e->>'set_name', x.e->>'number', x.e->>'image',
+         x.e->>'variant', x.e->>'grader', x.e->>'grade', coalesce(nullif(x.e->>'condition', ''), 'NM'),
+         greatest(1, coalesce((x.e->>'quantity')::integer, 1)), (x.e->>'cost')::numeric, x.e->>'acquired_at', x.e->>'notes',
+         (x.e->>'created_at')::bigint, (x.e->>'updated_at')::bigint, coalesce((x.e->>'deleted')::boolean, false),
+         x.e->>'language', (x.e->>'custom_value')::numeric
+  from jsonb_array_elements(items) as x(e)
+  where not exists (select 1 from public.holdings h where h.id = (x.e->>'id')::uuid)
+  on conflict (id) do nothing;
+  get diagnostics inserted = row_count;
+  return updated + inserted;
 end $$;
 revoke execute on function public.upsert_holdings(jsonb) from public, anon;
 grant execute on function public.upsert_holdings(jsonb) to authenticated;

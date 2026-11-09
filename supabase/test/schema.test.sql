@@ -32,6 +32,18 @@ select public.upsert_holdings('[{"id":"11111111-1111-1111-1111-111111111111","ca
 do $$ begin if (select quantity from public.holdings where id = '11111111-1111-1111-1111-111111111111') <> 5 then raise exception 'older edit should lose'; end if; end $$;
 select public.upsert_holdings('[{"id":"22222222-2222-2222-2222-222222222222","card_id":"tcg:2","name":"Pikachu","updated_at":2000,"deleted":true}]'::jsonb);
 do $$ begin if not (select deleted from public.holdings where id = '22222222-2222-2222-2222-222222222222') then raise exception 'deletion should apply'; end if; end $$;
+-- Chinese cards: language and your own value are saved, and an older app (which doesn't send
+-- them) can't erase them; a newer save can clear them.
+select public.upsert_holdings('[{"id":"33333333-3333-3333-3333-333333333333","card_id":"tcg:3","name":"Pikachu","updated_at":3000,"language":"zh","custom_value":12.5}]'::jsonb);
+do $$ begin if (select language from public.holdings where id = '33333333-3333-3333-3333-333333333333') is distinct from 'zh' then raise exception 'language not saved'; end if; end $$;
+select public.upsert_holdings('[{"id":"33333333-3333-3333-3333-333333333333","card_id":"tcg:3","name":"Pikachu","quantity":2,"updated_at":3100}]'::jsonb);
+do $$ begin
+  if (select quantity from public.holdings where id = '33333333-3333-3333-3333-333333333333') <> 2 then raise exception 'older app edit should apply'; end if;
+  if (select language from public.holdings where id = '33333333-3333-3333-3333-333333333333') is distinct from 'zh' then raise exception 'older app erased language'; end if;
+  if (select custom_value from public.holdings where id = '33333333-3333-3333-3333-333333333333') is distinct from 12.5 then raise exception 'older app erased value'; end if;
+end $$;
+select public.upsert_holdings('[{"id":"33333333-3333-3333-3333-333333333333","card_id":"tcg:3","name":"Pikachu","updated_at":3200,"language":null,"custom_value":null}]'::jsonb);
+do $$ begin if (select language from public.holdings where id = '33333333-3333-3333-3333-333333333333') is not null then raise exception 'language should clear'; end if; end $$;
 -- Server change times move forward so devices can ask for "what changed since…".
 do $$ begin if (select min(synced_at) from public.holdings) <= 0 then raise exception 'synced_at not set'; end if; end $$;
 
