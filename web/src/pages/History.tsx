@@ -77,7 +77,7 @@ export function HistoryPage() {
                 <div class={`panel hist-session ${opened ? 'open' : ''}`} key={s.id}>
                   <button class="hist-head" onClick={() => toggle(s)} aria-expanded={opened}>
                     <div class="hist-fan" aria-hidden="true">
-                      {s.items.slice(0, 4).map((h, i) => <span style={{ '--i': i }}><Thumb card={thumbCard(h)} size="md" /></span>)}
+                      {s.items.slice(0, 4).map((h, i) => <span style={{ '--i': i }}><Thumb card={thumbCard(h)} size="md" banner={h.language === 'zh' ? 'Chinese' : undefined} /></span>)}
                     </div>
                     <div class="row-main">
                       <div class="row-title"><span class="t">{s.cards === 1 ? s.items[0].name : cards(s.cards)}</span></div>
@@ -95,9 +95,9 @@ export function HistoryPage() {
                       {s.items.map((h, i) => (
                         <div class="row hist-row enter" style={{ '--i': i }} key={h.id}>
                           <Link href={cardHref(h.cardId)} prefetchUrl={cardApi(h.cardId)} class="holding-link" onClick={() => setHero(h.cardId)}>
-                            <Thumb card={thumbCard(h)} />
+                            <Thumb card={thumbCard(h)} banner={h.language === 'zh' ? 'Chinese' : undefined} />
                             <div class="row-main">
-                              <div class="row-title"><span class="t">{h.name}</span>{h.quantity > 1 && <span class="qty">×{h.quantity}</span>}</div>
+                              <div class="row-title"><span class="t">{h.name}</span>{h.language === 'zh' && <span class="lang-pill">Chinese</span>}{h.quantity > 1 && <span class="qty">×{h.quantity}</span>}</div>
                               <div class="row-sub">{h.setName}{h.number ? ` · #${h.number}` : ''}</div>
                             </div>
                           </Link>

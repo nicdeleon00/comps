@@ -9,7 +9,8 @@ type ThumbCard = Pick<Card, 'name' | 'game'> & Partial<Pick<Card, 'image' | 'ima
  * Card image with a typeset fallback (sports cards and anything without art
  * get a slab-label style tile instead of a broken image).
  */
-export function Thumb({ card, size = 'sm', large = false, hero = false, eager = false }: { card: ThumbCard; size?: 'sm' | 'md' | 'lg'; large?: boolean; hero?: boolean; eager?: boolean }) {
+/** `banner` writes a band across the card ("Chinese"). */
+export function Thumb({ card, size = 'sm', large = false, hero = false, eager = false, banner }: { card: ThumbCard; size?: 'sm' | 'md' | 'lg'; large?: boolean; hero?: boolean; eager?: boolean; banner?: string }) {
   const src = large ? card.imageLarge ?? card.image : card.image;
   const [state, setState] = useState<'loading' | 'ok' | 'err'>(src ? 'loading' : 'err');
   const img = useRef<HTMLImageElement>(null);
@@ -37,6 +38,7 @@ export function Thumb({ card, size = 'sm', large = false, hero = false, eager = 
         <img ref={img} src={src} alt={card.name} loading={eager ? 'eager' : 'lazy'} decoding="async" class={state === 'ok' ? 'ok' : ''}
           onLoad={() => setState('ok')} onError={() => setState('err')} />
       )}
+      {banner && <span class="thumb-banner">{banner}</span>}
     </div>
   );
 }

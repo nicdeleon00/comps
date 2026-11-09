@@ -19,10 +19,14 @@ export type SyncItem = {
   createdAt?: number;
   updatedAt: number;
   deleted?: boolean;
+  /** "zh" for a Chinese card (no market price). */
+  language?: string | null;
+  /** Your own value for one copy, used instead of the market price. */
+  customValue?: number | null;
 };
 const KEEP_TOMBSTONES = 90 * 86_400_000;
 
-const keyOf = (i: SyncItem) => [i.cardId, i.variant ?? '', i.grader ?? '', i.grade ?? '', i.condition || 'NM'].join('|');
+const keyOf = (i: SyncItem) => [i.cardId, i.variant ?? '', i.grader ?? '', i.grade ?? '', i.condition || 'NM', i.language ?? ''].join('|');
 
 /**
  * Newest change wins per card. On a device's first sync, the same card that exists

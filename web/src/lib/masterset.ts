@@ -15,7 +15,7 @@ export interface CatalogIndex {
   cards: IndexRow[];
 }
 /** A card you have, with its printing already resolved (an unset printing means the regular one). */
-interface Owned { cardId: string; variantResolved: string | null; quantity: number }
+interface Owned { cardId: string; variantResolved: string | null; quantity: number; language?: string | null }
 
 export interface Printing {
   cardId: string;
@@ -144,7 +144,8 @@ export function slotsBySet(idx: CatalogIndex): Map<string, Slot[]> {
 export function ownedMap(items: Owned[]): Map<string, number> {
   const m = new Map<string, number>();
   for (const h of items) {
-    if (!h.variantResolved) continue;
+    // A Chinese copy doesn't count toward an English master set.
+    if (!h.variantResolved || h.language === 'zh') continue;
     const k = `${h.cardId}|${h.variantResolved}`;
     m.set(k, (m.get(k) ?? 0) + (h.quantity || 1));
   }

@@ -37,6 +37,8 @@ export function HoldingSheet({ cardId: startCard, holding, onClose }: { cardId: 
   const [cost, setCost] = useState(holding?.costBasis != null ? String(holding.costBasis) : '');
   const [date, setDate] = useState(holding?.acquiredAt ?? new Date().toISOString().slice(0, 10));
   const [notes, setNotes] = useState(holding?.notes ?? '');
+  const [lang, setLang] = useState<'card' | 'zh'>(holding?.language === 'zh' ? 'zh' : 'card');
+  const [mine, setMine] = useState(holding?.customValue != null ? String(holding.customValue) : '');
   const [saving, setSaving] = useState(false);
 
   const v = useMemo(() => {
@@ -45,7 +47,9 @@ export function HoldingSheet({ cardId: startCard, holding, onClose }: { cardId: 
     const regular = data.variants.find((x) => !/^1stEdition/i.test(x.variant)) ?? data.variants[0];
     return (variant ? data.variants.find((x) => x.variant === variant) : null) ?? regular ?? null;
   }, [data, variant]);
-  const unit = estimate(v?.price, v?.grades, graded === 'graded' ? grader : null, graded === 'graded' ? grade : null, cond);
+  const market = estimate(v?.price, v?.grades, graded === 'graded' ? grader : null, graded === 'graded' ? grade : null, cond);
+  // Your own value wins; a Chinese card has no market price.
+  const unit = mine !== '' ? Number(mine) : lang === 'zh' ? null : market;
 
   const save = async (close: () => void) => {
     setSaving(true);
@@ -53,6 +57,7 @@ export function HoldingSheet({ cardId: startCard, holding, onClose }: { cardId: 
     const body = {
       cardId, ...card, variant: v?.variant ?? variant, grader: graded === 'graded' ? grader : null, grade: graded === 'graded' ? grade : null,
       condition: graded === 'graded' ? 'NM' : cond, quantity: qty, costBasis: cost === '' ? null : Number(cost), acquiredAt: date, notes: notes || null,
+      language: lang === 'zh' ? 'zh' : null, customValue: mine === '' ? null : Number(mine),
     };
     try {
       if (holding) await patch(`/api/collection/${holding.id}`, body);
@@ -85,12 +90,12 @@ export function HoldingSheet({ cardId: startCard, holding, onClose }: { cardId: 
       <div class="sheet-body">
         {data && (
           <div style={{ display: 'flex', gap: 14, alignItems: 'center', marginBottom: 18 }}>
-            <Thumb card={data.card} size="md" />
+            <Thumb card={data.card} size="md" banner={lang === 'zh' ? 'Chinese' : undefined} />
             <div style={{ minWidth: 0 }}>
               <div style={{ fontWeight: 600, fontSize: 16 }} class="ellipsis">{data.card.name}</div>
               <div class="muted" style={{ fontSize: 13 }}>{data.card.set}{data.card.number ? ` · #${data.card.number}` : ''}</div>
               <div style={{ marginTop: 6, fontSize: 13 }}>
-                <span class="muted">Est. value </span><b class="num">{money(unit)}</b>{qty > 1 && <span class="muted"> × {qty} = <b class="num" style={{ color: 'var(--label)' }}>{money(unit != null ? unit * qty : null)}</b></span>}
+                <span class="muted">{mine !== '' ? 'Your value ' : 'Est. value '}</span><b class="num">{lang === 'zh' && mine === '' ? 'No price' : money(unit)}</b>{qty > 1 && <span class="muted"> × {qty} = <b class="num" style={{ color: 'var(--label)' }}>{money(unit != null ? unit * qty : null)}</b></span>}
               </div>
               {holding && (
                 <button class="btn sm" style={{ marginTop: 8 }}
@@ -111,6 +116,14 @@ export function HoldingSheet({ cardId: startCard, holding, onClose }: { cardId: 
             <Field label="Printing">
               <Segmented value={v?.variant ?? ''} options={data.variants.map((x) => ({ value: x.variant, label: x.label || 'Standard' }))} onChange={setVariant} scroll />
             </Field>
+          )}
+          <Field label="Language">
+            <Segmented value={lang} options={[{ value: 'card', label: 'As listed' }, { value: 'zh', label: 'Chinese' }]} onChange={setLang} />
+          </Field>
+          {lang === 'zh' && (
+            <div class="muted" style={{ fontSize: 13, marginTop: -8 }}>
+              Chinese cards have no market price here. It's shown with a CHINESE banner, valued at what you put in Your value (or not at all), and it doesn't count toward master sets.
+            </div>
           )}
           <Field label="Condition">
             <Segmented value={graded} options={[{ value: 'raw', label: 'Raw' }, { value: 'graded', label: 'Graded' }]} onChange={setGraded} />
@@ -142,6 +155,9 @@ export function HoldingSheet({ cardId: startCard, holding, onClose }: { cardId: 
               <input class="input" type="date" value={date} onInput={(e) => setDate((e.target as HTMLInputElement).value)} />
             </Field>
           </div>
+          <Field label={lang === 'zh' ? 'Your value (each)' : 'Your value (each, optional: replaces the market price)'}>
+            <MoneyInput value={mine} onValue={setMine} placeholder={lang === 'zh' ? 'None' : market != null ? market.toFixed(2) : '0.00'} />
+          </Field>
           <Field label="Notes">
             <input class="input" value={notes} placeholder="Cert number, where you bought it…" onInput={(e) => setNotes((e.target as HTMLInputElement).value)} />
           </Field>

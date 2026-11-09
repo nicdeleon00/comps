@@ -106,6 +106,10 @@ export interface Holding {
   updatedAt: number;
   value: number | null;
   basis: string | null;
+  /** "zh" for a Chinese card (no market price). */
+  language?: string | null;
+  /** Your own value for one copy, used instead of the market price. */
+  customValue?: number | null;
   total: number | null;
   change7d: number | null;
   variantResolved: string | null;

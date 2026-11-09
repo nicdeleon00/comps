@@ -149,6 +149,9 @@ async function valued(): Promise<Holding[]> {
       else value = v[1] != null ? Math.round(v[1] * (h.grader ? 1 : COND[h.condition] ?? 1) * 100) / 100 : null;
     }
     const card = r ? cardFromRow(r, idx, h.variant ?? undefined) : null;
+    // Your own value wins; a Chinese card has no market price.
+    if (h.customValue != null) { value = h.customValue; basis = 'yours'; }
+    else if (h.language === 'zh') { value = null; basis = 'none'; }
     return {
       ...h, imageUrl: card?.image ?? h.image, value, basis, total: value != null ? Math.round(value * h.quantity * 100) / 100 : null,
       change7d: v?.[4] ?? null, variantResolved: v?.[0] ?? h.variant,
@@ -314,6 +317,7 @@ export async function staticRequest(method: string, url: string, body?: any): Pr
       image: card?.image ?? null, variant: body.variant ?? card?.variant ?? null, grader: body.grader ?? null, grade: body.grade ?? null,
       condition: body.condition ?? 'NM', quantity: Math.max(1, Number(body.quantity) || 1), costBasis: body.costBasis ?? null,
       acquiredAt: body.acquiredAt ?? null, notes: body.notes ?? null, createdAt: now, updatedAt: now,
+      language: body.language ?? null, customValue: body.customValue ?? null,
     };
     saveHoldings([h, ...allHoldings()], [h.id]);
     return (await valued()).find((x) => x.id === h.id);

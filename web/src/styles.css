@@ -235,7 +235,7 @@ svg { display: block; }
 .head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 26px; flex-wrap: wrap; }
 .head h1 { margin: 0; font: 700 34px/1.12 var(--font-display); letter-spacing: -0.026em; }
 .head .sub { margin-top: 6px; color: var(--label-2); font-size: 14px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.head-actions { display: flex; gap: 8px; align-items: center; }
+.head-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; max-width: 100%; }
 @media (max-width: 900px) { .head h1 { font-size: 30px; } .head { margin-bottom: 18px; } }
 
 .sample-pill { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 9px; border-radius: 99px; background: var(--warn-fill); color: var(--warn); font-size: 12px; font-weight: 600; }
@@ -349,6 +349,16 @@ a.row:hover::before, a.row:hover + .row::before { opacity: 0; }
 }
 .thumb img { width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 260ms ease; }
 .thumb img.ok { opacity: 1; }
+/* A band across the card: "Chinese". */
+.thumb-banner {
+  position: absolute; left: -12%; right: -12%; top: 42%; z-index: 2; padding: 1px 0;
+  background: #d7263d; color: #fff; text-align: center; text-transform: uppercase;
+  font: 800 7px/1.5 var(--font); letter-spacing: 0.08em; transform: rotate(-24deg);
+  box-shadow: 0 1px 3px rgba(0,0,0,.35); pointer-events: none;
+}
+.thumb.md .thumb-banner { font-size: 10px; }
+.thumb.lg .thumb-banner { font-size: clamp(14px, 2.4vw, 26px); padding: 3px 0; }
+.lang-pill { flex: none; font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: #fff; background: #d7263d; border-radius: 5px; padding: 1px 6px; margin-left: 2px; }
 .thumb.lg { width: 100%; border-radius: 4.2% / 3%; box-shadow: var(--card-shadow); }
 .thumb.md { width: 64px; border-radius: 4px; }
 .ph {

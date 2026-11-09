@@ -313,7 +313,7 @@ export function CardPage({ id, panel = false }: { id: string; panel?: boolean })
               {d.holdings.map((h) => (
                 <button type="button" class="row holding-mini" onClick={() => setSheet({ edit: h.id })}>
                   <GradeBadge grader={h.grader} grade={h.grade} condition={h.condition} />
-                  <div class="row-main" style={{ textAlign: 'left' }}><div style={{ fontSize: 14 }}>{h.quantity} × {money(h.value)}</div>
+                  <div class="row-main" style={{ textAlign: 'left' }}><div style={{ fontSize: 14 }}>{h.language === 'zh' && <span class="lang-pill" style={{ marginLeft: 0, marginRight: 6 }}>Chinese</span>}{h.quantity} × {money(h.value)}</div>
                     <div class="row-sub">{h.costBasis != null ? `Paid ${money(h.costBasis)} each` : 'No cost basis'}{h.acquiredAt ? ` · ${longDate(h.acquiredAt)}` : ''}</div></div>
                   <div class="row-right"><div class="row-value">{money(h.total)}</div>{h.costBasis != null && h.value != null && <div class={`row-meta ${h.value >= h.costBasis ? 'up' : 'down'}`}>{signedMoney((h.value - h.costBasis) * h.quantity)}</div>}</div>
                   <IconPencil size={16} class="faint" />

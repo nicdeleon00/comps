@@ -54,6 +54,7 @@ type Local = {
   id: string; cardId: string; game: string; name: string; setName: string | null; number: string | null; image: string | null;
   variant: string | null; grader: string | null; grade: string | null; condition: string; quantity: number; costBasis: number | null;
   acquiredAt: string | null; notes: string | null; createdAt: number; updatedAt: number; deleted?: boolean;
+  language?: string | null; customValue?: number | null;
 };
 const LS = {
   get<T>(k: string, d: T): T { try { const v = localStorage.getItem(`comps.${k}`); return v ? (JSON.parse(v) as T) : d; } catch { return d; } },
@@ -64,29 +65,32 @@ const LS = {
 const toItem = (h: Local): SyncItem => ({
   id: h.id, cardId: h.cardId, name: h.name, set: h.setName, number: h.number, image: h.image, variant: h.variant, grader: h.grader, grade: h.grade,
   condition: h.condition || 'NM', quantity: h.quantity, cost: h.costBasis, acquiredAt: h.acquiredAt, notes: h.notes, createdAt: h.createdAt,
-  updatedAt: h.updatedAt, ...(h.deleted ? { deleted: true } : {}),
+  updatedAt: h.updatedAt, ...(h.deleted ? { deleted: true } : {}), language: h.language ?? null, customValue: h.customValue ?? null,
 });
 const fromItem = (i: SyncItem): Local => ({
   id: i.id, cardId: i.cardId, game: 'pokemon', name: i.name, setName: i.set ?? null, number: i.number ?? null, image: i.image ?? null,
   variant: i.variant ?? null, grader: i.grader ?? null, grade: i.grade ?? null, condition: i.condition || 'NM', quantity: i.quantity || 1,
   costBasis: i.cost ?? null, acquiredAt: i.acquiredAt ?? null, notes: i.notes ?? null, createdAt: i.createdAt ?? i.updatedAt, updatedAt: i.updatedAt,
-  ...(i.deleted ? { deleted: true } : {}),
+  ...(i.deleted ? { deleted: true } : {}), language: i.language ?? null, customValue: i.customValue ?? null,
 });
 
 type Row = {
   id: string; card_id: string; name: string; set_name: string | null; number: string | null; image: string | null; variant: string | null;
   grader: string | null; grade: string | null; condition: string; quantity: number; cost: number | string | null; acquired_at: string | null;
   notes: string | null; created_at: number | null; updated_at: number; deleted: boolean; synced_at: number;
+  language?: string | null; custom_value?: number | string | null;
 };
 const fromRow = (r: Row): SyncItem => ({
   id: r.id, cardId: r.card_id, name: r.name, set: r.set_name, number: r.number, image: r.image, variant: r.variant, grader: r.grader, grade: r.grade,
   condition: r.condition || 'NM', quantity: r.quantity, cost: r.cost == null ? null : Number(r.cost), acquiredAt: r.acquired_at, notes: r.notes,
   createdAt: r.created_at == null ? undefined : Number(r.created_at), updatedAt: Number(r.updated_at), ...(r.deleted ? { deleted: true } : {}),
+  language: r.language ?? null, customValue: r.custom_value == null ? null : Number(r.custom_value),
 });
 const toRow = (i: SyncItem) => ({
   id: i.id, card_id: i.cardId, name: i.name, set_name: i.set ?? null, number: i.number ?? null, image: i.image ?? null, variant: i.variant ?? null,
   grader: i.grader ?? null, grade: i.grade ?? null, condition: i.condition || 'NM', quantity: i.quantity || 1, cost: i.cost ?? null,
   acquired_at: i.acquiredAt ?? null, notes: i.notes ?? null, created_at: i.createdAt ?? null, updated_at: i.updatedAt, deleted: Boolean(i.deleted),
+  language: i.language ?? null, custom_value: i.customValue ?? null,
 });
 
 const sameList = (a: SyncItem[], b: SyncItem[]) => {
