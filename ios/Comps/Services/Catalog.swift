@@ -312,6 +312,9 @@ actor Catalog {
             guard ok else { continue }
             // "001/165": the set size picks the set, so those cards come first.
             if let total, let ct = c.total, Self.numberKey(ct) == total { s += 3 }
+            // The plain card before promo and reprint products that share its name and number.
+            if !words.isEmpty, name.joined(separator: " ") == words.joined(separator: " ") { s += 3 }
+            if sets[c.setId]?.alt == true { s -= 1 }
             s += min(1.5, log10((c.prices.first?.raw ?? 0) + 1) / 2)
             if c.japanese && !onlyJapanese && setId == nil { s -= 2.5 }
             scored.append((i, s))
