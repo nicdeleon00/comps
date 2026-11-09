@@ -465,6 +465,7 @@ private struct TrayThumb: View {
                 Group {
                     if let c = item.choice {
                         CardImage(url: c.card.imageURL, name: c.card.name, game: c.card.gameKind, corner: 5)
+                            .chineseBanner(item.isChinese)
                     } else {
                         Image(uiImage: item.photo).resizable().aspectRatio(63.0 / 88.0, contentMode: .fill)
                             .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))

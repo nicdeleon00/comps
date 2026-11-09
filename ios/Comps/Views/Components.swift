@@ -201,3 +201,46 @@ struct PressableStyle: ButtonStyle {
             .animation(.spring(response: 0.3, dampingFraction: 0.6), value: configuration.isPressed)
     }
 }
+
+/// A red band across a card's picture that reads CHINESE (a Chinese card has no market price).
+struct LanguageBanner: ViewModifier {
+    var on: Bool
+
+    func body(content: Content) -> some View {
+        content.overlay {
+            if on {
+                GeometryReader { geo in
+                    Text("CHINESE")
+                        .font(.system(size: max(6, geo.size.width * 0.15), weight: .heavy))
+                        .tracking(geo.size.width * 0.008)
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                        .frame(width: geo.size.width * 1.4, height: max(8, geo.size.width * 0.22))
+                        .background(Color(red: 0.84, green: 0.15, blue: 0.24))
+                        .shadow(color: .black.opacity(0.3), radius: 1.5, y: 1)
+                        .rotationEffect(.degrees(-28))
+                        .position(x: geo.size.width / 2, y: geo.size.height / 2)
+                }
+                .clipped()
+                .allowsHitTesting(false)
+                .accessibilityLabel("Chinese card")
+            }
+        }
+    }
+}
+
+extension View {
+    /// Marks a card's picture as a Chinese card.
+    func chineseBanner(_ on: Bool) -> some View { modifier(LanguageBanner(on: on)) }
+}
+
+/// The small CHINESE label next to a card's name.
+struct ChineseLabel: View {
+    var body: some View {
+        Text("CHINESE")
+            .font(.caption2.weight(.heavy))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 5).padding(.vertical, 1.5)
+            .background(Color(red: 0.84, green: 0.15, blue: 0.24), in: RoundedRectangle(cornerRadius: 4, style: .continuous))
+    }
+}

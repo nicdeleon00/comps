@@ -205,11 +205,14 @@ final class CollectionSync {
         var updatedAt: Double
         var deleted: Bool?
         var syncedAt: Double
+        var language: String?
+        var customValue: Double?
 
         var item: SyncItem {
             SyncItem(id: id.lowercased(), cardId: cardId, name: name ?? "Card", set: setName, number: number, image: image, variant: variant,
                      grader: grader, grade: grade, condition: condition ?? "NM", quantity: max(1, quantity ?? 1), cost: cost, acquiredAt: acquiredAt,
-                     notes: notes, createdAt: createdAt, updatedAt: updatedAt, deleted: deleted == true ? true : nil)
+                     notes: notes, createdAt: createdAt, updatedAt: updatedAt, deleted: deleted == true ? true : nil,
+                     language: language, customValue: customValue)
         }
     }
 
@@ -218,7 +221,7 @@ final class CollectionSync {
         return ["id": i.id, "card_id": i.cardId, "name": i.name, "set_name": v(i.set), "number": v(i.number), "image": v(i.image),
                 "variant": v(i.variant), "grader": v(i.grader), "grade": v(i.grade), "condition": i.condition, "quantity": i.quantity,
                 "cost": v(i.cost), "acquired_at": v(i.acquiredAt), "notes": v(i.notes), "created_at": v(i.createdAt.map { Int64($0) }),
-                "updated_at": Int64(i.updatedAt), "deleted": i.isDeleted]
+                "updated_at": Int64(i.updatedAt), "deleted": i.isDeleted, "language": v(i.language), "custom_value": v(i.customValue)]
     }
 
     /// After a local change: save shortly, batching quick edits.

@@ -26,6 +26,9 @@ struct HoldingEditor: View {
     @State private var cost: String
     @State private var acquired: Date
     @State private var notes: String
+    @State private var chinese: Bool
+    /// Your own value for one copy ("" for none).
+    @State private var mine: String
 
     init(holding: Holding) {
         existing = holding
@@ -41,6 +44,8 @@ struct HoldingEditor: View {
         _cost = State(initialValue: holding.costBasis.map { String(format: "%.2f", $0) } ?? "")
         _acquired = State(initialValue: holding.acquiredAt ?? .now)
         _notes = State(initialValue: holding.notes ?? "")
+        _chinese = State(initialValue: holding.isChinese)
+        _mine = State(initialValue: holding.customValue.map { String(format: "%.2f", $0) } ?? "")
     }
 
     init(card: CardSummary, variants: [VariantPrice]) {
@@ -56,6 +61,8 @@ struct HoldingEditor: View {
         _cost = State(initialValue: "")
         _acquired = State(initialValue: .now)
         _notes = State(initialValue: "")
+        _chinese = State(initialValue: false)
+        _mine = State(initialValue: "")
     }
 
     /// The card being added, or the right card picked for a holding.
@@ -65,7 +72,12 @@ struct HoldingEditor: View {
     private var imageURL: URL? { shownCard?.imageURL ?? URL(string: existing?.imageURL ?? "") }
     private var printingChanged: Bool { existing != nil && variant != baseVariant }
 
-    private var estimate: Double? {
+    private var myValue: Double? { Double(mine.replacingOccurrences(of: "$", with: "").replacingOccurrences(of: ",", with: "")) }
+
+    /// What one copy is worth here: your value, nothing for a Chinese card, else the market price.
+    private var estimate: Double? { Holding.value(market: marketEstimate, language: chinese ? "zh" : nil, custom: myValue) }
+
+    private var marketEstimate: Double? {
         if let existing, replacement == nil, !printingChanged {
             if !graded { return existing.rawPrice.map { $0 * (CardCondition(rawValue: condition)?.factor ?? 1) } ?? existing.unitValue }
             return existing.unitValue
@@ -83,11 +95,13 @@ struct HoldingEditor: View {
                     HStack(spacing: 14) {
                         CardImage(url: imageURL, name: title, game: Game(id: shownCard?.game ?? existing?.game ?? "other"))
                             .frame(width: 56)
+                            .chineseBanner(chinese)
                             .id(imageURL)
                         VStack(alignment: .leading, spacing: 3) {
                             Text(title).font(.headline)
                             Text(subtitle).font(.footnote).foregroundStyle(.secondary)
-                            Text("Est. \(Fmt.money(estimate.map { $0 * Double(quantity) }))").font(.subheadline.weight(.semibold).monospacedDigit())
+                            Text(chinese && myValue == nil ? "No price (Chinese)" : "\(myValue != nil ? "Your value" : "Est.") \(Fmt.money(estimate.map { $0 * Double(quantity) }))")
+                                .font(.subheadline.weight(.semibold).monospacedDigit())
                                 .contentTransition(.numericText())
                         }
                     }
@@ -112,6 +126,14 @@ struct HoldingEditor: View {
                     }
                 }
 
+                Section {
+                    Toggle("Chinese card", isOn: $chinese.animation(.snappy))
+                } footer: {
+                    if chinese {
+                        Text("Shown with a CHINESE banner. Chinese cards have no market price here: it's valued at Your value below, or not at all, and doesn't count toward master sets.")
+                    }
+                }
+
                 Section("Condition") {
                     Toggle("Graded", isOn: $graded.animation(.snappy))
                     if graded {
@@ -129,6 +151,11 @@ struct HoldingEditor: View {
                         Text("Paid each")
                         Spacer()
                         TextField("$0.00", text: $cost).keyboardType(.decimalPad).multilineTextAlignment(.trailing).frame(maxWidth: 140)
+                    }
+                    HStack {
+                        Text("Your value")
+                        Spacer()
+                        TextField(chinese ? "None" : Fmt.money(marketEstimate), text: $mine).keyboardType(.decimalPad).multilineTextAlignment(.trailing).frame(maxWidth: 140)
                     }
                     DatePicker("Acquired", selection: $acquired, displayedComponents: .date)
                     TextField("Notes (cert #, where you got it)", text: $notes, axis: .vertical)
@@ -200,6 +227,9 @@ struct HoldingEditor: View {
             h.acquiredAt = acquired
             h.notes = notes.isEmpty ? nil : notes
             if !graded, let raw = h.rawPrice { h.unitValue = raw * (CardCondition(rawValue: condition)?.factor ?? 1); h.priceBasis = "raw" }
+            h.language = chinese ? "zh" : nil
+            h.customValue = myValue
+            if chinese || myValue != nil { h.unitValue = estimate }
             h.touch()
         } else if let card {
             let h = Holding(cardID: card.id, game: card.game, name: card.name, setName: card.setName, number: card.number,
@@ -208,6 +238,8 @@ struct HoldingEditor: View {
                             quantity: quantity, costBasis: paid, acquiredAt: acquired, notes: notes.isEmpty ? nil : notes, unitValue: estimate)
             h.rawPrice = (variants.first { $0.variant == variant } ?? variants.first)?.price ?? card.price
             h.priceBasis = graded ? nil : "raw"
+            h.language = chinese ? "zh" : nil
+            h.customValue = myValue
             context.insert(h)
         }
         try? context.save()

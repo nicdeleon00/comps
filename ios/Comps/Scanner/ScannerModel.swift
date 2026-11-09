@@ -20,6 +20,9 @@ final class ScanItem: Identifiable {
     var quantity = 1
     /// Binder pocket ("Row 2 · 3"), when it came from a page.
     var pocket: String?
+    /// "zh" for a Chinese card (set when Chinese writing is read, or by hand): no market price.
+    var language: String?
+    var isChinese: Bool { language == "zh" }
     let scannedAt: Date
 
     @ObservationIgnored var lines: [OCRLine] = []
@@ -48,6 +51,7 @@ final class ScanItem: Identifiable {
         quantity = max(1, e.quantity)
         pocket = e.pocket
         memoryKey = e.memoryKey
+        language = e.language
         // One still being matched when the app closed can't be read again: check it by hand.
         let saved = Status(rawValue: e.status) ?? .review
         status = saved == .matching ? (e.candidates.isEmpty ? .failed : .review) : saved
@@ -62,7 +66,7 @@ final class ScanItem: Identifiable {
     var choice: ScanCandidate? { candidates.indices.contains(selected) ? candidates[selected] : nil }
 
     var unitValue: Double? {
-        guard let c = choice else { return nil }
+        guard let c = choice, !isChinese else { return nil }
         let v = c.variants.first { $0.variant == variant } ?? c.variants.first
         if grader != nil, let g = v?.grades?.value(grader: grader, grade: grade) ?? c.card.grades?.value(grader: grader, grade: grade) { return g }
         let raw = v?.price ?? c.card.price
@@ -336,7 +340,7 @@ final class ScannerModel {
     private func watchTray() {
         withObservationTracking {
             for item in items {
-                _ = (item.status, item.selected, item.candidates.count, item.variant, item.grader, item.grade, item.condition, item.quantity)
+                _ = (item.status, item.selected, item.candidates.count, item.variant, item.grader, item.grade, item.condition, item.quantity, item.language)
             }
         } onChange: { [weak self] in
             Task { @MainActor in
@@ -454,6 +458,7 @@ final class ScannerModel {
     private func resolve(_ item: ScanItem) async {
         let result = await CardResolver.resolve(lines: item.lines, image: item.scan, context: matchContext())
         item.memoryKey = result.features.memoryKey
+        if result.features.chinese { item.language = "zh" }
         item.grader = result.features.grader
         item.grade = result.features.grade
 
@@ -626,7 +631,7 @@ final class ScannerModel {
         // In the order they were scanned, so History lists them like the stack they came from.
         for item in list.sorted(by: { $0.scannedAt < $1.scannedAt }) {
             guard let c = item.choice else { continue }
-            let key = [c.card.id, item.variant ?? "", item.grader ?? "", item.grade ?? "", item.condition].joined(separator: "|")
+            let key = [c.card.id, item.variant ?? "", item.grader ?? "", item.grade ?? "", item.condition, item.language ?? ""].joined(separator: "|")
             if let existing = merged[key] {
                 existing.quantity += item.quantity
                 added += item.quantity
@@ -637,6 +642,7 @@ final class ScannerModel {
                             condition: item.condition, quantity: item.quantity, unitValue: item.unitValue)
             h.rawPrice = (c.variants.first { $0.variant == item.variant } ?? c.variants.first)?.price ?? c.card.price
             h.priceBasis = item.grader == nil ? "raw" : nil
+            h.language = item.language
             context.insert(h)
             merged[key] = h
             added += item.quantity

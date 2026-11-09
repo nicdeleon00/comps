@@ -102,11 +102,26 @@ enum StoreRescue {
         return Result(container: container, cards: cards)
     }
 
-    /// Before this version first opens the collection, a copy of the file is put aside, once.
+    /// Before each new version of the app first opens the collection, a copy of the file is put
+    /// aside (the newest few are kept).
     static func backupOnce() {
-        let key = "store.backedUp.1"
+        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "0"
+        let key = "store.backedUp.\(build)"
         guard !UserDefaults.standard.bool(forKey: key), FileManager.default.fileExists(atPath: currentURL.path) else { return }
-        if (try? backup(currentURL, label: "before opening")) != nil { UserDefaults.standard.set(true, forKey: key) }
+        if (try? backup(currentURL, label: "before opening \(build)")) != nil { UserDefaults.standard.set(true, forKey: key) }
+        prune(keep: 6)
+    }
+
+    private static func prune(keep: Int) {
+        let root = support.appending(path: "Store backups", directoryHint: .isDirectory)
+        let fm = FileManager.default
+        guard let dirs = try? fm.contentsOfDirectory(at: root, includingPropertiesForKeys: [.creationDateKey]) else { return }
+        let sorted = dirs.sorted {
+            let a = (try? $0.resourceValues(forKeys: [.creationDateKey]).creationDate) ?? .distantPast
+            let b = (try? $1.resourceValues(forKeys: [.creationDateKey]).creationDate) ?? .distantPast
+            return a > b
+        }
+        for old in sorted.dropFirst(keep) { try? fm.removeItem(at: old) }
     }
 
     /// Copies the store and its journal files twice: "original" (never opened) and "read".
@@ -182,6 +197,8 @@ enum StoreRescue {
         h.change7d = r["change7d"]?.double
         h.priceBasis = r["pricebasis"]?.string
         h.priceUpdatedAt = r["priceupdatedat"]?.date
+        h.language = r["language"]?.string
+        h.customValue = r["customvalue"]?.double
         return h
     }
 }

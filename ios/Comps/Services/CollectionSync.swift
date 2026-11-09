@@ -22,14 +22,18 @@ struct SyncItem: Codable, Equatable {
     var createdAt: Double?
     var updatedAt: Double
     var deleted: Bool?
+    /// "zh" for a Chinese card.
+    var language: String?
+    /// Your own value for one copy.
+    var customValue: Double?
 
     init(id: String, cardId: String, name: String, set: String?, number: String?, image: String?, variant: String?, grader: String?,
          grade: String?, condition: String, quantity: Int, cost: Double?, acquiredAt: String?, notes: String?, createdAt: Double?,
-         updatedAt: Double, deleted: Bool?) {
+         updatedAt: Double, deleted: Bool?, language: String? = nil, customValue: Double? = nil) {
         self.id = id; self.cardId = cardId; self.name = name; self.set = set; self.number = number; self.image = image
         self.variant = variant; self.grader = grader; self.grade = grade; self.condition = condition; self.quantity = quantity
         self.cost = cost; self.acquiredAt = acquiredAt; self.notes = notes; self.createdAt = createdAt; self.updatedAt = updatedAt
-        self.deleted = deleted
+        self.deleted = deleted; self.language = language; self.customValue = customValue
     }
 
     /// Lenient: a field the other side left out shouldn't sink the whole file.
@@ -52,6 +56,8 @@ struct SyncItem: Codable, Equatable {
         createdAt = try? c.decodeIfPresent(Double.self, forKey: .createdAt)
         updatedAt = (try? c.decodeIfPresent(Double.self, forKey: .updatedAt)) ?? 0
         deleted = try? c.decodeIfPresent(Bool.self, forKey: .deleted)
+        language = try? c.decodeIfPresent(String.self, forKey: .language)
+        customValue = try? c.decodeIfPresent(Double.self, forKey: .customValue)
     }
 
     var isDeleted: Bool { deleted ?? false }
@@ -62,7 +68,7 @@ enum SyncMerge {
     static let keepTombstones: Double = 90 * 86_400_000
 
     static func key(_ i: SyncItem) -> String {
-        [i.cardId, i.variant ?? "", i.grader ?? "", i.grade ?? "", i.condition.isEmpty ? "NM" : i.condition].joined(separator: "|")
+        [i.cardId, i.variant ?? "", i.grader ?? "", i.grade ?? "", i.condition.isEmpty ? "NM" : i.condition, i.language ?? ""].joined(separator: "|")
     }
 
     /// On a device's first sync, the same card that exists on both sides under
@@ -119,7 +125,8 @@ extension Holding {
     var syncItem: SyncItem {
         SyncItem(id: id.uuidString.lowercased(), cardId: cardID, name: name, set: setName, number: number, image: imageURL, variant: variant,
                  grader: grader, grade: grade, condition: condition, quantity: quantity, cost: costBasis, acquiredAt: acquiredAt.map(SyncDates.string),
-                 notes: notes, createdAt: createdAt.millis.rounded(), updatedAt: updatedAt.millis.rounded(), deleted: isTombstoned ? true : nil)
+                 notes: notes, createdAt: createdAt.millis.rounded(), updatedAt: updatedAt.millis.rounded(), deleted: isTombstoned ? true : nil,
+                 language: language, customValue: customValue)
     }
 
     func apply(_ i: SyncItem) {
@@ -139,6 +146,9 @@ extension Holding {
         if let c = i.createdAt { createdAt = Date(millis: c) }
         updatedAt = Date(millis: i.updatedAt)
         isTombstoned = i.isDeleted
+        language = i.language
+        customValue = i.customValue
+        if language != nil || customValue != nil { unitValue = Holding.value(market: unitValue, language: language, custom: customValue) }
     }
 }
 

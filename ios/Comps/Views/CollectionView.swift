@@ -57,7 +57,7 @@ struct CollectionView: View {
     /// Every word has to appear in the card's name, set, number, grade or printing.
     private func matches(_ h: Holding, _ words: [String]) -> Bool {
         let number = (h.number ?? "").lowercased()
-        let hay = [h.name, h.setName ?? "", number, "#\(number)", String(number.drop { $0 == "0" }),
+        let hay = [h.name, h.setName ?? "", number, "#\(number)", String(number.drop { $0 == "0" }), h.isChinese ? "chinese" : "",
                    h.grader.map { "\($0) \(h.grade ?? "")" } ?? "raw \(h.condition)", h.variant.map(VariantName.label) ?? ""]
             .joined(separator: " ").lowercased()
         return words.allSatisfy { hay.contains($0) }
@@ -319,9 +319,11 @@ struct HoldingRow: View {
         HStack(spacing: 12) {
             CardImage(url: URL(string: holding.imageURL ?? ""), name: holding.name, game: holding.gameKind)
                 .frame(width: 44)
+                .chineseBanner(holding.isChinese)
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
                     Text(holding.name).font(.body.weight(.semibold)).lineLimit(1)
+                    if holding.isChinese { ChineseLabel() }
                     if holding.quantity > 1 {
                         Text("×\(holding.quantity)").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
                     }
@@ -352,6 +354,7 @@ struct HoldingTile: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
             CardImage(url: URL(string: holding.imageURL ?? ""), name: holding.name, game: holding.gameKind, corner: 5)
+                .chineseBanner(holding.isChinese)
                 .cardShadow()
                 .overlay(alignment: .topTrailing) {
                     if holding.quantity > 1 {

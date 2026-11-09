@@ -142,6 +142,7 @@ private struct ThumbStack: View {
             ForEach(Array(holdings.enumerated().reversed()), id: \.element.id) { i, h in
                 CardImage(url: URL(string: h.imageURL ?? ""), name: h.name, game: h.gameKind, corner: 3)
                     .frame(width: 34)
+                    .chineseBanner(h.isChinese)
                     .cardShadow()
                     .offset(x: CGFloat(i) * 12)
             }

@@ -1,7 +1,8 @@
 name: Store rescue test
 
-# Saves a real 700-card SwiftData collection on a Mac, then checks the iPhone app's rescue
-# (ios/Comps/Services/StoreRescue.swift) gets every card back and leaves the file untouched.
+# On a Mac: saves a real 700-card SwiftData collection and checks the iPhone app's rescue
+# (ios/Comps/Services/StoreRescue.swift) gets every card back and leaves the file untouched;
+# then checks a collection saved with the previous card model opens with the current one.
 on:
   workflow_dispatch:
   push:
@@ -22,3 +23,11 @@ jobs:
           test -x build/rescue-test
       - name: Rescue a real collection
         run: ./build/rescue-test
+      - name: Old collection opens with the current card model
+        run: |
+          xcrun swiftc -sdk "$(xcrun --show-sdk-path --sdk macosx)" -target arm64-apple-macos14.0 \
+            ios/test/migration/HoldingV1.swift ios/test/migration/save_v1.swift -o build/save-v1 2>&1 | tail -20
+          xcrun swiftc -sdk "$(xcrun --show-sdk-path --sdk macosx)" -target arm64-apple-macos14.0 \
+            ios/Comps/Models/Holding.swift ios/test/migration/open_v2.swift -o build/open-v2 2>&1 | tail -20
+          ./build/save-v1
+          ./build/open-v2

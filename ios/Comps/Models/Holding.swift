@@ -29,6 +29,10 @@ final class Holding {
     var change7d: Double?
     var priceBasis: String?
     var priceUpdatedAt: Date?
+    /// "zh" for a Chinese card: no market price, shown with a CHINESE banner.
+    var language: String? = nil
+    /// Your own value for one copy, used instead of the market price.
+    var customValue: Double? = nil
 
     init(
         id: UUID = UUID(),
@@ -75,6 +79,13 @@ final class Holding {
 
     var gameKind: Game { Game(id: game) }
     var isGraded: Bool { grader != nil && grade != nil }
+    var isChinese: Bool { language == "zh" }
+
+    /// The value of one copy: yours if you set one, none for a Chinese card, else the market price.
+    static func value(market: Double?, language: String?, custom: Double?) -> Double? {
+        if let custom { return custom }
+        return language == "zh" ? nil : market
+    }
     var totalValue: Double? { unitValue.map { $0 * Double(quantity) } }
     var totalCost: Double? { costBasis.map { $0 * Double(quantity) } }
     var gain: Double? {

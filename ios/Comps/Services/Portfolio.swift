@@ -23,8 +23,9 @@ enum Portfolio {
         let queries = holdings.map { Catalog.PriceQuery(id: $0.cardID, variant: $0.variant, grader: $0.grader, grade: $0.grade, condition: $0.condition) }
         let answers = await Catalog.shared.prices(queries)
         for (h, a) in zip(holdings, answers) {
+            if h.customValue != nil || h.isChinese { h.unitValue = Holding.value(market: nil, language: h.language, custom: h.customValue) }
             guard let a else { continue }
-            if let v = a.value { h.unitValue = v }
+            if h.customValue == nil && !h.isChinese, let v = a.value { h.unitValue = v }
             h.rawPrice = a.raw ?? h.rawPrice
             h.change7d = a.change7d
             h.priceBasis = a.basis

@@ -135,6 +135,7 @@ enum MasterSet {
     static func ownedMap(_ holdings: [Holding]) -> [String: Int] {
         var m: [String: Int] = [:]
         for h in holdings where !h.isTombstoned {
+            guard !h.isChinese else { continue }
             m["\(h.cardID)|\(h.variant ?? "")", default: 0] += max(1, h.quantity)
         }
         return m

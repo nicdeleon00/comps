@@ -37,6 +37,11 @@ enum Screenshots {
                             variant: c.variant, grader: grader, grade: grade, quantity: quantity, costBasis: c.price.map { ($0 * 0.8).rounded() })
             let add = i < 10 ? adds[0] : i < 16 ? adds[1] : i == 16 ? adds[2] : adds[3]
             h.createdAt = Date().addingTimeInterval(add + Double(i) * 0.05)
+            if query.hasPrefix("Mew ex") {
+                // A Chinese copy, valued by hand.
+                h.language = "zh"
+                h.customValue = 35
+            }
             context.insert(h)
         }
         try? context.save()

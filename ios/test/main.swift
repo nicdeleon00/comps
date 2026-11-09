@@ -25,7 +25,7 @@ let store = support.appending(path: "default.store")
 for suffix in ["", "-wal", "-shm"] { try? fm.removeItem(atPath: store.path + suffix) }
 try? fm.removeItem(at: support.appending(path: "Store backups"))
 UserDefaults.standard.removeObject(forKey: "store.file")
-UserDefaults.standard.removeObject(forKey: "store.backedUp.1")
+UserDefaults.standard.removeObject(forKey: "store.backedUp.0")
 UserDefaults.standard.set(Data([1]), forKey: "account.sync.someone")
 
 // 1. A 700-card collection saved the way the app saves it.
@@ -64,7 +64,7 @@ print("saved store: \(before)")
 
 // 2. The one-time backup copies the file without opening it.
 StoreRescue.backupOnce()
-check(UserDefaults.standard.bool(forKey: "store.backedUp.1"), "backup made before opening")
+check(UserDefaults.standard.bool(forKey: "store.backedUp.0"), "backup made before opening")
 StoreRescue.backupOnce()
 let backups = (try? fm.contentsOfDirectory(atPath: support.appending(path: "Store backups").path)) ?? []
 check(backups.count == 1, "backup made only once (\(backups))")

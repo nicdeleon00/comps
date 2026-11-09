@@ -28,8 +28,10 @@ struct CardFeatures {
     var text = ""
     var grader: String?
     var grade: String?
-    /// Japanese writing on the card (kana or kanji).
+    /// Japanese writing on the card (kana, with or without kanji).
     var japanese = false
+    /// Chinese writing on the card (hanzi without any kana).
+    var chinese = false
 
     var number: String? { numbers.first?.number }
     var total: String? { numbers.first?.total }
@@ -58,9 +60,13 @@ enum FeatureExtractor {
     // Japanese set codes: "SV2a", "S12a", "SM12a", "M1L"
     private static let japaneseSetCode = regex(#"\b((?:SV|SM|S|M)\d{1,2}[a-zA-Z]?)\b"#)
 
-    /// Kana or kanji characters in a piece of text.
-    static func japaneseCount(_ s: String) -> Int {
-        s.unicodeScalars.filter { (0x3040...0x30FF).contains($0.value) || (0x4E00...0x9FFF).contains($0.value) }.count
+    /// Kana (Japanese only) and han characters (Japanese kanji or Chinese) in a piece of text.
+    static func scripts(_ s: String) -> (kana: Int, han: Int) {
+        var kana = 0, han = 0
+        for u in s.unicodeScalars {
+            if (0x3040...0x30FF).contains(u.value) { kana += 1 } else if (0x4E00...0x9FFF).contains(u.value) { han += 1 }
+        }
+        return (kana, han)
     }
     private static let slabGrade = regex(#"(?i)\b(GEM\s*MT|GEM\s*MINT|PRISTINE|MINT|NM-MT|NM|EX-MT|EX|VG-EX|VG)\s*(10|9\.5|9|8\.5|8|7\.5|7|6|5|4|3|2|1)\b"#)
     private static let graderPattern = regex(#"\b(PSA|BGS|BECKETT|CGC|SGC)\b"#)
@@ -138,8 +144,12 @@ enum FeatureExtractor {
             }
         }
         // Japanese writing in the name band means a Japanese card. Its set code ("SV2a") sits by the number.
-        f.japanese = lines.filter { $0.box.minY < 0.25 }.reduce(0) { $0 + japaneseCount($1.text) } >= 3
-        if f.japanese {
+        // Pokémon names are in katakana on Japanese cards and in hanzi on Chinese ones.
+        let band = lines.filter { $0.box.minY < 0.25 }.map { scripts($0.text) }
+        let kana = band.reduce(0) { $0 + $1.kana }, han = band.reduce(0) { $0 + $1.han }
+        f.japanese = kana >= 2 || (kana >= 1 && kana + han >= 3)
+        f.chinese = !f.japanese && han >= 2
+        if f.japanese || f.chinese {
             f.setCode = nil
             for l in lines where l.box.midY > 0.72 {
                 if let m = matches(japaneseSetCode, in: l.text).first { f.setCode = m[1].uppercased(); break }

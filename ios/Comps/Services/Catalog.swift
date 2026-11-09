@@ -379,7 +379,8 @@ actor Catalog {
 
         // Japanese text on the card means a Japanese card; otherwise English (when the catalog has any of that kind).
         // A name that reads clearly as an English card keeps it English (a few misread characters don't count).
-        var japanese = f.japanese
+        // Chinese cards follow the Japanese sets' numbering, so they're matched to Japanese cards first.
+        var japanese = f.japanese || f.chinese
         if japanese, pool.contains(where: { !cards[$0].japanese && nameSim(cards[$0]) >= 0.85 }) { japanese = false }
         let sameLanguage = pool.filter { cards[$0].japanese == japanese }
         if !sameLanguage.isEmpty { pool = sameLanguage }

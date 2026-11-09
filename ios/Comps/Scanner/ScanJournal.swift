@@ -19,6 +19,7 @@ enum ScanJournal {
         var quantity: Int
         var pocket: String?
         var memoryKey: String?
+        var language: String? = nil
     }
 
     private struct Saved: Codable {
@@ -112,6 +113,6 @@ extension ScanJournal.Entry {
         }
         self.init(id: item.id, scannedAt: item.scannedAt, status: item.status.rawValue, candidates: list, selected: chosen,
                   variant: item.variant, grader: item.grader, grade: item.grade, condition: item.condition,
-                  quantity: item.quantity, pocket: item.pocket, memoryKey: item.memoryKey)
+                  quantity: item.quantity, pocket: item.pocket, memoryKey: item.memoryKey, language: item.language)
     }
 }

@@ -97,7 +97,7 @@ private struct ReviewRow: View {
                 .frame(width: 38, height: 53)
                 .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
             if let c = item.choice {
-                CardImage(url: c.card.imageURL, name: c.card.name, game: c.card.gameKind).frame(width: 38)
+                CardImage(url: c.card.imageURL, name: c.card.name, game: c.card.gameKind).frame(width: 38).chineseBanner(item.isChinese)
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 6) {
                         Text(c.card.name).font(.body.weight(.semibold)).lineLimit(1)
@@ -209,6 +209,14 @@ struct ScanItemEditor: View {
                     }
                 }
 
+                Section {
+                    Toggle("Chinese card", isOn: Binding(get: { item.isChinese }, set: { item.language = $0 ? "zh" : nil }))
+                } footer: {
+                    Text(item.isChinese
+                         ? "Added with a CHINESE banner and no market price (set Your value later in the card's editor)."
+                         : "Turn on for a Chinese card: it's matched to the same card, marked Chinese, with no market price.")
+                }
+
                 Section("Condition") {
                     Toggle("Graded", isOn: Binding(get: { item.grader != nil }, set: { on in
                         item.grader = on ? (item.grader ?? "PSA") : nil
@@ -261,6 +269,7 @@ struct ScanItemEditor: View {
                 compare(title: item.choice.map { "\($0.card.subtitle) · \(Fmt.money(item.unitValue))" } ?? "No match") {
                     if let c = item.choice {
                         CardImage(url: c.card.largeImageURL, name: c.card.name, game: c.card.gameKind, corner: 8)
+                            .chineseBanner(item.isChinese)
                             .id(c.id)
                             .transition(.opacity)
                     } else {
