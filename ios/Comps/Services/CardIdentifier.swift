@@ -28,6 +28,8 @@ struct CardFeatures {
     var text = ""
     var grader: String?
     var grade: String?
+    /// Japanese writing on the card (kana or kanji).
+    var japanese = false
 
     var number: String? { numbers.first?.number }
     var total: String? { numbers.first?.total }
@@ -53,6 +55,13 @@ enum FeatureExtractor {
     private static let prefixedPromo = regex(#"\b(SWSH|SM|XY|BW|HGSS|DP)\s?(\d{1,3})\b"#)
     // "PAL EN", "SVI EN"
     private static let setCodePattern = regex(#"\b([A-Z]{3})\s?EN\b"#)
+    // Japanese set codes: "SV2a", "S12a", "SM12a", "M1L"
+    private static let japaneseSetCode = regex(#"\b((?:SV|SM|S|M)\d{1,2}[a-zA-Z]?)\b"#)
+
+    /// Kana or kanji characters in a piece of text.
+    static func japaneseCount(_ s: String) -> Int {
+        s.unicodeScalars.filter { (0x3040...0x30FF).contains($0.value) || (0x4E00...0x9FFF).contains($0.value) }.count
+    }
     private static let slabGrade = regex(#"(?i)\b(GEM\s*MT|GEM\s*MINT|PRISTINE|MINT|NM-MT|NM|EX-MT|EX|VG-EX|VG)\s*(10|9\.5|9|8\.5|8|7\.5|7|6|5|4|3|2|1)\b"#)
     private static let graderPattern = regex(#"\b(PSA|BGS|BECKETT|CGC|SGC)\b"#)
     private static let noise = regex(#"(?i)\b(basic|stage\s*[12]|evolves\s+from.*|trainer|item|supporter|stadium|tool|energy\s+card|pok[eé]mon|hp\s?\d+|\d+\s?hp|lv\.?\s?\d+|illus\.?.*|ability|tera)\b"#)
@@ -126,6 +135,14 @@ enum FeatureExtractor {
                         f.setCode = m[1].uppercased()
                     }
                 }
+            }
+        }
+        // Japanese writing in the name band means a Japanese card. Its set code ("SV2a") sits by the number.
+        f.japanese = lines.filter { $0.box.minY < 0.25 }.reduce(0) { $0 + japaneseCount($1.text) } >= 3
+        if f.japanese {
+            f.setCode = nil
+            for l in lines where l.box.midY > 0.72 {
+                if let m = matches(japaneseSetCode, in: l.text).first { f.setCode = m[1].uppercased(); break }
             }
         }
         // Readings seen in several passes or frames are more likely right.

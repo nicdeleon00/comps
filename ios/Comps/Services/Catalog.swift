@@ -21,6 +21,8 @@ struct CatalogCard {
     let total: String?
     let rarity: String?
     let prices: [CatalogPrice]
+    /// From the Japanese catalog (index-ja.json).
+    var japanese = false
     var id: String { "tcg:\(productId)" }
 }
 
@@ -32,6 +34,8 @@ struct CatalogSet {
     /// Reprint products (Prize Pack, Jumbo, World Championship decks…) that share
     /// numbers with the original set. The scanner prefers the original.
     let alt: Bool
+    /// A Japanese set (its name ends "(Japanese)").
+    var japanese = false
 }
 
 struct SetOption: Identifiable, Hashable {
@@ -42,8 +46,8 @@ struct SetOption: Identifiable, Hashable {
     let count: Int
 }
 
-/// Every English Pokémon card with today's prices, downloaded from the price
-/// site and cached on the phone. Scanning, search and collection values all
+/// Every English Pokémon card with today's prices, plus Japanese cards, downloaded from the
+/// price site and cached on the phone. Scanning, search and collection values all
 /// run against it locally, so they're instant and work offline.
 actor Catalog {
     static let shared = Catalog()
@@ -64,6 +68,9 @@ actor Catalog {
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir.appendingPathComponent("catalog-index.json")
     }
+    private var japaneseCacheFile: URL { cacheFile.deletingLastPathComponent().appendingPathComponent("catalog-index-ja.json") }
+    /// The Japanese catalog, kept so it's added back whenever the English one is reloaded.
+    private var japaneseData: Data?
 
     var isLoaded: Bool { !cards.isEmpty }
     var count: Int { cards.count }
@@ -78,11 +85,19 @@ actor Catalog {
     }
 
     private func load(force: Bool) async {
-        if cards.isEmpty, let data = try? Data(contentsOf: cacheFile) { try? parse(data) }
+        if cards.isEmpty, let data = try? Data(contentsOf: cacheFile) {
+            japaneseData = try? Data(contentsOf: japaneseCacheFile)
+            try? parse(data)
+        }
         let stale = updatedAt.map { Date().timeIntervalSince($0) > 6 * 3600 } ?? true
         guard force || stale || cards.isEmpty else { return }
         do {
             let data = try await HostedData.current.data("data/index.json", fresh: true)
+            // Japanese cards are extra: without the file (or offline) the last copy is kept.
+            if let ja = try? await HostedData.current.data("data/index-ja.json", fresh: true) {
+                japaneseData = ja
+                try? ja.write(to: japaneseCacheFile, options: .atomic)
+            }
             try parse(data)
             try? data.write(to: cacheFile, options: .atomic)
         } catch {
@@ -145,25 +160,10 @@ actor Catalog {
               let rows = root["cards"] as? [[Any]] else { return }
         if let base = root["imageBase"] as? String { imageBase = base }
         var newSets: [String: CatalogSet] = [:]
-        for (gid, value) in root["sets"] as? [String: [Any]] ?? [:] {
-            newSets[gid] = CatalogSet(name: value[safe: 0] as? String ?? "", code: value[safe: 1] as? String,
-                                      series: value[safe: 2] as? String ?? "", released: value[safe: 3] as? String,
-                                      alt: (value[safe: 4] as? NSNumber)?.boolValue ?? false)
-        }
         var list: [CatalogCard] = []
-        list.reserveCapacity(rows.count)
-        for r in rows {
-            guard let pid = (r[safe: 0] as? NSNumber)?.intValue, let name = r[safe: 1] as? String else { continue }
-            let prices = (r[safe: 6] as? [[Any]] ?? []).compactMap { p -> CatalogPrice? in
-                guard let v = p[safe: 0] as? String else { return nil }
-                func num(_ i: Int) -> Double? { (p[safe: i] as? NSNumber)?.doubleValue }
-                return CatalogPrice(variant: v, raw: num(1), g9: num(2), psa10: num(3), change7d: num(4))
-            }
-            .sorted(by: Self.regularFirst)
-            let base = Self.baseName(name)
-            list.append(CatalogCard(productId: pid, name: name, baseName: base, key: Similarity.normalize(base), variantTag: Self.variantTag(name),
-                                    setId: r[safe: 2] as? String ?? "", number: r[safe: 3] as? String ?? "", total: r[safe: 4] as? String,
-                                    rarity: r[safe: 5] as? String, prices: prices))
+        Self.decode(root, rows: rows, japanese: false, sets: &newSets, cards: &list)
+        if let japaneseData, let ja = try? JSONSerialization.jsonObject(with: japaneseData) as? [String: Any], let jaRows = ja["cards"] as? [[Any]] {
+            Self.decode(ja, rows: jaRows, japanese: true, sets: &newSets, cards: &list)
         }
         guard !list.isEmpty else { return }
         cards = list
@@ -179,6 +179,30 @@ actor Catalog {
         }
         let ms = (root["updatedAt"] as? NSNumber)?.doubleValue
         updatedAt = ms.map { Date(millis: $0) } ?? Date()
+    }
+
+    /// One catalog file's sets and cards. Japanese sets are named "… (Japanese)".
+    private static func decode(_ root: [String: Any], rows: [[Any]], japanese: Bool, sets newSets: inout [String: CatalogSet], cards list: inout [CatalogCard]) {
+        for (gid, value) in root["sets"] as? [String: [Any]] ?? [:] {
+            let name = value[safe: 0] as? String ?? ""
+            newSets[gid] = CatalogSet(name: japanese ? "\(name) (Japanese)" : name, code: value[safe: 1] as? String,
+                                      series: value[safe: 2] as? String ?? "", released: value[safe: 3] as? String,
+                                      alt: (value[safe: 4] as? NSNumber)?.boolValue ?? false, japanese: japanese)
+        }
+        list.reserveCapacity(list.count + rows.count)
+        for r in rows {
+            guard let pid = (r[safe: 0] as? NSNumber)?.intValue, let name = r[safe: 1] as? String else { continue }
+            let prices = (r[safe: 6] as? [[Any]] ?? []).compactMap { p -> CatalogPrice? in
+                guard let v = p[safe: 0] as? String else { return nil }
+                func num(_ i: Int) -> Double? { (p[safe: i] as? NSNumber)?.doubleValue }
+                return CatalogPrice(variant: v, raw: num(1), g9: num(2), psa10: num(3), change7d: num(4))
+            }
+            .sorted(by: Self.regularFirst)
+            let base = Self.baseName(name)
+            list.append(CatalogCard(productId: pid, name: name, baseName: base, key: Similarity.normalize(base), variantTag: Self.variantTag(name),
+                                    setId: r[safe: 2] as? String ?? "", number: r[safe: 3] as? String ?? "", total: r[safe: 4] as? String,
+                                    rarity: r[safe: 5] as? String, prices: prices, japanese: japanese))
+        }
     }
 
     // MARK: Lookups
@@ -262,10 +286,13 @@ actor Catalog {
             number = String(q[r]).components(separatedBy: "/").first.map { Self.numberKey($0) }
             text.removeSubrange(r)
         }
-        let words = Similarity.normalize(text).split(separator: " ").map(String.init)
-        guard !words.isEmpty || number != nil else { return [] }
+        var words = Similarity.normalize(text).split(separator: " ").map(String.init)
+        let onlyJapanese = words.contains { $0 == "jp" || $0 == "japanese" || $0 == "jpn" }
+        words.removeAll { $0 == "jp" || $0 == "japanese" || $0 == "jpn" }
+        guard !words.isEmpty || number != nil || onlyJapanese else { return [] }
         var candidates: [Int] = number.map { byNumber[$0] ?? [] } ?? Array(cards.indices)
         if let setId { candidates = candidates.filter { cards[$0].setId == setId } }
+        if onlyJapanese { candidates = candidates.filter { cards[$0].japanese } }
         var scored: [(Int, Double)] = []
         for i in candidates {
             let c = cards[i]
@@ -281,6 +308,7 @@ actor Catalog {
             }
             guard ok else { continue }
             s += min(1.5, log10((c.prices.first?.raw ?? 0) + 1) / 2)
+            if c.japanese && !onlyJapanese && setId == nil { s -= 2.5 }
             scored.append((i, s))
         }
         return scored.sorted { $0.1 > $1.1 }.prefix(limit).map(\.0)
@@ -348,6 +376,13 @@ actor Catalog {
                 for (i, _) in nameHits.prefix(context.lockedSet == nil ? 60 : 400) { pool.insert(i) }
             }
         }
+
+        // Japanese text on the card means a Japanese card; otherwise English (when the catalog has any of that kind).
+        // A name that reads clearly as an English card keeps it English (a few misread characters don't count).
+        var japanese = f.japanese
+        if japanese, pool.contains(where: { !cards[$0].japanese && nameSim(cards[$0]) >= 0.85 }) { japanese = false }
+        let sameLanguage = pool.filter { cards[$0].japanese == japanese }
+        if !sameLanguage.isEmpty { pool = sameLanguage }
 
         let recentTotal = context.recentSets.values.reduce(0, +)
         var scored: [(Int, Double, String)] = []

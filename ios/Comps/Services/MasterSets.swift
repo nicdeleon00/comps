@@ -199,7 +199,7 @@ extension Catalog {
         var bySet: [String: [String: Builder]] = [:]
         var order: [String: [String]] = [:]
         var art: [String: (Double, Int)] = [:]
-        for c in cards where !c.number.isEmpty && !c.prices.isEmpty {
+        for c in cards where !c.number.isEmpty && !c.prices.isEmpty && !c.japanese {
             let (base, tags) = MasterSet.split(c.name)
             let key = "\(Self.numberKey(c.number))|\(Similarity.normalize(base))"
             let b: Builder

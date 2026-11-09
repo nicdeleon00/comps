@@ -79,6 +79,8 @@ enum CardImaging {
         if attempt == 0 {
             lines += ocr(image, region: CGRect(x: 0, y: 0.84, width: 1, height: 0.16), upscale: 2 * boost)
             lines += ocr(image, region: CGRect(x: 0, y: 0, width: 1, height: 0.18), upscale: 1.5 * boost)
+            // The name band read as Japanese too: Japanese text there means a Japanese card.
+            lines += ocr(image, region: CGRect(x: 0, y: 0, width: 1, height: 0.18), upscale: 1.5 * boost, languages: ["ja-JP", "en-US"])
         } else {
             // Halves of the bottom band, larger: modern cards print the number bottom-left, older ones bottom-right.
             lines += ocr(image, region: CGRect(x: 0, y: 0.8, width: 0.6, height: 0.2), upscale: 3 * boost)
@@ -90,7 +92,7 @@ enum CardImaging {
         return lines.filter { seen.insert($0.text.lowercased() + "\(Int($0.box.minY * 40))").inserted }
     }
 
-    static func ocr(_ image: CGImage, region: CGRect, upscale: CGFloat) -> [OCRLine] {
+    static func ocr(_ image: CGImage, region: CGRect, upscale: CGFloat, languages: [String] = ["en-US"]) -> [OCRLine] {
         let w = CGFloat(image.width), h = CGFloat(image.height)
         let crop = CGRect(x: region.minX * w, y: region.minY * h, width: region.width * w, height: region.height * h).integral
         guard var input = image.cropping(to: crop) else { return [] }
@@ -99,7 +101,7 @@ enum CardImaging {
         let request = VNRecognizeTextRequest()
         request.recognitionLevel = .accurate
         request.usesLanguageCorrection = false
-        request.recognitionLanguages = ["en-US"]
+        request.recognitionLanguages = languages
         request.minimumTextHeight = 0.01
         let handler = VNImageRequestHandler(cgImage: input, options: [:])
         try? handler.perform([request])
