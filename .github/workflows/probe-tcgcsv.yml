@@ -1,0 +1,31 @@
+name: Probe TCGCSV categories
+
+# One-off: lists TCGplayer's Pokémon categories (English, Japanese, Chinese…) and what each holds.
+on: workflow_dispatch
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Categories and a sample of each
+        run: |
+          curl -s https://tcgcsv.com/tcgplayer/categories > cats.json
+          python3 - <<'PY'
+          import json, urllib.request
+          cats = json.load(open('cats.json'))['results']
+          for c in cats:
+              text = (c.get('name','') + ' ' + c.get('displayName','')).lower()
+              if 'pok' in text or 'chinese' in text or 'china' in text:
+                  cid = c['categoryId']
+                  groups = json.load(urllib.request.urlopen(f'https://tcgcsv.com/tcgplayer/{cid}/groups'))['results']
+                  print(f"== {cid} {c['name']} | {c.get('displayName')} | {len(groups)} groups")
+                  for g in sorted(groups, key=lambda g: g.get('publishedOn') or '', reverse=True)[:8]:
+                      print('   ', g['groupId'], g.get('abbreviation'), '|', g['name'], '|', (g.get('publishedOn') or '')[:10])
+                  g = sorted(groups, key=lambda g: g.get('publishedOn') or '', reverse=True)[1]
+                  prods = json.load(urllib.request.urlopen(f"https://tcgcsv.com/tcgplayer/{cid}/{g['groupId']}/products"))['results']
+                  prices = json.load(urllib.request.urlopen(f"https://tcgcsv.com/tcgplayer/{cid}/{g['groupId']}/prices"))['results']
+                  cards = [p for p in prods if any(e['name'] == 'Number' for e in p.get('extendedData', []))]
+                  print('    products', len(prods), 'cards', len(cards), 'prices', len(prices), 'subtypes', sorted({p['subTypeName'] for p in prices}))
+                  for p in cards[:4]:
+                      print('     ', p['productId'], p['name'], '|', {e['name']: e['value'] for e in p.get('extendedData', []) if e['name'] in ('Number', 'Rarity')})
+          PY
