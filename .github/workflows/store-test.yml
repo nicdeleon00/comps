@@ -26,8 +26,8 @@ jobs:
       - name: Old collection opens with the current card model
         run: |
           xcrun swiftc -sdk "$(xcrun --show-sdk-path --sdk macosx)" -target arm64-apple-macos14.0 \
-            ios/test/migration/HoldingV1.swift ios/test/migration/save_v1.swift -o build/save-v1 2>&1 | tail -20
+            ios/test/migration/HoldingV1.swift ios/test/migration/save/main.swift -o build/save-v1 2>&1 | tail -20
           xcrun swiftc -sdk "$(xcrun --show-sdk-path --sdk macosx)" -target arm64-apple-macos14.0 \
-            ios/Comps/Models/Holding.swift ios/test/migration/open_v2.swift -o build/open-v2 2>&1 | tail -20
+            ios/Comps/Models/Holding.swift ios/test/migration/open/main.swift -o build/open-v2 2>&1 | tail -20
           ./build/save-v1
           ./build/open-v2
