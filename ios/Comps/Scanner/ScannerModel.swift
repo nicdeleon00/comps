@@ -194,10 +194,11 @@ final class ScannerModel {
         engine.continuous = m == .continuous
         engine.binder = m == .binder
         engine.reset()
+        engine.captureRequested = false
         quad = nil
         pageQuads = []
-        if m == .continuous, singleResult == nil { setPaused(false) }
-        if m == .binder { setPaused(false) }
+        // A new mode starts live (a paused Continuous used to leave Single unable to take a picture).
+        if singleResult == nil { setPaused(false) }
         phase = .searching
         if pageChange {
             // Switching the camera between card and page set-ups takes a moment. Wait until the
@@ -277,6 +278,9 @@ final class ScannerModel {
         UserDefaults.standard.removeObject(forKey: lensKey(mode))
         UserDefaults.standard.removeObject(forKey: pointKey(mode))
     }
+
+    /// Where the on-screen card guide sits, for Single mode.
+    func setGuide(_ q: Quad) { engine.guide = q }
 
     func setTorch(_ on: Bool) {
         torch = on
@@ -376,7 +380,10 @@ final class ScannerModel {
 
     func shutter() {
         switch mode {
-        case .single: engine.captureRequested = true
+        case .single:
+            if singleResult == nil { setPaused(false) }
+            engine.captureRequested = true
+            if haptics { light.impactOccurred(intensity: 0.8) }
         case .binder: capturePage()
         case .continuous: setPaused(!paused)
         }

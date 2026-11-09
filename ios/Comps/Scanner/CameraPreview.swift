@@ -82,6 +82,13 @@ struct FrameMapper {
         return CGPoint(x: d.minX + p.x * d.width, y: d.minY + p.y * d.height)
     }
 
+    /// The inverse of `point`: a place on screen to frame coordinates (0…1).
+    func normalized(_ p: CGPoint) -> CGPoint {
+        let d = displayed
+        guard d.width > 0, d.height > 0 else { return .zero }
+        return CGPoint(x: (p.x - d.minX) / d.width, y: (p.y - d.minY) / d.height)
+    }
+
     func rect(_ r: CGRect) -> CGRect {
         let a = point(CGPoint(x: r.minX, y: r.minY)), b = point(CGPoint(x: r.maxX, y: r.maxY))
         return CGRect(x: a.x, y: a.y, width: b.x - a.x, height: b.y - a.y)
@@ -93,12 +100,27 @@ struct DetectionOverlay: View {
     var quad: Quad?
     var frameSize: CGSize
     var tint: Color
+    /// Where the card guide sits, in frame coordinates (Single mode reads what's inside it).
+    var onGuide: (Quad) -> Void = { _ in }
     @State private var pulse = false
+
+    /// The card-shaped guide shown when no card is found.
+    static func guideRect(_ view: CGSize) -> CGRect {
+        let w = min(view.width * 0.72, view.height * 0.5), h = w * 88 / 63
+        return CGRect(x: view.width / 2 - w / 2, y: view.height * 0.44 - h / 2, width: w, height: h)
+    }
 
     var body: some View {
         GeometryReader { geo in
             let mapper = FrameMapper(frame: frameSize, view: geo.size)
+            let guide = Self.guideRect(geo.size)
             ZStack {
+                Color.clear
+                    .task(id: "\(geo.size.width)x\(geo.size.height) \(frameSize.width)x\(frameSize.height)") {
+                        let n = { (p: CGPoint) in mapper.normalized(p) }
+                        onGuide(Quad(topLeft: n(CGPoint(x: guide.minX, y: guide.minY)), topRight: n(CGPoint(x: guide.maxX, y: guide.minY)),
+                                     bottomRight: n(CGPoint(x: guide.maxX, y: guide.maxY)), bottomLeft: n(CGPoint(x: guide.minX, y: guide.maxY))))
+                    }
                 if let quad {
                     let pts = quad.points.map(mapper.point)
                     Path { p in
@@ -117,12 +139,10 @@ struct DetectionOverlay: View {
                     .transition(.opacity)
                 } else {
                     // Guide: card-shaped corner brackets.
-                    let w = min(geo.size.width * 0.72, geo.size.height * 0.5)
-                    let h = w * 88 / 63
                     CornerBrackets()
                         .stroke(.white.opacity(pulse ? 0.9 : 0.55), style: StrokeStyle(lineWidth: 3, lineCap: .round))
-                        .frame(width: w, height: h)
-                        .position(x: geo.size.width / 2, y: geo.size.height * 0.44)
+                        .frame(width: guide.width, height: guide.height)
+                        .position(x: guide.midX, y: guide.midY)
                         .scaleEffect(pulse ? 1.0 : 0.985)
                         .transition(.opacity)
                         .onAppear {

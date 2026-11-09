@@ -32,7 +32,7 @@ struct ScannerView: View {
                     .ignoresSafeArea()
                     .transition(.opacity)
             } else {
-                DetectionOverlay(quad: model.quad, frameSize: model.frameSize, tint: outlineTint)
+                DetectionOverlay(quad: model.quad, frameSize: model.frameSize, tint: outlineTint, onGuide: { model.setGuide($0) })
                     .ignoresSafeArea()
                     .transition(.opacity)
             }
@@ -164,7 +164,7 @@ struct ScannerView: View {
         return switch model.phase {
         case .starting: "Starting camera"
         case .denied: "Camera access is off"
-        case .searching: model.paused ? "Paused" : "Point at a card"
+        case .searching: model.paused ? "Paused" : model.mode == .single ? "Card in the guide, then tap the shutter" : "Point at a card"
         case .steady: model.mode == .single ? "Tap the shutter" : "Hold steady"
         case .reading: "Reading…"
         case .matched(let name): name
@@ -233,18 +233,7 @@ struct ScannerView: View {
             }
             if model.focusLocked { focusBar.transition(.move(edge: .bottom).combined(with: .opacity)) }
             zoomBar
-            HStack(spacing: 22) {
-                ForEach(ScannerModel.Mode.allCases, id: \.self) { m in
-                    Button {
-                        withAnimation(.snappy) { model.setMode(m) }
-                    } label: {
-                        Text(m.rawValue.uppercased())
-                            .font(.footnote.weight(.semibold))
-                            .tracking(1.2)
-                            .foregroundStyle(model.mode == m ? Color(red: 1, green: 0.84, blue: 0.04) : .white.opacity(0.8))
-                    }
-                }
-            }
+            modePicker
             HStack {
                 Button { showReview = true } label: {
                     Group {
@@ -285,6 +274,37 @@ struct ScannerView: View {
     }
 
     /// Quick zoom levels (pinch the preview for anything in between).
+    /// Continuous · Single · Binder: big targets, and a swipe across it moves to the next mode.
+    private var modePicker: some View {
+        let modes = ScannerModel.Mode.allCases
+        return HStack(spacing: 2) {
+            ForEach(modes, id: \.self) { m in
+                let on = model.mode == m
+                Button {
+                    withAnimation(.snappy) { model.setMode(m) }
+                } label: {
+                    Text(m.rawValue.uppercased())
+                        .font(.caption.weight(.bold))
+                        .tracking(1)
+                        .foregroundStyle(on ? Color.black : Color.white.opacity(0.85))
+                        .frame(minWidth: 94, minHeight: 38)
+                        .background { if on { Capsule().fill(Color(red: 1, green: 0.84, blue: 0.04)) } }
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(on ? .isSelected : [])
+            }
+        }
+        .padding(3)
+        .background(.ultraThinMaterial, in: Capsule())
+        .gesture(DragGesture(minimumDistance: 20).onEnded { v in
+            guard abs(v.translation.width) > 40, let i = modes.firstIndex(of: model.mode) else { return }
+            let next = v.translation.width < 0 ? min(i + 1, modes.count - 1) : max(i - 1, 0)
+            withAnimation(.snappy) { model.setMode(modes[next]) }
+        })
+        .sensoryFeedback(.selection, trigger: model.mode)
+    }
+
     private var zoomBar: some View {
         // 0.5× is the ultra-wide: wider, and it focuses much closer (a phone on a stand).
         let steps: [CGFloat] = model.minZoom < 0.9 ? [(model.minZoom * 10).rounded() / 10, 1, 2, 3] : [1, 1.5, 2, 3]

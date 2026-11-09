@@ -88,6 +88,9 @@ final class ScanEngine {
     var captureRequested = false
 
     private let lock = NSLock()
+    private var _guide: Quad?
+    /// Frames since the shutter was pressed in Single mode.
+    private var requestFrames = 0
     private var _retake: (id: UUID, attempt: Int)?
     private var _pendingReset = false
     private var recent: [Quad] = []
@@ -119,6 +122,21 @@ final class ScanEngine {
         r.minimumConfidence = 0.45
         return r
     }()
+
+    /// The on-screen card guide, in frame coordinates: what Single mode reads when it can't find the card's edges.
+    var guide: Quad? {
+        get { lock.lock(); defer { lock.unlock() }; return _guide }
+        set { lock.lock(); _guide = newValue; lock.unlock() }
+    }
+
+    /// A card-shaped area in the middle of the frame, for when there's no guide yet.
+    private static func middle(_ size: CGSize) -> Quad {
+        let h = min(0.75, 0.9 * size.width / (size.height * 63 / 88))
+        let w = h * size.height * 63 / 88 / size.width
+        let x = (1 - w) / 2, y = (1 - h) / 2
+        return Quad(topLeft: CGPoint(x: x, y: y), topRight: CGPoint(x: x + w, y: y),
+                    bottomRight: CGPoint(x: x + w, y: y + h), bottomLeft: CGPoint(x: x, y: y + h))
+    }
 
     /// Ask for a second read of the card that's still under the camera.
     func requestRetake(_ id: UUID, attempt: Int) {
@@ -169,6 +187,23 @@ final class ScanEngine {
         }
 
         try? handler.perform([rectangles])
+
+        // Single mode: the shutter always takes the picture. The card's edges when they're found
+        // (after a moment to settle), otherwise what's inside the on-screen guide.
+        if captureRequested, !continuous, !busy {
+            requestFrames += 1
+            if let found = rectangles.results?.first.map(CardImaging.quad), found.area > 0.04, requestFrames >= 2 {
+                singleShot(buffer, orientation: orientation, size: size, quad: found)
+                return
+            }
+            if requestFrames >= 8 {
+                singleShot(buffer, orientation: orientation, size: size, quad: guide ?? Self.middle(size))
+                return
+            }
+        } else {
+            requestFrames = 0
+        }
+
         guard let obs = rectangles.results?.first else {
             framesWithoutCard += 1
             if framesWithoutCard >= 5 { recent.removeAll() }
@@ -224,6 +259,17 @@ final class ScanEngine {
         captureRequested = false
         onEvent?(.reading)
         capture(flat, hash: hash, attempt: 0, retakeOf: nil)
+    }
+
+    private func singleShot(_ buffer: CVPixelBuffer, orientation: CGImagePropertyOrientation, size: CGSize, quad: Quad) {
+        captureRequested = false
+        requestFrames = 0
+        let upright = CIImage(cvPixelBuffer: buffer).oriented(orientation)
+        let origin = upright.extent.origin
+        let image = upright.transformed(by: CGAffineTransform(translationX: -origin.x, y: -origin.y))
+        guard let flat = CardImaging.flatten(image, quad: quad, size: size) else { return }
+        onEvent?(.reading)
+        capture(flat, hash: CardImaging.dHash(flat), attempt: 0, retakeOf: nil)
     }
 
     private func capture(_ flat: CIImage, hash: UInt64, attempt: Int, retakeOf: UUID?) {
