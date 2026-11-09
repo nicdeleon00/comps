@@ -33,7 +33,7 @@ export function japaneseSeries(code, name, released) {
 
 /** "Pikachu - 025/165 (Poke Ball Pattern)" -> "Pikachu (Poke Ball Pattern)": the number is shown separately. */
 export function cleanJapaneseName(name) {
-  return String(name).replace(/\s+-\s+[A-Za-z]*\d+[a-z]?(?:\/[A-Za-z]*\d+)?(?=\s*(?:\(|\[|$))/, '').replace(/\s+/g, ' ').trim();
+  return String(name).replace(/\s+-\s+[A-Za-z]*\d+[a-z]?(?:\/[A-Za-z0-9-]+)?(?=\s*(?:\(|\[|$))/, '').replace(/\s+/g, ' ').trim();
 }
 
 /** One product to a catalog row ([id, name, set, number, total, rarity]), or null for sealed product. */

@@ -38,6 +38,8 @@ test('card names without the number TCGplayer adds', () => {
   assert.equal(cleanJapaneseName("N's Zoroark ex - 131/100"), "N's Zoroark ex");
   assert.equal(cleanJapaneseName('Ho-Oh'), 'Ho-Oh');
   assert.equal(cleanJapaneseName('Porygon-Z - 120/172'), 'Porygon-Z');
+  assert.equal(cleanJapaneseName('Chikorita - 001/M-P'), 'Chikorita');
+  assert.equal(cleanJapaneseName("Lillie's Determination - 007/SV-P (Holo)"), "Lillie's Determination (Holo)");
 });
 
 test('set names and eras from Japanese set codes', () => {
