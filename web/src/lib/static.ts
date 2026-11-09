@@ -44,9 +44,35 @@ type IndexRow = [number, string, string, string | null, string | null, string | 
 type Index = { updatedAt: number; imageBase: string; sets: Record<string, [string, string | null, string, string | null]>; cards: IndexRow[] };
 
 let indexMap: Promise<{ idx: Index; byId: Map<string, IndexRow> }> | null = null;
+/** English cards (Master Sets, deals and the market use these). */
 function index() {
   if (!indexMap) indexMap = file<Index>('index.json').then((idx) => ({ idx, byId: new Map(idx.cards.map((r) => [`tcg:${r[0]}`, r])) }));
   return indexMap;
+}
+
+let japanMap: Promise<Index> | null = null;
+/** Japanese cards (index-ja.json), with every set labeled "(Japanese)". Empty if the file isn't there yet. */
+function japan() {
+  if (!japanMap) {
+    japanMap = file<Index>('index-ja.json').then((idx) => {
+      for (const id of Object.keys(idx.sets)) idx.sets[id] = [`${idx.sets[id][0]} (Japanese)`, ...idx.sets[id].slice(1)] as Index['sets'][string];
+      return idx;
+    }).catch(() => ({ updatedAt: 0, imageBase: '', sets: {}, cards: [] }));
+  }
+  return japanMap;
+}
+
+let catalogMap: Promise<{ idx: Index; byId: Map<string, IndexRow>; ja: Index }> | null = null;
+/** English and Japanese cards together: for search, card pages and valuing a collection. */
+function catalog() {
+  if (!catalogMap) {
+    catalogMap = Promise.all([index(), japan()]).then(([en, ja]) => {
+      const byId = new Map(en.byId);
+      for (const r of ja.cards) byId.set(`tcg:${r[0]}`, r);
+      return { idx: { ...en.idx, sets: { ...en.idx.sets, ...ja.sets } }, byId, ja };
+    });
+  }
+  return catalogMap;
 }
 
 /** The printing a card defaults to: the regular one, never 1st Edition unless it's the only one. */
@@ -66,12 +92,18 @@ function cardFromRow(r: IndexRow, idx: Index, variant?: string): Card {
 const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 const stripZeros = (n: string) => n.toUpperCase().replace(/^([A-Z]*)0+(?=\d)/, '$1');
 
+/** Japanese cards come after English ones, unless the search says "jp" or "japanese" (then only them). */
 async function search(q: string, limit = 24) {
-  const { idx } = await index();
+  const { idx, ja } = await catalog();
   const num = /([A-Za-z]*\d+[a-z]?)\s*\/\s*([A-Za-z]*\d+)/.exec(q);
-  const words = norm(q.replace(/[A-Za-z]*\d+[a-z]?\s*\/\s*[A-Za-z]*\d+/, ' ')).split(' ').filter(Boolean);
+  let words = norm(q.replace(/[A-Za-z]*\d+[a-z]?\s*\/\s*[A-Za-z]*\d+/, ' ')).split(' ').filter(Boolean);
+  const onlyJapanese = words.some((w) => w === 'jp' || w === 'japanese' || w === 'jpn');
+  words = words.filter((w) => w !== 'jp' && w !== 'japanese' && w !== 'jpn');
+  const english = (await index()).idx.cards;
+  const japaneseIds = new Set(ja.cards.map((r) => r[0]));
+  const rows = onlyJapanese ? ja.cards : [...english, ...ja.cards];
   const out: { r: IndexRow; s: number }[] = [];
-  for (const r of idx.cards) {
+  for (const r of rows) {
     if (num && stripZeros(r[3] ?? '') !== stripZeros(num[1])) continue;
     const name = norm(r[1]);
     const set = norm(idx.sets[r[2]]?.[0] ?? '');
@@ -84,8 +116,9 @@ async function search(q: string, limit = 24) {
       else { ok = false; break; }
     }
     if (!ok) continue;
-    if (name === norm(q)) s += 3;
+    if (name === words.join(' ')) s += 3;
     s += Math.min(1.5, Math.log10((r[6][0]?.[1] ?? 0) + 1) / 2);
+    if (!onlyJapanese && japaneseIds.has(r[0])) s -= 2.5;
     out.push({ r, s });
   }
   out.sort((a, b) => b.s - a.s);
@@ -103,7 +136,7 @@ const COND: Record<string, number> = { NM: 1, LP: 0.82, MP: 0.62, HP: 0.42, DMG:
 async function valued(): Promise<Holding[]> {
   const list = holdings();
   if (!list.length) return [];
-  const { byId, idx } = await index();
+  const { byId, idx } = await catalog();
   return list.map((h) => {
     const r = byId.get(h.cardId);
     const v = r ? (r[6].find((x) => x[0] === h.variant) ?? regular(r)) : null;
@@ -210,15 +243,16 @@ async function cardDetail(id: string) {
   try { d = (await file<{ cards: Record<string, any> }>(`cards/${shardOf(id)}.json`)).cards[id] ?? null; } catch {}
   if (!d) {
     // Cheap cards have no detail file; build a minimal one from the index.
-    const { byId, idx } = await index();
+    const { byId, idx, ja } = await catalog();
     const r = byId.get(id);
     if (!r) throw Object.assign(new Error('not found'), { status: 404 });
+    const japanese = Boolean(ja.sets[r[2]]);
     const card = cardFromRow(r, idx);
     d = {
       card, ext: {}, set: { id: r[2], name: idx.sets[r[2]]?.[0], series: idx.sets[r[2]]?.[2] },
       variants: r[6].map((v) => ({ variant: v[0], label: v[0], price: v[1], priceLow: null, confidence: null, change7d: v[4], change30d: null, grades: v[2] || v[3] ? { g9: v[2], psa10: v[3] } : null, volume: null, sources: [], grading: null })),
       history: {}, rates: { era: 'modern', custom: false, p10: 0.45, p9: 0.42, p8: 0.1 }, fx: 1, signals: [], listings: [],
-      links: { tcgplayer: `https://www.tcgplayer.com/product/${r[0]}`, ebaySold: `https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(`${r[1]} ${r[3] ?? ''}`)}&LH_Sold=1&LH_Complete=1` },
+      links: { tcgplayer: `https://www.tcgplayer.com/product/${r[0]}`, ebaySold: `https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(`${r[1]} ${r[3] ?? ''}${japanese ? ' japanese' : ''}`)}&LH_Sold=1&LH_Complete=1` },
     };
   }
   const rates = LS.get<Record<string, any>>('gemRates', {})[id];
@@ -251,7 +285,7 @@ export async function staticRequest(method: string, url: string, body?: any): Pr
     if (path === '/api/settings') return { ...localSettings(), static: true };
     if (path === '/api/collection') return collection(Number(q.days) || 90);
     if (path === '/api/watchlist') {
-      const { byId, idx } = await index();
+      const { byId, idx } = await catalog();
       return {
         items: LS.get<any[]>('watchlist', []).flatMap((w) => {
           const row = byId.get(w.cardId);
@@ -271,7 +305,7 @@ export async function staticRequest(method: string, url: string, body?: any): Pr
   if (path === '/api/refresh') return { started: false, running: 'GitHub Actions (every 6 hours)' };
 
   if (path === '/api/collection' && method === 'POST') {
-    const { byId, idx } = await index();
+    const { byId, idx } = await catalog();
     const row = byId.get(body.cardId);
     const card = row ? cardFromRow(row, idx, body.variant) : null;
     const now = Date.now();
