@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import UIKit
 
 /// Screenshot mode, used only by the screenshot workflow: the simulator launches the
 /// app with `-screenshots`. It runs on a throwaway in-memory store filled with sample
@@ -15,6 +16,20 @@ enum Screenshots {
     }
 
     static func flag(_ name: String) -> Bool { on && ProcessInfo.processInfo.arguments.contains(name) }
+
+    /// A scanned Pikachu with two copies, as the check-before-adding screen shows it.
+    @MainActor
+    static func sampleScan() async -> ScanItem? {
+        let found = await Catalog.shared.lookup("Pikachu 025/165", setId: nil, limit: 6)
+        guard let first = found.first else { return nil }
+        let item = ScanItem(photo: UIImage(), condition: "NM")
+        item.candidates = found
+        item.selected = 0
+        item.variant = Catalog.defaultPrinting(first)
+        item.status = .matched
+        item.quantity = 2
+        return item
+    }
 
     /// Sample cards (and a value history for the chart) for the pictures.
     @MainActor

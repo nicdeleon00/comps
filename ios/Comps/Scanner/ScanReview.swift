@@ -27,7 +27,21 @@ struct ScanReviewView: View {
                         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                             Button(role: .destructive) { model.remove(item) } label: { Label("Remove", systemImage: "trash") }
                         }
+                        .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                            Button { item.quantity = min(99, item.quantity + 1) } label: { Label("One more", systemImage: "plus") }
+                                .tint(.green)
+                        }
                         .contextMenu {
+                            Button { item.quantity = min(99, item.quantity + 1) } label: { Label("One more copy", systemImage: "plus") }
+                            if item.quantity > 1 {
+                                Button { item.quantity -= 1 } label: { Label("One fewer copy", systemImage: "minus") }
+                            }
+                            if let c = item.choice, c.variants.count > 1 {
+                                Picker("Printing", selection: Binding(get: { item.variant ?? Catalog.defaultPrinting(c) ?? "" }, set: { item.variant = $0 })) {
+                                    ForEach(c.variants, id: \.variant) { v in Text(Printing.name(v)).tag(v.variant) }
+                                }
+                                .pickerStyle(.menu)
+                            }
                             Button(role: .destructive) { model.remove(item, animated: true) } label: { Label("Remove", systemImage: "trash") }
                         }
                     }
@@ -105,7 +119,7 @@ private struct ReviewRow: View {
                             Image(systemName: "questionmark.circle.fill").foregroundStyle(.orange)
                         }
                     }
-                    Text([item.pocket, c.card.subtitle].compactMap { $0 }.joined(separator: " · ")).font(.footnote).foregroundStyle(.secondary).lineLimit(1)
+                    Text([item.pocket, c.card.subtitle, Printing.shown(item, c)].compactMap { $0 }.joined(separator: " · ")).font(.footnote).foregroundStyle(.secondary).lineLimit(1)
                     GradeBadge(grader: item.grader, grade: item.grade, condition: item.condition)
                 }
                 Spacer()
@@ -197,18 +211,6 @@ struct ScanItemEditor: View {
                     Text(listTitle)
                 }
 
-                if let c = item.choice, c.variants.count > 1 {
-                    Section("Printing") {
-                        Picker("Printing", selection: Binding(get: { item.variant ?? c.variants[0].variant }, set: { item.variant = $0 })) {
-                            ForEach(c.variants, id: \.variant) { v in
-                                Text("\(v.label.isEmpty ? "Standard" : v.label) · \(Fmt.money(v.price))").tag(v.variant)
-                            }
-                        }
-                        .pickerStyle(.inline)
-                        .labelsHidden()
-                    }
-                }
-
                 Section {
                     Toggle("Chinese card", isOn: Binding(get: { item.isChinese }, set: { item.language = $0 ? "zh" : nil }))
                 } footer: {
@@ -235,7 +237,6 @@ struct ScanItemEditor: View {
                         }
                         .pickerStyle(.segmented)
                     }
-                    Stepper("Quantity: \(item.quantity)", value: $item.quantity, in: 1...99)
                 }
 
                 Section {
@@ -279,6 +280,11 @@ struct ScanItemEditor: View {
             }
             .frame(height: typing ? 118 : 196)
             .frame(maxWidth: .infinity)
+
+            if !typing, let c = item.choice {
+                QuickFix(item: item, candidate: c)
+                    .transition(.opacity)
+            }
 
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
@@ -468,5 +474,84 @@ private struct ScanPhotoView: View {
             .resizable()
             .aspectRatio(63.0 / 88.0, contentMode: .fill)
             .task(id: item.id) { large = await item.largePhoto() }
+    }
+}
+
+/// Printing names for the review screens.
+enum Printing {
+    static func name(_ v: VariantPrice) -> String { v.label.isEmpty ? "Normal" : v.label }
+
+    /// The printing a scan will be added as, when the card comes in more than one.
+    static func shown(_ item: ScanItem, _ c: ScanCandidate) -> String? {
+        guard c.variants.count > 1 else { return nil }
+        let current = item.variant ?? Catalog.defaultPrinting(c)
+        return c.variants.first { $0.variant == current }.map(name)
+    }
+}
+
+/// One tap to fix what a scan most often gets wrong: the printing (holo, reverse holo…) and how many copies.
+private struct QuickFix: View {
+    @Bindable var item: ScanItem
+    let candidate: ScanCandidate
+
+    private var current: String? { item.variant ?? Catalog.defaultPrinting(candidate) }
+
+    var body: some View {
+        HStack(spacing: 10) {
+            if candidate.variants.count > 1 {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        ForEach(candidate.variants, id: \.variant) { v in
+                            let on = current == v.variant
+                            Button { withAnimation(.snappy) { item.variant = v.variant } } label: {
+                                VStack(spacing: 0) {
+                                    Text(Printing.name(v)).font(.footnote.weight(.semibold)).lineLimit(1)
+                                    Text(item.isChinese ? "No price" : Fmt.money(v.price)).font(.caption2.monospacedDigit()).opacity(0.8)
+                                }
+                                .foregroundStyle(on ? Color.white : Color.primary)
+                                .padding(.horizontal, 10)
+                                .frame(height: 40)
+                                .background(on ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.fill.tertiary),
+                                            in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("\(Printing.name(v)), \(Fmt.money(v.price))")
+                            .accessibilityAddTraits(on ? .isSelected : [])
+                        }
+                    }
+                }
+            } else {
+                Text(candidate.variants.first.map(Printing.name) ?? "Normal")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 0)
+            }
+            CopiesStepper(count: $item.quantity)
+        }
+        .sensoryFeedback(.selection, trigger: item.variant)
+    }
+}
+
+/// − ×2 + : how many copies.
+struct CopiesStepper: View {
+    @Binding var count: Int
+
+    var body: some View {
+        HStack(spacing: 0) {
+            Button { if count > 1 { count -= 1 } } label: { Image(systemName: "minus").frame(width: 36, height: 40) }
+                .disabled(count <= 1)
+                .accessibilityLabel("One fewer copy")
+            Text("×\(count)")
+                .font(.subheadline.weight(.bold).monospacedDigit())
+                .frame(minWidth: 30)
+                .contentTransition(.numericText())
+            Button { if count < 99 { count += 1 } } label: { Image(systemName: "plus").frame(width: 36, height: 40) }
+                .accessibilityLabel("One more copy")
+        }
+        .font(.subheadline.weight(.semibold))
+        .buttonStyle(.plain)
+        .background(.fill.tertiary, in: Capsule())
+        .animation(.snappy, value: count)
+        .sensoryFeedback(.increase, trigger: count)
     }
 }

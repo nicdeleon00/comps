@@ -60,6 +60,8 @@ struct RootView: View {
     @State private var storeProblem = CompsApp.storeProblem
     @State private var rescued = CompsApp.rescued != nil
     @State private var crashed = CrashLog.last != nil
+    /// Screenshot mode: a sample scan being checked (see -review).
+    @State private var sampleScan: ScanItem?
 
     /// The Collection tab, unless screenshot mode asks for another one.
     private static var firstTab: AppTab {
@@ -114,6 +116,9 @@ struct RootView: View {
         } message: {
             Text("They’re still saved on this phone, untouched. Don’t delete the app, and don’t scan until it’s fixed: send the details to get it fixed. Cards in your account are safe on the website.\n\n\(CompsApp.storeError.map { String($0.prefix(300)) } ?? "")")
         }
+        .sheet(item: $sampleScan) { item in
+            SingleResultSheet(item: item) { sampleScan = nil }
+        }
         .alert("Comps closed unexpectedly last time", isPresented: $crashed) {
             Button("Copy details") { UIPasteboard.general.string = CrashLog.last }
             Button("OK", role: .cancel) {}
@@ -126,7 +131,10 @@ struct RootView: View {
             Text("The saved collection wouldn’t open, so \(CompsApp.rescued ?? 0) cards were copied out of it into a fresh file. The original is kept as a backup. Signed in? Everything in your account loads too.")
         }
         .task {
-            if Screenshots.on { await Screenshots.seed(context) }
+            if Screenshots.on {
+                await Screenshots.seed(context)
+                if Screenshots.flag("-review") { sampleScan = await Screenshots.sampleScan() }
+            }
             await Account.shared.loadConfig()
             await Catalog.shared.ensureLoaded()
             await Portfolio.migrateDefaultPrintings(context: context)

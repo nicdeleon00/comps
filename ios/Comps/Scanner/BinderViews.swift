@@ -208,7 +208,7 @@ private struct PocketRow: View {
                         .font(.body.weight(.semibold)).lineLimit(1)
                     if item.status == .review { Image(systemName: "questionmark.circle.fill").foregroundStyle(.orange) }
                 }
-                Text([item.pocket, item.choice?.card.subtitle].compactMap { $0 }.joined(separator: " · "))
+                Text([item.pocket, item.choice?.card.subtitle, item.choice.flatMap { Printing.shown(item, $0) }].compactMap { $0 }.joined(separator: " · "))
                     .font(.footnote).foregroundStyle(.secondary).lineLimit(1)
             }
             Spacer()
