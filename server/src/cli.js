@@ -12,6 +12,7 @@ import { createJobs } from './jobs.js';
 import { createApi } from './api.js';
 import { exportStatic } from './export.js';
 import { seedDemo } from './demo.js';
+import { refreshJapan } from './japan.js';
 import { log } from './lib/util.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -34,6 +35,8 @@ async function main() {
     await jobs.runListings();
     if (!due) await jobs.runGraded();
     const daysAdded = await jobs.runBackfill();
+    // Japanese cards (their own catalog file; never fails the run).
+    await refreshJapan(db);
     if (!due || daysAdded) jobs.recompute();
     const failed = db.all(`SELECT name, message FROM jobs WHERE status = 'error'`);
     for (const f of failed) log.warn(`job ${f.name} failed: ${f.message}`);

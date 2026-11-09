@@ -5,12 +5,14 @@
 //   data/sets/<groupId>.json      every card in a set, priced
 //   data/cards/<shard>.json       full card detail (history, grading, signals) for cards worth ≥ $1
 //   data/index.json               compact catalog for search, scanning and pricing on the phone
+//   data/index-ja.json            the same for Japanese cards
 
 import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { setImageMode } from './store.js';
 import { safeJSON, log } from './lib/util.js';
 import { buildIndex, byPrinting } from './catalogIndex.js';
+import { buildJapaneseIndex } from './japan.js';
 
 const SHARDS = 128;
 export const shardOf = (id) => {
@@ -72,8 +74,11 @@ export async function exportStatic({ db, api, outDir, minDetailUsd = 1 }) {
   const index = buildIndex(db);
   const cards = index.cards;
   write(outDir, 'index.json', index);
+  // Japanese cards, in their own file (see japan.js).
+  const japan = buildJapaneseIndex(db);
+  if (japan.cards.length) write(outDir, 'index-ja.json', japan);
 
-  log.info(`export: ${cards.length} cards in index, ${ids.length} detail pages, ${sets.items.length} sets → ${outDir}`);
+  log.info(`export: ${cards.length} cards in index, ${japan.cards.length} Japanese, ${ids.length} detail pages, ${sets.items.length} sets → ${outDir}`);
   return { cards: cards.length, details: ids.length, sets: sets.items.length };
 }
 
