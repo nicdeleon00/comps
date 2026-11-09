@@ -17,10 +17,10 @@ enum Screenshots {
 
     static func flag(_ name: String) -> Bool { on && ProcessInfo.processInfo.arguments.contains(name) }
 
-    /// A scanned Pikachu with two copies, as the check-before-adding screen shows it.
+    /// A scanned card with two copies, as the check-before-adding screen shows it ("-review <search>").
     @MainActor
     static func sampleScan() async -> ScanItem? {
-        let found = await Catalog.shared.lookup("Pikachu 025/165", setId: nil, limit: 6)
+        let found = await Catalog.shared.lookup(value("-review") ?? "Bulbasaur 001/165", setId: nil, limit: 6)
         guard let first = found.first else { return nil }
         let item = ScanItem(photo: UIImage(), condition: "NM")
         item.candidates = found
