@@ -106,8 +106,8 @@ export function buildJapaneseIndex(db) {
     const data = JSON.parse(r.data);
     let n = 0;
     for (const c of data.cards) {
+      // A card with no price yet (a new promo) is still listed, so it can be scanned and added.
       const pv = (data.prices[c[0]] ?? []).map(([variant, raw]) => [variant, raw, null, null, null]);
-      if (!pv.length) continue;
       pv.sort(byPrinting);
       cards.push([c[0], cleanJapaneseName(c[1]), ...c.slice(2), pv]);
       n++;

@@ -16,6 +16,7 @@ const server = createServer((req, res) => {
   if (req.url === '/85/23599/products') return send([
     { productId: 566346, name: 'Bulbasaur - 001/165', extendedData: [{ name: 'Number', value: '001/165' }, { name: 'Rarity', value: 'Common' }] },
     { productId: 577147, name: 'Mew ex - 205/165', extendedData: [{ name: 'Number', value: '205/165' }, { name: 'Rarity', value: 'Special Art Rare' }] },
+    { productId: 700100, name: 'Pikachu - 025/165', extendedData: [{ name: 'Number', value: '025/165' }, { name: 'Rarity', value: 'Common' }] },
     { productId: 999, name: 'Pokemon Card 151 Booster Box', extendedData: [] },
   ]);
   if (req.url === '/85/23599/prices') return send([
@@ -59,12 +60,13 @@ test('builds a Japanese catalog in the same shape as index.json, cards only', as
   assert.equal(idx.lang, 'ja');
   assert.deepEqual(Object.keys(idx.sets), ['23599']);
   assert.deepEqual(idx.sets['23599'], ['Pokemon Card 151', 'SV2a', 'Scarlet & Violet', '2023-06-16', 0]);
-  assert.equal(idx.cards.length, 2);
+  assert.equal(idx.cards.length, 3);
   const bulba = idx.cards.find((c) => c[0] === 566346);
   assert.deepEqual(bulba.slice(0, 6), [566346, 'Bulbasaur', '23599', '001', '165', 'Common']);
   assert.deepEqual(bulba[6].map((v) => v[0]), ['normal', 'reverseHolofoil'], 'regular printing first');
   assert.equal(bulba[6][1][1], 0.5, 'mid price when there is no market price');
   assert.deepEqual(idx.cards.find((c) => c[0] === 577147)[6], [['holofoil', 207.3, null, null, null]]);
+  assert.deepEqual(idx.cards.find((c) => c[0] === 700100), [700100, 'Pikachu', '23599', '025', '165', 'Common', []], 'no price yet: still listed');
   // English tables untouched.
   assert.equal(db.get('SELECT COUNT(*) n FROM cards').n, 0);
 });

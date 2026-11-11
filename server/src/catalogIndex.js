@@ -1,15 +1,14 @@
 // The compact card catalog the website and the iPhone app use for search,
 // scanning, pricing and master sets (published as data/index.json).
 //
-//   cards: [productId, name, setId, number, total, rarity, [[variant, raw, g9, psa10, change7d], ...]] (regular printing first)
+//   cards: [productId, name, setId, number, total, rarity, [[variant, raw, g9, psa10, change7d], ...]] (regular printing first;
+//          empty for a card with no price yet, such as a promo that just came out, so it can still be scanned and added)
 //   sets:  { setId: [name, code, series, released, reprint (1 = reprint product; the scanner prefers originals)] }
 
 import { reprintGroups } from './engine/printings.js';
 
 const r2 = (x) => (x == null || !Number.isFinite(x) ? null : Math.round(x * 100) / 100);
 
-// The regular printing comes first: it's what a scanned or added card defaults to.
-// Reverse holo and 1st edition are only used when picked.
 // The regular printing first (what a card defaults to); 1st Edition always last, after any printing
 // not listed here, so it's never the default while another printing exists.
 const PRINTING_RANK = { normal: 0, holofoil: 1, unlimitedHolofoil: 2, reverseHolofoil: 3, '1stEditionNormal': 50, '1stEditionHolofoil': 51 };
@@ -26,8 +25,7 @@ export function buildIndex(db) {
   }
   const cards = [];
   for (const c of db.all(`SELECT id, name, group_id, number, printed_total, rarity FROM cards WHERE id LIKE 'tcg:%'`)) {
-    const pv = vals.get(c.id);
-    if (!pv) continue;
+    const pv = vals.get(c.id) ?? [];
     pv.sort(byPrinting);
     cards.push([Number(c.id.slice(4)), c.name, String(c.group_id ?? ''), c.number, c.printed_total, c.rarity, pv]);
   }
