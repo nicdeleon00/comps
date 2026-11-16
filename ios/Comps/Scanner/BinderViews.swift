@@ -36,7 +36,6 @@ struct BinderOverlay: View {
                     .stroke(scanYellow, style: StrokeStyle(lineWidth: 2.5, lineJoin: .round))
                 }
             }
-            .animation(.easeOut(duration: 0.15), value: quads.count)
         }
         .allowsHitTesting(false)
     }

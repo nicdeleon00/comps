@@ -107,7 +107,8 @@ final class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDele
             if device.isFocusModeSupported(.continuousAutoFocus) { device.focusMode = .continuousAutoFocus }
             if device.isAutoFocusRangeRestrictionSupported { device.autoFocusRangeRestriction = .near }
             if device.isExposureModeSupported(.continuousAutoExposure) { device.exposureMode = .continuousAutoExposure }
-            if device.isSmoothAutoFocusSupported { device.isSmoothAutoFocusEnabled = false }
+            // Smooth refocusing: the lens glides to the new distance instead of hunting back and forth.
+            if device.isSmoothAutoFocusSupported { device.isSmoothAutoFocusEnabled = true }
             if device.isVirtualDevice {
                 device.setPrimaryConstituentDeviceSwitchingBehavior(.auto, restrictedSwitchingBehaviorConditions: [])
             }
@@ -181,7 +182,8 @@ final class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDele
         onZoom?(f / zoomBase)
     }
 
-    /// Tap to focus: focus and expose on that spot, then hold focus there.
+    /// Tap to focus: focus and expose on that spot, and keep following it (a growing stack of
+    /// cards gets closer to the lens, so focus is never frozen at one distance by a tap).
     func focus(at point: CGPoint) {
         sessionQueue.async { [weak self] in self?.applyFocus(at: point) }
     }
@@ -190,10 +192,9 @@ final class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDele
         guard let device else { return }
         do {
             try device.lockForConfiguration()
-            if device.isFocusPointOfInterestSupported, device.isFocusModeSupported(.autoFocus) {
-                device.focusPointOfInterest = point
-                device.focusMode = .autoFocus
-            }
+            if device.isFocusPointOfInterestSupported { device.focusPointOfInterest = point }
+            if device.isFocusModeSupported(.continuousAutoFocus) { device.focusMode = .continuousAutoFocus }
+            else if device.isFocusModeSupported(.autoFocus) { device.focusMode = .autoFocus }
             if device.isExposurePointOfInterestSupported, device.isExposureModeSupported(.continuousAutoExposure) {
                 device.exposurePointOfInterest = point
                 device.exposureMode = .continuousAutoExposure
@@ -203,7 +204,7 @@ final class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDele
         // Report where the lens settled, so the focus slider starts there.
         sessionQueue.asyncAfter(deadline: .now() + 0.8) { [weak self] in
             guard let device = self?.device else { return }
-            self?.onFocus?(device.lensPosition, true)
+            self?.onFocus?(device.lensPosition, false)
         }
     }
 

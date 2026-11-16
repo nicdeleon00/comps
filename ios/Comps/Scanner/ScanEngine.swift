@@ -224,14 +224,15 @@ final class ScanEngine {
         let pendingRetake = retake
         guard !busy, quad.area > 0.1 else { return }
         if isPaused && pendingRetake == nil { return }
-        let steady = recent.count >= 5 && recent.allSatisfy { $0.distance(to: quad) < 0.014 }
+        // Still for about a fifth of a second.
+        let steady = recent.count >= 4 && recent.suffix(4).allSatisfy { $0.distance(to: quad) < 0.02 }
         guard steady else { return }
         if pendingRetake == nil && !continuous && !captureRequested {
             onEvent?(.steady)
             return
         }
         // Give the person a beat between cards; a second look can come sooner.
-        guard Date().timeIntervalSince(lastCapture) > (pendingRetake == nil ? 0.6 : 0.2) else { return }
+        guard Date().timeIntervalSince(lastCapture) > (pendingRetake == nil ? 0.3 : 0.15) else { return }
 
         let upright = CIImage(cvPixelBuffer: buffer).oriented(orientation)
         let origin = upright.extent.origin

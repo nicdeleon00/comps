@@ -201,6 +201,7 @@ final class ScannerModel {
         engine.captureRequested = false
         quad = nil
         pageQuads = []
+        tracked = []
         // A new mode starts live (a paused Continuous used to leave Single unable to take a picture).
         if singleResult == nil { setPaused(false) }
         phase = .searching
@@ -234,9 +235,9 @@ final class ScannerModel {
         guard let xy = UserDefaults.standard.array(forKey: pointKey(m)) as? [Double], xy.count == 2 else { return nil }
         return CGPoint(x: xy[0], y: xy[1])
     }
-    private func savedLens(_ m: Mode) -> Float? {
-        (UserDefaults.standard.object(forKey: lensKey(m)) as? Double).map(Float.init)
-    }
+    /// The focus slider holds focus only until the scanner is closed or the mode changes: a
+    /// distance locked last time is wrong as soon as the stack of cards is a different height.
+    private func savedLens(_ m: Mode) -> Float? { nil }
 
     /// Zoom to a level (the quick buttons), remembered for this mode.
     func setZoom(_ z: CGFloat, smooth: Bool = true) {
@@ -260,7 +261,7 @@ final class ScannerModel {
     /// Tap to focus there; the slider can then fine-tune it.
     func tapFocus(device: CGPoint, view: CGPoint) {
         camera.focus(at: device)
-        focusLocked = true
+        focusLocked = false
         focusMark = (view, UUID())
         // A tapped spot replaces a slider setting, and is remembered for this mode.
         UserDefaults.standard.set([Double(device.x), Double(device.y)], forKey: pointKey(mode))
@@ -273,7 +274,6 @@ final class ScannerModel {
         lensPosition = p
         focusLocked = true
         camera.setLens(p)
-        UserDefaults.standard.set(Double(p), forKey: lensKey(mode))
     }
 
     func autoFocus() {
@@ -401,6 +401,29 @@ final class ScannerModel {
         return MatchContext(lockedSet: lockedSet?.id, recentSets: recent)
     }
 
+    /// Cards being followed on a binder page: outlines glide to where each card is now, stay through a
+    /// frame or two where one isn't found, and only appear once seen twice, so nothing flickers.
+    private var tracked: [(quad: Quad, hits: Int, missed: Int)] = []
+
+    private func trackPage(_ found: [Quad]) {
+        var rest = found
+        var next: [(quad: Quad, hits: Int, missed: Int)] = []
+        for t in tracked {
+            let c = t.quad.center
+            if let i = rest.firstIndex(where: { hypot($0.center.x - c.x, $0.center.y - c.y) < 0.07 }) {
+                next.append((quad: t.quad.lerp(to: rest[i], 0.45), hits: t.hits + 1, missed: 0))
+                rest.remove(at: i)
+            } else if t.missed < 6, t.hits >= 2 {
+                next.append((quad: t.quad, hits: t.hits, missed: t.missed + 1))
+            }
+        }
+        for q in rest { next.append((quad: q, hits: 1, missed: 0)) }
+        tracked = next
+        let shown = next.filter { $0.hits >= 2 }.map(\.quad)
+        // Same cards, slightly moved: update in place. A different number of cards: fade.
+        if shown.count == pageQuads.count { pageQuads = shown } else { withAnimation(.easeOut(duration: 0.2)) { pageQuads = shown } }
+    }
+
     private func handle(_ event: ScanEngine.Event) {
         switch event {
         case .quad(let q, let size):
@@ -412,7 +435,7 @@ final class ScannerModel {
         case .quads(let qs, let size):
             guard mode == .binder else { return }
             frameSize = size
-            pageQuads = qs
+            trackPage(qs)
         case .steady:
             if phase == .searching { phase = .steady }
         case .reading:
@@ -469,6 +492,11 @@ final class ScannerModel {
             let token = UUID()
             item.retakeToken = token
             engine.requestRetake(item.id, attempt: item.attempts)
+            // A read that wasn't sure is often a soft picture: focus on the card itself before the second look.
+            if !focusLocked, let q = quad {
+                let c = q.center
+                camera.focus(at: CGPoint(x: c.y, y: 1 - c.x))
+            }
             Task {
                 try? await Task.sleep(for: .seconds(1.4))
                 // The card was taken away before the second look: settle with what we have.

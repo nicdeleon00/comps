@@ -75,18 +75,27 @@ enum CardImaging {
     /// look isn't a repeat of the first. `small` is for low-resolution crops (binder pages).
     static func recognize(_ image: CGImage, attempt: Int = 0, small: Bool = false) -> [OCRLine] {
         let boost: CGFloat = small ? 1.5 : 1
-        var lines = ocr(image, region: CGRect(x: 0, y: 0, width: 1, height: 1), upscale: small ? 1.5 : 1)
+        let english = ["en-US"]
+        var passes: [(CGRect, CGFloat, [String])] = [(CGRect(x: 0, y: 0, width: 1, height: 1), small ? 1.5 : 1, english)]
         if attempt == 0 {
-            lines += ocr(image, region: CGRect(x: 0, y: 0.84, width: 1, height: 0.16), upscale: 2 * boost)
-            lines += ocr(image, region: CGRect(x: 0, y: 0, width: 1, height: 0.18), upscale: 1.5 * boost)
+            passes.append((CGRect(x: 0, y: 0.84, width: 1, height: 0.16), 2 * boost, english))
+            passes.append((CGRect(x: 0, y: 0, width: 1, height: 0.18), 1.5 * boost, english))
             // The name band read as Japanese too: Japanese text there means a Japanese card.
-            lines += ocr(image, region: CGRect(x: 0, y: 0, width: 1, height: 0.18), upscale: 1.5 * boost, languages: ["ja-JP", "en-US"])
+            passes.append((CGRect(x: 0, y: 0, width: 1, height: 0.18), 1.5 * boost, ["ja-JP", "en-US"]))
         } else {
             // Halves of the bottom band, larger: modern cards print the number bottom-left, older ones bottom-right.
-            lines += ocr(image, region: CGRect(x: 0, y: 0.8, width: 0.6, height: 0.2), upscale: 3 * boost)
-            lines += ocr(image, region: CGRect(x: 0.4, y: 0.8, width: 0.6, height: 0.2), upscale: 3 * boost)
-            lines += ocr(image, region: CGRect(x: 0, y: 0, width: 0.8, height: 0.15), upscale: 2 * boost)
+            passes.append((CGRect(x: 0, y: 0.8, width: 0.6, height: 0.2), 3 * boost, english))
+            passes.append((CGRect(x: 0.4, y: 0.8, width: 0.6, height: 0.2), 3 * boost, english))
+            passes.append((CGRect(x: 0, y: 0, width: 0.8, height: 0.15), 2 * boost, english))
         }
+        // The passes run side by side (each on its own core), then are put back in order.
+        var results = [[OCRLine]](repeating: [], count: passes.count)
+        let gate = NSLock()
+        DispatchQueue.concurrentPerform(iterations: passes.count) { i in
+            let found = ocr(image, region: passes[i].0, upscale: passes[i].1, languages: passes[i].2)
+            gate.lock(); results[i] = found; gate.unlock()
+        }
+        let lines = results.flatMap { $0 }
         // Drop duplicates that the band passes re-read.
         var seen = Set<String>()
         return lines.filter { seen.insert($0.text.lowercased() + "\(Int($0.box.minY * 40))").inserted }
