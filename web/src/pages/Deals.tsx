@@ -5,7 +5,7 @@ import type { Deal } from '../lib/types';
 import { Segmented, Empty, SkRows } from '../components/ui';
 import { DealRow } from '../components/Rows';
 import { IconTag } from '../components/icons';
-import { Header, PokemonFilters } from './shared';
+import { Header, PokemonFilters, DealsTabs } from './shared';
 import { MarketplaceFinds } from '../components/Marketplace';
 
 type Res = { items: Deal[]; total: number; counts: Record<string, number> };
@@ -17,7 +17,6 @@ const KINDS = [
   { value: 'ask', label: 'Low asks' },
   { value: 'momentum', label: 'Momentum' },
   { value: 'xmarket', label: 'Cross-market' },
-  { value: 'marketplace', label: 'Marketplace' },
 ];
 
 export function DealsPage() {
@@ -59,14 +58,15 @@ export function DealsPage() {
   return (
     <div class="page">
       <Header title="Deals">
-        <span>Cards priced under what they're worth, ranked by discount, dollar upside and data confidence.</span>
+        <span>{mp ? 'Facebook Marketplace listings priced under what the card is worth.' : "Cards priced under what they're worth, ranked by discount, dollar upside and data confidence."}</span>
       </Header>
 
+      <DealsTabs value={mp ? 'marketplace' : 'undervalued'} />
+      {mp ? <MarketplaceFinds /> : <>
       <div class="toolbar">
         <Segmented value={kind} scroll label="Deal type" onChange={(v) => setQuery({ kind: v })}
           options={KINDS.map((k) => ({ ...k, count: k.value === 'all' ? all || undefined : counts[k.value] }))} />
       </div>
-      {mp ? <MarketplaceFinds /> : <>
       <div class="toolbar">
         <PokemonFilters series={series} rarity={rarity} onSeries={(v) => setQuery({ series: v })} onRarity={(v) => setQuery({ rarity: v })} />
       </div>

@@ -504,3 +504,6 @@ a.row:hover::before, a.row:hover + .row::before { opacity: 0; }
 ::view-transition-old(root), ::view-transition-new(root) { animation-duration: 260ms; animation-timing-function: ease; }
 ::view-transition-group(hero) { animation-duration: 520ms; animation-timing-function: var(--smooth); }
 ::view-transition-old(hero), ::view-transition-new(hero) { animation: none; mix-blend-mode: normal; height: 100%; }
+
+.nav-label { margin: 14px 12px 4px; font-size: 11.5px; font-weight: 600; color: var(--label-3); letter-spacing: 0.02em; }
+.quick-links .btn svg { color: var(--accent); }

@@ -6,6 +6,9 @@ struct SearchView: View {
     @State private var results: [CardSummary] = []
     @State private var searching = false
     @State private var adding: CardSummary?
+    @Environment(\.dismiss) private var dismiss
+    /// Opened from a tab's top bar: gets a Done button.
+    var inSheet = false
 
     var body: some View {
         NavigationStack {
@@ -31,10 +34,16 @@ struct SearchView: View {
                 } else if results.isEmpty {
                     ContentUnavailableView(query.count < 2 ? "Search any card" : "No results",
                                            systemImage: "magnifyingglass",
-                                           description: Text(query.count < 2 ? "Every English Pokémon card. Try “Charizard 4/102” or “Umbreon VMAX”." : "Try fewer words, or the card number."))
+                                           description: Text(query.count < 2 ? "Every English and Japanese Pokémon card. Try “Charizard 4/102” or “Umbreon VMAX”." : "Try fewer words, or the card number."))
                 }
             }
             .navigationTitle("Search")
+            .navigationBarTitleDisplayMode(inSheet ? .inline : .automatic)
+            .toolbar {
+                if inSheet {
+                    ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+                }
+            }
             .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Card, set or number")
             .navigationDestination(for: CardSummary.self) { c in CardDetailView(cardID: c.id, preview: c) }
             .task(id: query) {

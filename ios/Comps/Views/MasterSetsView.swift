@@ -54,6 +54,7 @@ struct MasterSetsView: View {
                 }
             }
             .navigationTitle("Master Sets")
+            .topBarButtons()
             .searchable(text: $query, prompt: "Find a set")
             .navigationDestination(for: MSSetInfo.self) { MasterSetDetailView(set: $0) }
             .task { await load() }

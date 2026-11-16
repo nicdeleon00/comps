@@ -6,7 +6,7 @@ import type { Deal, Spread, Card, Status } from '../lib/types';
 import { Thumb } from '../components/Thumb';
 import { Segmented, Empty, SkRows } from '../components/ui';
 import { SpreadRow, CardRow, dealReason } from '../components/Rows';
-import { IconChevron, IconMarket } from '../components/icons';
+import { IconChevron, IconMarket, IconBinder, IconStar } from '../components/icons';
 import { Header } from './shared';
 
 type Market = { status: Status; deals: Deal[]; dealCounts: Record<string, number>; spreads: Spread[]; gainers: Card[]; losers: Card[];
@@ -51,6 +51,11 @@ export function MarketPage() {
           <span class="faint">·</span><span>{num(s.counts.deals)} open deals</span>
         </>}
       </Header>
+
+      <div class="toolbar quick-links">
+        <Link class="btn" href="/sets"><IconBinder size={16} />Browse sets</Link>
+        <Link class="btn" href="/watchlist"><IconStar size={16} />Watchlist</Link>
+      </div>
 
       {loading && !data && <SkRows n={8} />}
 

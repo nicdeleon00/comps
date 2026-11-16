@@ -1,4 +1,6 @@
 import type { ComponentChildren } from 'preact';
+import { navigate } from '../lib/router';
+import { Segmented } from '../components/ui';
 
 export function Header({ title, children, actions, demo }: { title: string; children?: ComponentChildren; actions?: ComponentChildren; demo?: boolean }) {
   return (
@@ -14,6 +16,22 @@ export function Header({ title, children, actions, demo }: { title: string; chil
       </div>
       {actions && <div class="head-actions">{actions}</div>}
     </header>
+  );
+}
+
+export type DealsPane = 'undervalued' | 'grading' | 'marketplace';
+const DEALS_PANES: { value: DealsPane; label: string; href: string }[] = [
+  { value: 'undervalued', label: 'Undervalued', href: '/deals' },
+  { value: 'grading', label: 'Raw → Graded', href: '/grading' },
+  { value: 'marketplace', label: 'Marketplace', href: '/deals?kind=marketplace' },
+];
+
+/** The three parts of Deals, named and ordered as in the iPhone app. */
+export function DealsTabs({ value }: { value: DealsPane }) {
+  return (
+    <div class="toolbar">
+      <Segmented value={value} label="Deals" options={DEALS_PANES} onChange={(v) => navigate(DEALS_PANES.find((p) => p.value === v)!.href)} />
+    </div>
   );
 }
 

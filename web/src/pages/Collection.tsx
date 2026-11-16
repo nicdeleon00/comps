@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'preact/hooks';
-import { useData, token, STATIC } from '../lib/api';
+import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
+import { useData, STATIC } from '../lib/api';
 import { Link, setHero } from '../lib/router';
 import { money, pct, signedMoney, GAME_LABEL, cardHref, cardApi } from '../lib/format';
 import type { Holding, CollectionSummary, Game } from '../lib/types';
@@ -8,7 +8,7 @@ import { AreaChart, type Pt } from '../components/Chart';
 import { Segmented, Delta, Counter, GradeBadge, Empty, SkRows, toast } from '../components/ui';
 import { HoldingSheet } from '../components/HoldingSheet';
 import { openPalette } from '../components/Palette';
-import { IconPlus, IconStack, IconPencil, IconHistory, IconDownload } from '../components/icons';
+import { IconPlus, IconStack, IconPencil, IconHistory, IconDownload, IconSearch, IconGrid, IconList } from '../components/icons';
 import { downloadBackup } from '../lib/backup';
 import { Header } from './shared';
 import { useAccount } from '../components/Account';
@@ -16,13 +16,32 @@ import { accountsEnabled } from '../lib/supabase';
 
 type Res = { items: Holding[]; summary: CollectionSummary };
 const GAMES: Game[] = ['pokemon', 'mtg', 'yugioh', 'sports', 'other'];
+type Sort = 'value' | 'gain' | 'recent' | 'name' | 'number';
+type Layout = 'list' | 'grid';
+/** Rows drawn at first and added each time the end of the list comes into view (a big collection stays quick). */
+const PAGE = 80;
+
+/** Every word has to appear in the card's name, set, number, grade or printing (the same rule as the iPhone app). */
+function matches(h: Holding, words: string[]) {
+  const number = (h.number ?? '').toLowerCase();
+  const hay = [h.name, h.setName ?? '', number, `#${number}`, number.replace(/^0+/, ''), h.language === 'zh' ? 'chinese' : '', h.grader ?? '', h.grade ?? '', h.grader ? 'graded' : 'raw', h.variant ?? '', h.condition ?? '']
+    .join(' ').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  return words.every((w) => hay.includes(w));
+}
+const numberOrder = (a: Holding, b: Holding) => (a.setName ?? '').localeCompare(b.setName ?? '') || (parseInt((a.number ?? '').replace(/\D+/g, ''), 10) || 0) - (parseInt((b.number ?? '').replace(/\D+/g, ''), 10) || 0) || a.name.localeCompare(b.name);
+const readLayout = (): Layout => { try { return localStorage.getItem('comps.collectionLayout') === 'grid' ? 'grid' : 'list'; } catch { return 'list'; } };
 
 export function CollectionPage() {
   const user = useAccount();
   const [days, setDays] = useState('90');
   const { data, loading } = useData<Res>(`/api/collection?days=${days === '0' ? 3650 : days}`);
   const [filter, setFilter] = useState<'all' | 'raw' | 'graded'>('all');
-  const [sort, setSort] = useState<'value' | 'gain' | 'recent' | 'name'>('value');
+  const [sort, setSort] = useState<Sort>('value');
+  const [query, setQuery] = useState('');
+  const [layout, setLayoutState] = useState<Layout>(readLayout);
+  const [limit, setLimit] = useState(PAGE);
+  const more = useRef<HTMLDivElement>(null);
+  const setLayout = (l: Layout) => { setLayoutState(l); try { localStorage.setItem('comps.collectionLayout', l); } catch {} };
   const [scrub, setScrub] = useState<Pt | null>(null);
   const [sheet, setSheet] = useState<null | { cardId: string; holding?: Holding }>(null);
   const s = data?.summary;
@@ -32,9 +51,22 @@ export function CollectionPage() {
     if (filter === 'raw') xs = xs.filter((h) => !h.grader);
     if (filter === 'graded') xs = xs.filter((h) => h.grader);
     const gain = (h: Holding) => (h.costBasis != null && h.value != null ? (h.value - h.costBasis) * h.quantity : -Infinity);
-    const by = { value: (a: Holding, b: Holding) => (b.total ?? 0) - (a.total ?? 0), gain: (a: Holding, b: Holding) => gain(b) - gain(a), recent: (a: Holding, b: Holding) => b.createdAt - a.createdAt, name: (a: Holding, b: Holding) => a.name.localeCompare(b.name) }[sort];
+    const words = query.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().split(/\s+/).filter(Boolean);
+    if (words.length) xs = xs.filter((h) => matches(h, words));
+    const by = { value: (a: Holding, b: Holding) => (b.total ?? 0) - (a.total ?? 0), gain: (a: Holding, b: Holding) => gain(b) - gain(a), recent: (a: Holding, b: Holding) => b.createdAt - a.createdAt, name: (a: Holding, b: Holding) => a.name.localeCompare(b.name), number: numberOrder }[sort];
     return [...xs].sort(by);
-  }, [data, filter, sort]);
+  }, [data, filter, sort, query]);
+
+  // Back to the first page whenever the list changes; more rows as the end scrolls into view.
+  useEffect(() => setLimit(PAGE), [filter, sort, query, layout]);
+  useEffect(() => {
+    const el = more.current;
+    if (!el) return;
+    const io = new IntersectionObserver((e) => { if (e[0].isIntersecting) setLimit((n) => n + PAGE); }, { rootMargin: '600px' });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [items.length > limit, layout]);
+  const graded = useMemo(() => (data?.items ?? []).reduce((n, h) => n + (h.grader ? h.quantity : 0), 0), [data]);
 
   const points: Pt[] = (s?.history ?? []).map(([d, v]) => ({ d, v }));
   const first = points[0]?.v;
@@ -50,8 +82,7 @@ export function CollectionPage() {
         <Link class="btn" href="/history"><IconHistory size={17} />History</Link>
         <button class="btn primary" onClick={add}><IconPlus size={17} />Add card</button>
       </>}>
-        {s && <span>{s.count} card{s.count === 1 ? '' : 's'} · {s.unique} unique{token() ? '' : ''}</span>}
-        {STATIC && <span class="faint">· {user ? 'saved to your account' : 'saved in this browser'}</span>}
+        {STATIC && <span>{user ? 'Saved to your account' : 'Saved in this browser'}</span>}
       </Header>
 
       {STATIC && accountsEnabled && !user && (
@@ -76,18 +107,25 @@ export function CollectionPage() {
         <>
           <div class="portfolio">
             <div class="price-block" style={{ marginTop: 0 }}>
-              <div class="price-label">{scrub ? scrub.d : 'Total value'}</div>
+              <div class="price-label">{scrub ? scrub.d : 'Collection value'}</div>
               <div class="price-big"><Counter value={shown} /></div>
               <div class="price-deltas">
                 {scrub ? <Delta value={first && shown ? shown / first - 1 : null} pill /> : <>
                   <span class={`delta pill ${s.change7d >= 0 ? 'up' : 'down'}`}>{signedMoney(s.change7d)}</span>
-                  <Delta value={s.change7dPct} /><span class="muted">7 days</span>
+                  <Delta value={s.change7dPct} /><span class="muted">this week</span>
                 </>}
               </div>
+              {!scrub && (
+                <div class="stat-tiles">
+                  <div class="stat-tile"><b class="num">{s.count.toLocaleString()}</b><span>Cards</span></div>
+                  <div class="stat-tile"><b class="num">{s.unique.toLocaleString()}</b><span>Unique</span></div>
+                  <div class="stat-tile"><b class="num">{graded.toLocaleString()}</b><span>Graded</span></div>
+                </div>
+              )}
               {s.gain != null && !scrub && (
                 <div class="gain-line" title="Across cards with a purchase price">
                   <span class="muted">Paid {money(s.cost)}</span>
-                  <span class={s.gain >= 0 ? 'up' : 'down'} style={{ fontWeight: 600 }}>{signedMoney(s.gain)} ({pct(s.gainPct, { digits: 0 })})</span>
+                  <span class={s.gain >= 0 ? 'up' : 'down'} style={{ fontWeight: 600 }}>{signedMoney(s.gain)} ({pct(s.gainPct, { digits: 0 })})</span><span class="muted">all time</span>
                 </div>
               )}
             </div>
@@ -110,23 +148,53 @@ export function CollectionPage() {
             )}
           </div>
 
-          <div class="toolbar" style={{ marginTop: 34 }}>
+          <div class="toolbar coll-tools" style={{ marginTop: 34 }}>
             <Segmented value={filter} onChange={setFilter} label="Filter" options={[{ value: 'all', label: 'All' }, { value: 'raw', label: 'Raw' }, { value: 'graded', label: 'Graded' }]} />
+            <div class="input-wrap coll-search">
+              <span class="prefix"><IconSearch size={14} /></span>
+              <input class="input sm" type="search" placeholder="Search your cards" value={query} onInput={(e) => setQuery((e.target as HTMLInputElement).value)} aria-label="Search your cards" />
+            </div>
             <span class="spacer" />
-            <select class="select" value={sort} onChange={(e) => setSort((e.target as HTMLSelectElement).value as any)} aria-label="Sort">
-              <option value="value">Highest value</option>
-              <option value="gain">Biggest gain</option>
-              <option value="recent">Recently added</option>
+            <select class="select" value={sort} onChange={(e) => setSort((e.target as HTMLSelectElement).value as Sort)} aria-label="Sort">
+              <option value="value">Value</option>
+              <option value="gain">Gain</option>
+              <option value="recent">Recent</option>
               <option value="name">Name</option>
+              <option value="number">Set &amp; number</option>
             </select>
+            <div class="layout-toggle" role="group" aria-label="Layout">
+              <button class="btn icon sm" aria-pressed={layout === 'list'} onClick={() => setLayout('list')} aria-label="List"><IconList size={16} /></button>
+              <button class="btn icon sm" aria-pressed={layout === 'grid'} onClick={() => setLayout('grid')} aria-label="Grid"><IconGrid size={16} /></button>
+            </div>
           </div>
 
+          {query && <div class="coll-found">{items.length} card{items.length === 1 ? '' : 's'} found</div>}
+          {!items.length && <Empty icon={<IconSearch size={26} />} title="No cards match">Try fewer words, or another filter.</Empty>}
+
+          {layout === 'grid' ? (
+            <div class="coll-grid">
+              {items.slice(0, limit).map((h) => {
+                const card = { id: h.cardId, name: h.name, game: h.game, image: h.imageUrl, set: h.setName, number: h.number };
+                return (
+                  <Link href={cardHref(h.cardId)} prefetchUrl={cardApi(h.cardId)} class="coll-tile" onClick={() => setHero(h.cardId)} key={h.id}>
+                    <Thumb card={card} size="lg" banner={h.language === 'zh' ? 'Chinese' : undefined} />
+                    <div class="coll-tile-name">{h.name}</div>
+                    <div class="coll-tile-meta">
+                      <span class="row-value">{money(h.total)}</span>
+                      {h.quantity > 1 && <span class="qty">×{h.quantity}</span>}
+                      {h.grader && <GradeBadge grader={h.grader} grade={h.grade} />}
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          ) : (
           <div class="holdings">
-            {items.map((h, i) => {
+            {items.slice(0, limit).map((h, i) => {
               const gain = h.costBasis != null && h.value != null ? (h.value - h.costBasis) * h.quantity : null;
               const card = { id: h.cardId, name: h.name, game: h.game, image: h.imageUrl, set: h.setName, number: h.number };
               return (
-                <div class="row holding-row enter" style={{ '--i': i }} key={h.id}>
+                <div class={`row holding-row ${i < PAGE ? 'enter' : ''}`} style={{ '--i': i }} key={h.id}>
                   <Link href={cardHref(h.cardId)} prefetchUrl={cardApi(h.cardId)} class="holding-link" onClick={() => setHero(h.cardId)}>
                     <Thumb card={card} banner={h.language === 'zh' ? 'Chinese' : undefined} />
                     <div class="row-main">
@@ -147,6 +215,8 @@ export function CollectionPage() {
               );
             })}
           </div>
+          )}
+          {items.length > limit && <div ref={more} class="coll-more muted">Showing {limit} of {items.length}…</div>}
         </>
       )}
 

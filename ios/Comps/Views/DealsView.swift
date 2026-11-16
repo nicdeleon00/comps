@@ -14,12 +14,13 @@ struct DealsView: View {
 
     enum Pane: String, CaseIterable { case undervalued = "Undervalued", grading = "Raw → Graded", marketplace = "Marketplace" }
 
-    private let kinds: [(String?, String)] = [(nil, "All"), ("listing", "Listings"), ("dip", "Dips"), ("ask", "Low asks"), ("momentum", "Momentum"), ("xmarket", "Cross-market")]
+    private let kinds: [(String?, String)] = [(nil, "All"), ("listing", "Live listings"), ("dip", "Dips"), ("ask", "Low asks"), ("momentum", "Momentum"), ("xmarket", "Cross-market")]
 
     var body: some View {
         NavigationStack {
             content
                 .navigationTitle("Deals")
+                .topBarButtons()
                 .navigationDestination(for: CardSummary.self) { c in CardDetailView(cardID: c.id, preview: c) }
         }
     }

@@ -5,7 +5,7 @@ Pokémon card prices, deals and collection tracking, in three parts that share o
 | | What it is | Get it |
 |---|---|---|
 | **Website** | Prices and price history for every English Pokémon card, deals, raw-to-graded, sets, master sets, your collection, and Facebook Marketplace deals | https://nicdeleon00.github.io/comps/ |
-| **iPhone app** | Card and binder scanner, collection, deals, master sets and search, with every price on the phone so it works offline | [Comps.ipa](https://github.com/nicdeleon00/comps/releases/download/ios-latest/Comps.ipa) (sideload) |
+| **iPhone app** | Card and binder scanner, collection, deals, nearby stock, master sets and search, with every price on the phone so it works offline | [Comps.ipa](https://github.com/nicdeleon00/comps/releases/download/ios-latest/Comps.ipa) (sideload) |
 | **Chrome / Edge extension** | Prices every Pokémon card listing on Facebook Marketplace, finds the deals for you, and shares them on the site | Website → Deals → Marketplace → Get the extension |
 
 Everything runs on GitHub. There's no server to host and nothing to keep running on your computer.
@@ -23,6 +23,7 @@ Everything runs on GitHub. There's no server to host and nothing to keep running
   - **Live listings:** eBay Buy It Now under fair value (optional key, below).
   - **Marketplace:** Facebook Marketplace listings found by the extension (yours and everyone else's), each with what it's worth and a **Buy** link.
 - **Raw to Graded** — cards that are cheap raw but sell for a multiple graded. Shows the expected profit after grading and selling fees, and the **break-even gem rate**: the share of PSA 10s you need to not lose money. Gem rates start from era defaults (WotC, EX–HGSS, BW/XY, Sun & Moon, modern) and you can set your own per card.
+- **Stock** — which stores near you have Pokémon card product, by store (closest first) or by product, checked every 30 minutes. See [Nearby stock](#nearby-stock).
 - **Sets** — every set by era with its total value, and a binder view of each one.
 - **Master Sets** — every card in every printing: normal, reverse holo, Poké Ball, Master Ball, Energy Symbol and more.
   - For each set it shows what you have, what it's worth, and what it costs to complete.
@@ -79,6 +80,19 @@ Camera: pinch or tap **.5× / 1× / 2× / 3×** to zoom. On phones with an ultra
 Install: download it from Deals → Marketplace and unzip it somewhere permanent. Open `chrome://extensions`, turn on **Developer mode**, press **Load unpacked** and pick the folder. On the welcome page, press **Turn on automatic updates** and pick the same folder.
 
 > Facebook's terms don't allow automated browsing. Price tags and **Search now** only read pages you open; the background check is automated, so it's off unless you turn it on, and you use it at your own risk.
+
+## Nearby stock
+
+The **Stock** tab (website and app) lists which nearby stores have Pokémon Trading Card Game product in stock. A GitHub job checks every 30 minutes and both read the same answer.
+
+Chains: **Best Buy**, through Best Buy's official developer API. It says which stores have a product and whether stock is low, not an exact count.
+
+To switch it on, in the repository go to Settings → Secrets and variables → Actions → New repository secret and add:
+
+- `STOCK_ZIP` — the ZIP code to look around. The published list shows store distances from it, so use a nearby ZIP if you'd rather not use your own.
+- `BESTBUY_API_KEY` — a free key from https://developer.bestbuy.com (Best Buy asks for a non-free email address, not Gmail or Yahoo).
+
+Optional variable `STOCK_RADIUS`: miles, default 50. Then run **Actions → Nearby stock → Run workflow** once; after that it runs on its own.
 
 ## How it works
 

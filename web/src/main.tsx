@@ -7,7 +7,7 @@ import { useData, setToken, invalidate, STATIC } from './lib/api';
 import { startSync } from './lib/sync';
 import { ago, num } from './lib/format';
 import type { Status } from './lib/types';
-import { Mark, IconMarket, IconTag, IconSlab, IconStack, IconStar, IconGear, IconSearch, IconBinder, IconChecklist, IconX, IconBack, IconHistory } from './components/icons';
+import { Mark, IconMarket, IconTag, IconStack, IconStar, IconGear, IconSearch, IconBinder, IconChecklist, IconX, IconBack, IconHistory, IconStore } from './components/icons';
 import { Palette, openPalette, type PaletteOpts } from './components/Palette';
 import { Sheet, Field } from './components/ui';
 import { MarketPage, lastRefresh } from './pages/Market';
@@ -20,25 +20,31 @@ import { WatchlistPage } from './pages/Watchlist';
 import { SettingsPage } from './pages/Settings';
 import { SetsPage, SetPage } from './pages/Sets';
 import { MasterSetsPage, MasterSetPage } from './pages/MasterSets';
+import { StockPage } from './pages/Stock';
 import { useAccount } from './components/Account';
 import { accountsEnabled } from './lib/supabase';
 
+// The same five sections, in the same order, as the iPhone app's tabs (the app has Scan where the site has Market).
 const NAV = [
-  { href: '/', label: 'Market', short: 'Market', icon: IconMarket, tab: true },
-  { href: '/deals', label: 'Deals', short: 'Deals', icon: IconTag, count: 'deals' as const, tab: true },
-  { href: '/grading', label: 'Raw to Graded', short: 'Grading', icon: IconSlab, count: 'spreads' as const, tab: false },
-  { href: '/sets', label: 'Sets', short: 'Sets', icon: IconBinder, tab: true },
-  { href: '/mastersets', label: 'Master Sets', short: 'Master Sets', icon: IconChecklist, tab: true },
-  { href: '/collection', label: 'Collection', short: 'Collection', icon: IconStack, count: 'holdings' as const, tab: true },
-  { href: '/history', label: 'History', short: 'History', icon: IconHistory, tab: false },
-  { href: '/watchlist', label: 'Watchlist', short: 'Watchlist', icon: IconStar, tab: false },
+  { href: '/', label: 'Collection', icon: IconStack, count: 'holdings' as const },
+  { href: '/deals', label: 'Deals', icon: IconTag, count: 'deals' as const },
+  { href: '/stock', label: 'Stock', icon: IconStore },
+  { href: '/mastersets', label: 'Master Sets', icon: IconChecklist },
+  { href: '/market', label: 'Market', icon: IconMarket },
+];
+// Sidebar only; on a phone these are reached from their section (History from Collection, Sets from Market, Watchlist from the top bar).
+const MORE = [
+  { href: '/history', label: 'History', icon: IconHistory },
+  { href: '/sets', label: 'Sets', icon: IconBinder },
+  { href: '/watchlist', label: 'Watchlist', icon: IconStar },
 ];
 
 function route(path: string, panel = false) {
-  if (path === '/') return { title: 'Market', el: <MarketPage /> };
+  if (path === '/' || path === '/collection') return { title: 'Collection', el: <CollectionPage /> };
+  if (path === '/market') return { title: 'Market', el: <MarketPage /> };
   if (path === '/deals') return { title: 'Deals', el: <DealsPage /> };
-  if (path === '/grading') return { title: 'Raw to Graded', el: <GradingPage /> };
-  if (path === '/collection') return { title: 'Collection', el: <CollectionPage /> };
+  if (path === '/grading') return { title: 'Deals', el: <GradingPage /> };
+  if (path === '/stock') return { title: 'Stock', el: <StockPage /> };
   if (path === '/history') return { title: 'History', el: <HistoryPage /> };
   if (path === '/watchlist') return { title: 'Watchlist', el: <WatchlistPage /> };
   if (path === '/settings') return { title: 'Settings', el: <SettingsPage /> };
@@ -53,9 +59,14 @@ function route(path: string, panel = false) {
   return { title: 'Not found', el: <div class="page"><h1>Not found</h1></div> };
 }
 
-function isActive(href: string, path: string) {
-  return href === '/' ? path === '/' : path.startsWith(href);
+/** The section a page belongs to (which tab is lit). */
+function sectionOf(path: string) {
+  if (path === '/' || path === '/collection' || path === '/history') return '/';
+  if (path === '/deals' || path === '/grading') return '/deals';
+  if (path === '/market' || path.startsWith('/sets')) return '/market';
+  return NAV.find((n) => n.href !== '/' && path.startsWith(n.href))?.href ?? null;
 }
+
 
 function Freshness({ st }: { st?: Status }) {
   if (!st) return null;
@@ -111,8 +122,8 @@ function CardPanel({ children }: { children: preact.ComponentChildren }) {
   );
 }
 
-const TOP_LEVEL = new Set(['/', '/deals', '/grading', '/sets', '/mastersets', '/collection']);
-const parentOf = (path: string) => (path.startsWith('/sets/') ? '/sets' : path.startsWith('/mastersets/') ? '/mastersets' : path === '/history' ? '/collection' : '/');
+const TOP_LEVEL = new Set(['/', '/collection', '/deals', '/grading', '/stock', '/mastersets', '/market']);
+const parentOf = (path: string) => (path.startsWith('/sets/') ? '/sets' : path === '/sets' ? '/market' : path.startsWith('/mastersets/') ? '/mastersets' : '/');
 
 function App() {
   const loc = useLocation();
@@ -153,10 +164,14 @@ function App() {
         <Link href="/" class="brand"><span class="brand-mark-wrap" style={{ color: 'var(--label)' }}><Mark /></span>Comps<span class="brand-sub">Pokémon</span></Link>
         <button class="search-trigger" onClick={() => openPalette()}><IconSearch size={15} />Search<kbd>⌘K</kbd></button>
         {NAV.map((n) => (
-          <Link href={n.href} class="nav-item" aria-current={isActive(n.href, path) ? 'page' : undefined}>
+          <Link href={n.href} class="nav-item" aria-current={sectionOf(path) === n.href && !MORE.some((m) => m.href === path) ? 'page' : undefined}>
             <n.icon size={19} />{n.label}
             {n.count && st && st.counts[n.count] > 0 && <span class="count">{num(st.counts[n.count])}</span>}
           </Link>
+        ))}
+        <div class="nav-label">More</div>
+        {MORE.map((n) => (
+          <Link href={n.href} class="nav-item" aria-current={path.startsWith(n.href) ? 'page' : undefined}><n.icon size={19} />{n.label}</Link>
         ))}
         <div class="sidebar-foot">
           <AccountChip />
@@ -182,9 +197,9 @@ function App() {
       {panel && <CardPanel>{panel.el}</CardPanel>}
 
       <nav class="tabbar" aria-label="Sections">
-        {NAV.filter((n) => n.tab).map((n) => (
-          <Link href={n.href} class="tab" aria-current={isActive(n.href, path) ? 'page' : undefined}>
-            <n.icon size={23} />{n.short}
+        {NAV.map((n) => (
+          <Link href={n.href} class="tab" aria-current={sectionOf(path) === n.href ? 'page' : undefined}>
+            <n.icon size={23} />{n.label}
           </Link>
         ))}
       </nav>

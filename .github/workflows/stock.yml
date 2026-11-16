@@ -1,0 +1,61 @@
+name: Nearby stock
+
+# Every 30 minutes: which nearby stores have Pokémon card product in stock. The answer is one
+# small file on the "stock" branch that the website and the iPhone app read.
+#
+# Set up (Settings → Secrets and variables → Actions → Secrets):
+#   STOCK_ZIP         the ZIP code to look around
+#   BESTBUY_API_KEY   Best Buy's free developer key (developer.bestbuy.com)
+# Optional variable STOCK_RADIUS: miles (default 50).
+# Until both secrets are there, runs do nothing.
+on:
+  schedule:
+    - cron: "7,37 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: stock
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      STOCK_ZIP: ${{ secrets.STOCK_ZIP }}
+      STOCK_RADIUS: ${{ vars.STOCK_RADIUS }}
+      BESTBUY_API_KEY: ${{ secrets.BESTBUY_API_KEY }}
+    steps:
+      - name: Set up?
+        id: setup
+        run: |
+          if [ -n "$STOCK_ZIP" ] && [ -n "$BESTBUY_API_KEY" ]; then echo "ready=1" >> "$GITHUB_OUTPUT"; else echo "Stock checks aren't set up yet (see the top of this workflow)."; fi
+
+      - uses: actions/checkout@v4
+        if: steps.setup.outputs.ready
+
+      - uses: actions/setup-node@v4
+        if: steps.setup.outputs.ready
+        with:
+          node-version: 22
+
+      - name: Check stores
+        if: steps.setup.outputs.ready
+        run: |
+          mkdir -p out
+          # The last answer, to know when each product came in or sold out.
+          git fetch -q --depth 1 origin stock 2>/dev/null && git show FETCH_HEAD:stock.json > previous.json 2>/dev/null || rm -f previous.json
+          node server/src/stock/cli.js out/stock.json previous.json
+
+      - name: Publish
+        if: steps.setup.outputs.ready && always()
+        run: |
+          [ -f out/stock.json ] || exit 0
+          cd out
+          git init -q -b stock
+          git add stock.json
+          git -c user.name="comps-bot" -c user.email="comps-bot@users.noreply.github.com" commit -qm "Nearby stock $(date -u +%Y-%m-%dT%H:%MZ)"
+          git push -qf "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git" stock

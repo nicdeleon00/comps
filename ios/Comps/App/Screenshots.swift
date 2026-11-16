@@ -31,6 +31,29 @@ enum Screenshots {
         return item
     }
 
+    /// A sample of the Stock screen: three stores, one product low, one just sold out.
+    static func sampleStock() -> StockDoc {
+        let now = Date().timeIntervalSince1970 * 1000
+        let hour = 3_600_000.0
+        func store(_ n: String, _ name: String, _ city: String, _ miles: Double) -> StockDoc.Store {
+            .init(id: "bestbuy:\(n)", chain: "bestbuy", number: n, name: name, address: nil, city: city, state: "TX", zip: nil, distance: miles, url: nil)
+        }
+        func product(_ sku: String, _ name: String, _ price: Double) -> StockDoc.Product {
+            .init(id: "bestbuy:\(sku)", chain: "bestbuy", name: name, price: price, image: nil, url: nil)
+        }
+        func entry(_ s: String, _ p: String, isIn: Bool = true, low: Bool = false, since: Double, log: [[Double]]) -> StockDoc.Entry {
+            .init(s: "bestbuy:\(s)", p: "bestbuy:\(p)", isIn: isIn, low: low, qty: nil, since: now - since * hour, log: log.map { [now - $0[0] * hour, $0[1]] })
+        }
+        return StockDoc(
+            updatedAt: now - 11 * 60_000, radius: 50,
+            chains: ["bestbuy": .init(name: "Best Buy", checkedAt: now - 11 * 60_000, ok: true, error: nil, exact: false)],
+            stores: [store("176", "Hulen", "Fort Worth", 5.2), store("665", "Burleson", "Burleson", 5.3), store("202", "South Arlington", "Arlington", 13.8), store("1067", "Alliance", "Fort Worth", 24.1)],
+            products: [product("1", "Mega Evolution - Delta Reign Booster Bundle", 26.94), product("2", "30th Celebration Mini Tin", 9.99),
+                       product("3", "Mega Evolution - Pitch Black Elite Trainer Box", 54.99), product("4", "30th Celebration Booster Bundle", 29.99)],
+            stock: [entry("176", "1", low: true, since: 25, log: [[72, 1], [47, 0], [25, 1]]), entry("176", "2", isIn: false, since: 2, log: [[28, 1], [2, 0]]),
+                    entry("665", "1", since: 11, log: [[11, 1]]), entry("665", "3", since: 1, log: [[1, 1]]), entry("1067", "4", since: 6, log: [[6, 1]])])
+    }
+
     /// Sample cards (and a value history for the chart) for the pictures.
     @MainActor
     static func seed(_ context: ModelContext) async {

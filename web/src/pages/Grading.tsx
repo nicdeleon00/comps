@@ -6,7 +6,7 @@ import type { Spread, Status } from '../lib/types';
 import { Empty, SkRows } from '../components/ui';
 import { SpreadRow } from '../components/Rows';
 import { IconSlab } from '../components/icons';
-import { Header, PokemonFilters } from './shared';
+import { Header, PokemonFilters, DealsTabs } from './shared';
 
 type Res = { items: Spread[]; total: number };
 
@@ -41,9 +41,10 @@ export function GradingPage() {
 
   return (
     <div class="page">
-      <Header title="Raw to Graded">
+      <Header title="Deals">
         <span>Cards that sell for a multiple once slabbed. Expected value uses your fees and era-based gem rates; break-even is the share of 10s you need to not lose money.</span>
       </Header>
+      <DealsTabs value="grading" />
 
       {st && (
         <div class="assumptions">

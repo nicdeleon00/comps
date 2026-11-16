@@ -58,7 +58,7 @@ export function HistoryPage() {
       {loading && !data && <SkRows n={6} />}
 
       {data && !data.items.length && (
-        <Empty icon={<IconHistory size={26} />} title="Nothing added yet" action={<Link class="btn primary" href="/collection">Go to Collection</Link>}>
+        <Empty icon={<IconHistory size={26} />} title="Nothing added yet" action={<Link class="btn primary" href="/">Go to Collection</Link>}>
           Cards you scan with the iPhone app or add here show up in History, grouped by each time you added them.
         </Empty>
       )}

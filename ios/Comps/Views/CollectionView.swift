@@ -14,7 +14,6 @@ struct CollectionView: View {
     @State private var selected: Date?
     @State private var refreshing = false
     @State private var editing: Holding?
-    @State private var showSettings = false
     @State private var path = NavigationPath()
     @State private var query = ""
     @AppStorage("collection.layout") private var layoutRaw = Layout.list.rawValue
@@ -100,26 +99,12 @@ struct CollectionView: View {
             .navigationTitle("Collection")
             .searchable(text: $query, prompt: "Search your cards")
             .toolbar {
-                ToolbarItemGroup(placement: .topBarLeading) {
-                    Button { showSettings = true } label: { Image(systemName: "gearshape") }
-                        .accessibilityLabel("Settings")
+                ToolbarItem(placement: .topBarLeading) {
                     Button { path.append(HistoryRoute.all) } label: { Image(systemName: "clock.arrow.circlepath") }
                         .accessibilityLabel("History")
                 }
-                ToolbarItemGroup(placement: .topBarTrailing) {
-                    Button {
-                        withAnimation(.snappy) { layoutRaw = layout == .list ? Layout.grid.rawValue : Layout.list.rawValue }
-                    } label: {
-                        Image(systemName: layout == .list ? "square.grid.2x2" : "list.bullet")
-                            .contentTransition(.symbolEffect(.replace))
-                    }
-                    .accessibilityLabel(layout == .list ? "Show as a grid" : "Show as a list")
-                    Menu {
-                        Picker("Sort", selection: $sort) { ForEach(Sort.allCases, id: \.self) { Text($0.rawValue).tag($0) } }
-                    } label: { Image(systemName: "arrow.up.arrow.down") }
-                    .accessibilityLabel("Sort")
-                }
             }
+            .topBarButtons(first: true)
             .navigationDestination(for: Holding.self) { h in CardDetailView(cardID: h.cardID, holding: h) }
             .navigationDestination(for: HistoryRoute.self) { route in
                 switch route {
@@ -128,12 +113,7 @@ struct CollectionView: View {
                 }
             }
             .task {
-                // Screenshot mode opens Settings, or History, the way taps would.
-                if Screenshots.flag("-settings") {
-                    try? await Task.sleep(for: .seconds(3))
-                    showSettings = true
-                    return
-                }
+                // Screenshot mode opens History the way taps would.
                 guard Screenshots.flag("-history") else { return }
                 try? await Task.sleep(for: .seconds(6))
                 path.append(HistoryRoute.all)
@@ -144,7 +124,6 @@ struct CollectionView: View {
             .refreshable { await refresh() }
             .task { await refresh() }
             .sheet(item: $editing) { h in HoldingEditor(holding: h) }
-            .sheet(isPresented: $showSettings) { SettingsView() }
         }
     }
 
@@ -204,9 +183,31 @@ struct CollectionView: View {
         Button(role: .destructive) { withAnimation { Portfolio.remove(h, context: context) } } label: { Label("Delete", systemImage: "trash") }
     }
 
+    /// Filter, sort and list/grid in one row above the cards, as on the website.
     private var filterBar: some View {
-        Picker("Filter", selection: $filter) { ForEach(Filter.allCases, id: \.self) { Text($0.rawValue).tag($0) } }
-            .pickerStyle(.segmented)
+        HStack(spacing: 10) {
+            Picker("Filter", selection: $filter) { ForEach(Filter.allCases, id: \.self) { Text($0.rawValue).tag($0) } }
+                .pickerStyle(.segmented)
+            Menu {
+                Picker("Sort", selection: $sort) { ForEach(Sort.allCases, id: \.self) { Text($0.rawValue).tag($0) } }
+            } label: {
+                Image(systemName: "arrow.up.arrow.down").frame(width: 34, height: 30)
+                    .background(Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            }
+            .accessibilityLabel("Sort")
+            Button {
+                withAnimation(.snappy) { layoutRaw = layout == .list ? Layout.grid.rawValue : Layout.list.rawValue }
+            } label: {
+                Image(systemName: layout == .list ? "square.grid.2x2" : "list.bullet")
+                    .contentTransition(.symbolEffect(.replace))
+                    .frame(width: 34, height: 30)
+                    .background(Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            }
+            .accessibilityLabel(layout == .list ? "Show as a grid" : "Show as a list")
+        }
+        .font(.subheadline.weight(.semibold))
+        .buttonStyle(.plain)
+        .foregroundStyle(.primary)
     }
 
     private var noMatches: some View {
