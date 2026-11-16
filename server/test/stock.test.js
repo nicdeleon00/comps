@@ -39,6 +39,7 @@ const T0 = 1_763_000_000_000;
 test('only chains with a key are checked', () => {
   assert.deepEqual(configuredChains({}), []);
   assert.deepEqual(configuredChains(env), ['bestbuy']);
+  assert.deepEqual(configuredChains({ STOCK_BROWSER: '1' }), ['dg']);
 });
 
 test('Pokémon card products only, with short names', () => {
@@ -106,6 +107,42 @@ test('a chain that reports counts: the count and its changes are kept', () => {
   assert.deepEqual(a, [{ s: 'x:1', p: 'x:p', in: true, low: false, qty: 3, since: 100, log: [[100, 3]] }]);
   const b = mergeChain({ stock: a }, 'x', { stores, available: [{ store: 'x:1', product: 'x:p', qty: 1 }] }, 200);
   assert.deepEqual(b, [{ s: 'x:1', p: 'x:p', in: true, low: false, qty: 1, since: 100, log: [[100, 3], [200, 1]] }]);
+});
+
+test('Dollar General: card products only, stores from several points merged, exact counts', async () => {
+  const { dollarGeneral, isPokemonCards: cards, lookupPoints, milesBetween } = await import('../src/stock/dollargeneral.js');
+  assert.ok(cards('Pokémon Trading Card Game, 15 Card Pack, 1 ct') && cards('Pokemon TCG Mini Tin'));
+  assert.ok(!cards('Pokémon Pikachu Plush, 8 in') && !cards('Pokémon Plastic Cup, 1ct') && !cards('Trading Card Binder'));
+  assert.equal(lookupPoints(32.7, -97.3, 5).length, 1);
+  assert.equal(lookupPoints(32.7, -97.3, 25).length, 7);
+  assert.equal(lookupPoints(32.7, -97.3, 50).length, 15);
+  assert.ok(Math.abs(milesBetween(32.7, -97.3, 32.7 + 10 / 69, -97.3) - 10) < 0.1);
+
+  const lookups = [];
+  const open = async () => ({
+    close: async () => {},
+    post: async (path, body) => {
+      if (path.startsWith('v5/search')) return JSON.parse(body).PageStartRecordIndex ? { Items: [] } : { PaginationInfo: { TotalRecords: 2 }, Items: [
+        { UPC: 728192558375, Description: 'Pokémon Trading Card Game, 15 Card Pack, 1 ct', Price: 8, Image: 'https://img/pack.jpg' },
+        { UPC: 191726481539, Description: 'Pokémon Pikachu Plush, 8 in', Price: 10 }] };
+      if (path === 'store/search/inventory') {
+        const q = new URLSearchParams(body); lookups.push(q.get('upc'));
+        const near = { storeNumber: 12629, address: '2919 CEDAR CREST BLVD', city: 'DALLAS', state: 'TX', zipCode: '75203-4011', latitude: 32.74, longitude: -96.79, productQTY: q.get('upc') === '728192558375' ? 3 : 0 };
+        const tin = { storeNumber: 500, address: '1 MAIN ST', city: 'IRVING', state: 'TX', zipCode: '75060', latitude: 32.81, longitude: -96.95, productQTY: q.get('upc') === '820650105838' ? 1 : 0 };
+        const far = { storeNumber: 9, address: 'FAR', city: 'WACO', state: 'TX', zipCode: '76701', latitude: 31.55, longitude: -97.15, productQTY: 5 };
+        return { stores: [near, tin, far] };
+      }
+      if (path.startsWith('v2/product')) return { description: 'Pokémon TCG Mini Tin', finalPrice: 9.5, images: ['https://img/tin.jpg'] };
+      throw new Error('unexpected ' + path);
+    },
+  });
+  const r = await dollarGeneral({ radius: 25, lat: 32.7876, lon: -96.7994, open, pace: 0 });
+  assert.deepEqual(r.stores.map((s) => [s.id, s.name, s.city, s.zip]), [['dg:12629', '2919 Cedar Crest Blvd', 'Dallas', '75203'], ['dg:500', '1 Main St', 'Irving', '75060']], 'no store outside the radius');
+  assert.ok(r.stores[0].distance > 3 && r.stores[0].distance < 4);
+  assert.deepEqual(r.available.sort((a, b) => a.store.localeCompare(b.store)), [{ store: 'dg:12629', product: 'dg:728192558375', qty: 3, low: false }, { store: 'dg:500', product: 'dg:820650105838', qty: 1, low: true }]);
+  assert.deepEqual(r.products.map((p) => [p.sku, p.name, p.price]), [['728192558375', 'Pokémon Trading Card Game, 15 Card Pack, 1 ct', 8], ['820650105838', 'Pokémon TCG Mini Tin', 9.5]], 'the plush is left out; a seeded tin shows once a store has it');
+  assert.ok(!lookups.includes('191726481539'));
+  await assert.rejects(() => dollarGeneral({ radius: 25, lat: null, lon: null, open }), /ZIP/);
 });
 
 test.after(() => server.close());

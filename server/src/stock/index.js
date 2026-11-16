@@ -10,13 +10,15 @@
 //     products: [{ id, chain, sku, name, price, image, url }],
 //     stock:    [{ s (store id), p (product id), in, low, qty, since (when it got to how it is now), log: [[time, in ? (qty ?? 1) : 0], …] }] }
 //
-// Only chains with a lookup the chain itself offers to the public are here. A chain goes in
-// CHAINS; nothing else needs to know about it.
+// A chain goes in CHAINS; nothing else needs to know about it.
 
 import { bestBuy } from './bestbuy.js';
+import { dollarGeneral } from './dollargeneral.js';
 
 export const CHAINS = {
   bestbuy: { name: 'Best Buy', check: bestBuy, key: 'BESTBUY_API_KEY', exact: false },
+  // Needs Chrome on the machine (STOCK_BROWSER=1, set by the scheduled job).
+  dg: { name: 'Dollar General', check: dollarGeneral, key: 'STOCK_BROWSER', exact: true },
 };
 
 const KEEP_SOLD_OUT = 7 * 86400_000;
@@ -60,12 +62,12 @@ export function mergeChain(previous, chainId, fresh, now) {
  * Checks every chain and returns the new stock.json. A chain that fails keeps what was known
  * about it, marked as not checked, so one outage never empties the screen.
  */
-export async function checkStock({ zip, radius = 50, previous = null, env = process.env, now = Date.now(), chains = configuredChains(env), log = () => {} }) {
+export async function checkStock({ zip, radius = 50, lat = null, lon = null, previous = null, env = process.env, now = Date.now(), chains = configuredChains(env), log = () => {} }) {
   const doc = { v: 1, updatedAt: now, radius, chains: {}, stores: [], products: [], stock: [] };
   for (const id of chains) {
     const chain = CHAINS[id];
     try {
-      const fresh = await chain.check({ zip, radius, key: chain.key ? env[chain.key] : null });
+      const fresh = await chain.check({ zip, radius, lat, lon, key: chain.key ? env[chain.key] : null });
       doc.chains[id] = { name: chain.name, checkedAt: now, ok: true, error: null, exact: chain.exact };
       doc.stores.push(...fresh.stores);
       doc.products.push(...fresh.products);

@@ -4,14 +4,18 @@ name: Nearby stock
 # small file on the "stock" branch that the website and the iPhone app read.
 #
 # Set up (Settings → Secrets and variables → Actions → Secrets):
-#   STOCK_ZIP         the ZIP code to look around
-#   BESTBUY_API_KEY   Best Buy's free developer key (developer.bestbuy.com)
-# Optional variable STOCK_RADIUS: miles (default 50).
-# Until both secrets are there, runs do nothing.
+#   STOCK_ZIP         the ZIP code to look around (required)
+#   BESTBUY_API_KEY   Best Buy's free developer key (developer.bestbuy.com); without it Best Buy is skipped
+# Optional variable STOCK_RADIUS: miles (default 50). Dollar General needs no key.
 on:
   schedule:
     - cron: "7,37 * * * *"
   workflow_dispatch:
+    inputs:
+      test_zip:
+        description: "Try a ZIP without publishing (prints what was found)"
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -23,16 +27,17 @@ concurrency:
 jobs:
   check:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 25
     env:
-      STOCK_ZIP: ${{ secrets.STOCK_ZIP }}
+      STOCK_ZIP: ${{ inputs.test_zip || secrets.STOCK_ZIP }}
       STOCK_RADIUS: ${{ vars.STOCK_RADIUS }}
       BESTBUY_API_KEY: ${{ secrets.BESTBUY_API_KEY }}
+      STOCK_BROWSER: "1"
     steps:
       - name: Set up?
         id: setup
         run: |
-          if [ -n "$STOCK_ZIP" ] && [ -n "$BESTBUY_API_KEY" ]; then echo "ready=1" >> "$GITHUB_OUTPUT"; else echo "Stock checks aren't set up yet (see the top of this workflow)."; fi
+          if [ -n "$STOCK_ZIP" ]; then echo "ready=1" >> "$GITHUB_OUTPUT"; else echo "Stock checks aren't set up yet: add the STOCK_ZIP secret (see the top of this workflow)."; fi
 
       - uses: actions/checkout@v4
         if: steps.setup.outputs.ready
@@ -42,16 +47,41 @@ jobs:
         with:
           node-version: 22
 
+      - name: Where the ZIP is
+        if: steps.setup.outputs.ready
+        run: |
+          # The Census Bureau's list of ZIP code centers (the ZIP itself is never sent anywhere).
+          curl -sSL --retry 3 -o zips.zip https://www2.census.gov/geo/docs/maps-data/data/gazetteer/2023_Gazetteer/2023_Gaz_zcta_national.zip || true
+          read -r LAT LON < <(unzip -p zips.zip 2>/dev/null | awk -F'\t' -v z="$STOCK_ZIP" '$1 == z { gsub(/ /, "", $6); gsub(/[ \r]/, "", $7); print $6, $7 }') || true
+          if [ -n "$LAT" ]; then
+            echo "::add-mask::$LAT"; echo "::add-mask::$LON"
+            echo "STOCK_LAT=$LAT" >> "$GITHUB_ENV"; echo "STOCK_LON=$LON" >> "$GITHUB_ENV"
+          else
+            echo "Couldn't find the ZIP's location; Dollar General will be skipped."
+          fi
+
       - name: Check stores
         if: steps.setup.outputs.ready
         run: |
+          npm install --no-save --no-audit --no-fund playwright-core@1.48.2 >/dev/null 2>&1
           mkdir -p out
           # The last answer, to know when each product came in or sold out.
           git fetch -q --depth 1 origin stock 2>/dev/null && git show FETCH_HEAD:stock.json > previous.json 2>/dev/null || rm -f previous.json
           node server/src/stock/cli.js out/stock.json previous.json
 
+      - name: Test summary
+        if: steps.setup.outputs.ready && inputs.test_zip && always()
+        run: |
+          node -e '
+          const d = JSON.parse(require("fs").readFileSync("out/stock.json"));
+          console.log(JSON.stringify(d.chains));
+          console.log("stores", d.stores.length, "| products", d.products.length, "| in stock", d.stock.filter((e) => e.in).length);
+          for (const p of d.products) console.log("  product:", p.name, p.price);
+          const P = new Map(d.products.map((p) => [p.id, p])), S = new Map(d.stores.map((s) => [s.id, s]));
+          for (const e of d.stock.slice(0, 25)) console.log("  ", S.get(e.s)?.distance, "mi", S.get(e.s)?.city, "|", P.get(e.p)?.name, "|", e.qty, "on hand");'
+
       - name: Publish
-        if: steps.setup.outputs.ready && always()
+        if: steps.setup.outputs.ready && !inputs.test_zip && always()
         run: |
           [ -f out/stock.json ] || exit 0
           cd out
