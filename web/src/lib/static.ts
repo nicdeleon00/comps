@@ -302,6 +302,22 @@ export async function staticRequest(method: string, url: string, body?: any): Pr
     }
   }
 
+  // Market values for a list of cards (trading shows what each side is worth).
+  if (path === '/api/prices' && method === 'POST') {
+    const { byId } = await catalog();
+    return {
+      values: (body.items ?? []).map((it: { cardId: string; variant?: string | null; grader?: string | null; grade?: string | null; condition?: string | null; language?: string | null }) => {
+        const r = byId.get(it.cardId);
+        if (!r || it.language === 'zh') return null;
+        const v = r[6].find((x) => x[0] === it.variant) ?? regular(r);
+        if (!v) return null;
+        const g = Number(it.grade);
+        if (it.grader && g >= 10 && v[3]) return v[3];
+        if (it.grader && g >= 9 && g < 10 && v[2]) return v[2];
+        return v[1] != null ? Math.round(v[1] * (it.grader ? 1 : COND[it.condition ?? 'NM'] ?? 1) * 100) / 100 : null;
+      }),
+    };
+  }
   if (path === '/api/settings' && method === 'PUT') {
     LS.set('settings', { ...LS.get('settings', {}), ...body });
     markDataChanged();

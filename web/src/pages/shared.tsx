@@ -31,6 +31,8 @@ export function DealsTabs({ value }: { value: DealsPane }) {
   return (
     <div class="toolbar">
       <Segmented value={value} label="Deals" options={DEALS_PANES} onChange={(v) => navigate(DEALS_PANES.find((p) => p.value === v)!.href)} />
+      <span class="spacer" />
+      <a class="btn sm market-link" href={`${import.meta.env.BASE_URL}market`} onClick={(e) => { e.preventDefault(); navigate('/market'); }}>Market overview</a>
     </div>
   );
 }

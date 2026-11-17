@@ -30,6 +30,7 @@ export const IconStore = make(<><path d="M4 9.5l1.4-5h13.2l1.4 5" /><path d="M4 
 export const IconPin = make(<><path d="M12 21s6.5-5.6 6.5-10.6a6.5 6.5 0 1 0-13 0C5.500 15.4 12 21 12 21z" /><circle cx="12" cy="10.2" r="2.3" /></>);
 export const IconGrid = make(<><rect x="4" y="4" width="6.6" height="6.6" rx="1.4" /><rect x="13.4" y="4" width="6.6" height="6.6" rx="1.4" /><rect x="4" y="13.4" width="6.6" height="6.6" rx="1.4" /><rect x="13.4" y="13.4" width="6.6" height="6.6" rx="1.4" /></>);
 export const IconList = make(<><path d="M8.500 6.500h11.500M8.500 12h11.500M8.500 17.500h11.500" /><path d="M4.200 6.500h.1M4.200 12h.1M4.200 17.500h.1" /></>);
+export const IconTrade = make(<><path d="M4 8.5h13.5" /><path d="M14 5l3.5 3.5L14 12" /><path d="M20 15.5H6.5" /><path d="M10 12l-3.5 3.5L10 19" /></>);
 export const IconPencil = make(<><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z" /><path d="M13.5 6.5l4 4" /></>);
 
 /** The Comps mark: a graded slab with a price line in the window. */
