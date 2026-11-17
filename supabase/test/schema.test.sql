@@ -97,4 +97,135 @@ do $$ begin
 end $$;
 select public.keepalive() > 0 as keepalive_ok;
 reset role;
+
+-- ---------------------------------------------------------------- trading
+-- Without a profile you can't list cards or make offers.
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000a');
+do $$ begin
+  begin
+    insert into public.trade_cards (kind, card_id, name) values ('have', 'tcg:1', 'Charizard');
+    raise exception 'listed a card without a profile';
+  exception when insufficient_privilege or check_violation then null; end;
+end $$;
+insert into public.traders (handle, name, area) values ('ash_k', 'Ash', 'Fort Worth, TX');
+insert into public.trade_cards (kind, card_id, name, holding_id) values ('have', 'tcg:1', 'Charizard', '11111111-1111-1111-1111-111111111111');
+insert into public.trade_cards (kind, card_id, name) values ('want', 'tcg:50', 'Umbreon VMAX');
+-- The same copy from the collection can't be listed twice.
+do $$ begin
+  begin
+    insert into public.trade_cards (kind, card_id, name, holding_id) values ('have', 'tcg:1', 'Charizard', '11111111-1111-1111-1111-111111111111');
+    raise exception 'listed the same copy twice';
+  exception when unique_violation then null; end;
+end $$;
+-- Handles: lowercase letters, numbers and _ only, and unique.
+do $$ begin
+  begin update public.traders set handle = 'Bad Name!' where user_id = auth.uid(); raise exception 'bad handle saved'; exception when check_violation then null; end;
+end $$;
+reset role;
+
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000b');
+do $$ begin
+  begin insert into public.traders (handle) values ('ash_k'); raise exception 'duplicate handle'; exception when unique_violation then null; end;
+end $$;
+insert into public.traders (handle, name) values ('misty', 'Misty');
+insert into public.trade_cards (kind, card_id, name) values ('have', 'tcg:50', 'Umbreon VMAX'), ('want', 'tcg:1', 'Charizard');
+-- B sees A's profile and trade list, but can't change them.
+do $$ begin
+  if (select count(*) from public.traders) <> 2 then raise exception 'profiles not visible'; end if;
+  if (select count(*) from public.trade_cards where user_id = '00000000-0000-0000-0000-00000000000a') <> 2 then raise exception 'trade list not visible'; end if;
+end $$;
+update public.trade_cards set name = 'Hacked' where user_id = '00000000-0000-0000-0000-00000000000a';
+delete from public.trade_cards where user_id = '00000000-0000-0000-0000-00000000000a';
+update public.traders set name = 'Hacked' where user_id = '00000000-0000-0000-0000-00000000000a';
+reset role;
+do $$ begin
+  if (select count(*) from public.trade_cards where user_id = '00000000-0000-0000-0000-00000000000a' and name <> 'Hacked') <> 2 then raise exception 'B changed A''s trade list'; end if;
+  if (select name from public.traders where handle = 'ash_k') <> 'Ash' then raise exception 'B changed A''s profile'; end if;
+end $$;
+
+-- A's collection is private until A shares it, and sharing shows card facts only.
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000b');
+do $$ begin if (select count(*) from public.trader_collection('00000000-0000-0000-0000-00000000000a')) <> 0 then raise exception 'collection visible without sharing'; end if; end $$;
+reset role;
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000a');
+update public.traders set share_collection = true where user_id = auth.uid();
+reset role;
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000b');
+do $$ begin
+  if (select count(*) from public.trader_collection('00000000-0000-0000-0000-00000000000a')) <> 2 then raise exception 'shared collection should show A''s 2 live cards'; end if;
+  if exists (select 1 from public.trader_collection('00000000-0000-0000-0000-00000000000a') where name = 'Pikachu' and card_id = 'tcg:2') then raise exception 'deleted card shown'; end if;
+  if (select count(*) from public.holdings) <> 0 then raise exception 'sharing opened up the holdings table'; end if;
+end $$;
+-- Matches: B has what A wants, and wants what A has.
+reset role;
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000a');
+do $$ declare m record; begin
+  select * into m from public.trade_matches();
+  if m.user_id <> '00000000-0000-0000-0000-00000000000b' or m.they_have <> 1 or m.they_want <> 1 then raise exception 'match wrong: %', row_to_json(m); end if;
+end $$;
+
+-- A offers Charizard + $10 for B's Umbreon. Cards are cleaned (extra fields dropped).
+do $$ declare new_id uuid; o record; begin
+  new_id := public.make_offer('00000000-0000-0000-0000-00000000000b',
+    '[{"card_id":"tcg:1","name":"Charizard","quantity":1,"value":120.5,"secret":"x"}]'::jsonb,
+    '[{"card_id":"tcg:50","name":"Umbreon VMAX","value":"130"}]'::jsonb, 10, '  Hi! ');
+  select * into o from public.trade_offers where trade_offers.id = new_id;
+  if o.status <> 'open' or o.cash <> 10 or o.message <> 'Hi!' then raise exception 'offer saved wrong'; end if;
+  if o.give->0 ? 'secret' or (o.give->0->>'value')::numeric <> 120.5 or (o.get->0->>'value')::numeric <> 130 then raise exception 'cards not cleaned: %', o.give; end if;
+  perform set_config('test.offer1', new_id::text, false);
+end $$;
+-- Bad offers are refused: to yourself, empty, a broken card.
+do $$ begin
+  begin perform public.make_offer('00000000-0000-0000-0000-00000000000a', '[{"card_id":"tcg:1","name":"x"}]'::jsonb, '[]'::jsonb); raise exception 'offer to self'; exception when check_violation then null; end;
+  begin perform public.make_offer('00000000-0000-0000-0000-00000000000b', '[]'::jsonb, '[]'::jsonb, 5); raise exception 'empty offer'; exception when check_violation then null; end;
+  begin perform public.make_offer('00000000-0000-0000-0000-00000000000b', '[{"card_id":"nope","name":"x"}]'::jsonb, '[]'::jsonb); raise exception 'bad card'; exception when check_violation then null; end;
+  begin perform public.make_offer('00000000-0000-0000-0000-00000000000c', '[{"card_id":"tcg:1","name":"x"}]'::jsonb, '[]'::jsonb); raise exception 'offer to someone without a profile'; exception when check_violation then null; end;
+end $$;
+-- A can't accept their own offer, and can't write offers directly.
+do $$ begin
+  begin perform public.respond_offer(current_setting('test.offer1')::uuid, 'accept'); raise exception 'sender accepted'; exception when check_violation then null; end;
+  begin insert into public.trade_offers (from_user, to_user) values (auth.uid(), '00000000-0000-0000-0000-00000000000b'); raise exception 'direct insert'; exception when insufficient_privilege then null; end;
+end $$;
+insert into public.trade_messages (offer_id, body) values (current_setting('test.offer1')::uuid, 'Can meet Saturday');
+reset role;
+
+-- C (no part in it) sees nothing of the offer or its messages.
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000c');
+do $$ begin
+  if (select count(*) from public.trade_offers) <> 0 or (select count(*) from public.trade_messages) <> 0 then raise exception 'outsider sees the offer'; end if;
+  begin perform public.respond_offer(current_setting('test.offer1')::uuid, 'decline'); raise exception 'outsider declined'; exception when check_violation then null; end;
+  begin insert into public.trade_messages (offer_id, body) values (current_setting('test.offer1')::uuid, 'spam'); raise exception 'outsider wrote'; exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+
+-- B counters: asks for $25 instead. The first offer becomes 'countered'; A then accepts the counter.
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000b');
+do $$ declare c uuid; begin
+  if (select count(*) from public.trade_messages) <> 1 then raise exception 'B should see the message'; end if;
+  c := public.make_offer('00000000-0000-0000-0000-00000000000a', '[{"card_id":"tcg:50","name":"Umbreon VMAX"}]'::jsonb,
+                         '[{"card_id":"tcg:1","name":"Charizard"}]'::jsonb, -25, null, current_setting('test.offer1')::uuid);
+  perform set_config('test.offer2', c::text, false);
+  if (select status from public.trade_offers where id = current_setting('test.offer1')::uuid) <> 'countered' then raise exception 'first offer not countered'; end if;
+  begin perform public.respond_offer(current_setting('test.offer1')::uuid, 'accept'); raise exception 'accepted a countered offer'; exception when check_violation then null; end;
+end $$;
+reset role;
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000a');
+do $$ begin
+  if public.respond_offer(current_setting('test.offer2')::uuid, 'accept') <> 'accepted' then raise exception 'accept failed'; end if;
+  begin perform public.respond_offer(current_setting('test.offer2')::uuid, 'decline'); raise exception 'changed an accepted offer'; exception when check_violation then null; end;
+end $$;
+reset role;
+-- Trading never touched the collection.
+do $$ begin
+  if (select count(*) from public.holdings) <> 3 or (select name from public.holdings where id = '11111111-1111-1111-1111-111111111111') <> 'Charizard' then raise exception 'trading changed holdings'; end if;
+end $$;
+-- Nobody signed out can see trading data.
+set role anon;
+do $$ begin
+  begin
+    if (select count(*) from public.traders) + (select count(*) from public.trade_cards) + (select count(*) from public.trade_offers) <> 0 then raise exception 'anon sees trading'; end if;
+  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+
 select 'all schema tests passed' as result;
