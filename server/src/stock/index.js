@@ -6,7 +6,9 @@
 //
 //   { v, updatedAt, radius,
 //     chains:   { id: { name, checkedAt, ok, error, exact (true when the chain reports how many are on hand) } },
-//     stores:   [{ id, chain, number, name, address, city, state, zip, distance, phone, url, lat, lng }],
+//     stores:   [{ id, chain, number, name, address, city, state, zip, distance, phone, url, lat, lng,
+//                  suspect ('auto' = its counts were caught not moving, 'manual' = you listed it; else absent) }],
+//     flags:    { store id: { at (first caught), seen (last caught), product } }  what the checker has learned,
 //     products: [{ id, chain, sku, name, price, image, url }],
 //     stock:    [{ s (store id), p (product id), in, low, qty, since (when it got to how it is now), log: [[time, in ? (qty ?? 1) : 0], …] }] }
 //
@@ -22,6 +24,12 @@ export const CHAINS = {
 };
 
 const KEEP_SOLD_OUT = 7 * 86400_000;
+const DAY = 86400_000;
+// A count that hasn't moved for this long, on a product most stores are out of, is a count that's wrong.
+const STUCK_AFTER = 3 * DAY;
+const SCARCE_BELOW = 0.35;
+// A store caught once stays marked this long after the last time it was caught.
+const REMEMBER = 45 * DAY;
 const LOG_LENGTH = 6;
 
 /** The chains that can be checked with what's in the environment. */
@@ -62,7 +70,7 @@ export function mergeChain(previous, chainId, fresh, now) {
  * Checks every chain and returns the new stock.json. A chain that fails keeps what was known
  * about it, marked as not checked, so one outage never empties the screen.
  */
-export async function checkStock({ zip, radius = 50, lat = null, lon = null, previous = null, env = process.env, now = Date.now(), chains = configuredChains(env), log = () => {} }) {
+export async function checkStock({ zip, radius = 50, lat = null, lon = null, badStores = [], previous = null, env = process.env, now = Date.now(), chains = configuredChains(env), log = () => {} }) {
   const doc = { v: 1, updatedAt: now, radius, chains: {}, stores: [], products: [], stock: [] };
   for (const id of chains) {
     const chain = CHAINS[id];
@@ -86,7 +94,74 @@ export async function checkStock({ zip, radius = 50, lat = null, lon = null, pre
   const used = new Set(doc.stock.map((e) => e.p));
   doc.products = doc.products.filter((p) => used.has(p.id));
   doc.stores.sort((a, b) => (a.distance ?? 1e9) - (b.distance ?? 1e9));
+  learnWrongCounts(doc, previous, now, badStores);
   return doc;
+}
+
+/**
+ * Stores whose counts can't be trusted. Learned: a store showing the same count for days on a product
+ * that most stores are out of (real stock of a scarce product sells; a count that never moves is a
+ * count nobody corrected). Remembered between runs in doc.flags. Listed by hand: `badStores`
+ * (store numbers, or ids like "dg:12629").
+ */
+export function learnWrongCounts(doc, previous, now, badStores = []) {
+  const flags = {};
+  for (const [id, f] of Object.entries(previous?.flags ?? {})) if (now - f.seen < REMEMBER) flags[id] = f;
+  const storesOf = new Map();
+  for (const s of doc.stores) storesOf.set(s.chain, (storesOf.get(s.chain) ?? 0) + 1);
+  const carrying = new Map();
+  for (const e of doc.stock) if (e.in) carrying.set(e.p, (carrying.get(e.p) ?? 0) + 1);
+  for (const e of doc.stock) {
+    const chain = e.s.split(':')[0];
+    if (!e.in || !doc.chains[chain]?.exact || !doc.chains[chain]?.ok) continue;
+    const total = storesOf.get(chain) ?? 0;
+    if (total < 8 || (carrying.get(e.p) ?? 0) / total >= SCARCE_BELOW) continue;
+    const changed = e.log?.at(-1)?.[0] ?? e.since;
+    if (now - changed < STUCK_AFTER) continue;
+    flags[e.s] = { at: flags[e.s]?.at ?? now, seen: now, product: e.p };
+  }
+  doc.flags = flags;
+  const listed = new Set(badStores.map((x) => String(x).trim()).filter(Boolean));
+  for (const s of doc.stores) {
+    if (listed.has(s.id) || listed.has(s.number)) s.suspect = 'manual';
+    else if (flags[s.id]) s.suspect = 'auto';
+    else delete s.suspect;
+  }
+  return doc;
+}
+
+/**
+ * What came into stock since the last check, worth a push alert: a product a store didn't have last
+ * time, at a store that was already being watched, within `miles`, and not a store whose counts are wrong.
+ * Nothing on the first check of a chain (everything would look new).
+ */
+export function findRestocks(previous, doc, { miles = 15 } = {}) {
+  if (!previous) return [];
+  const known = new Set((previous.stores ?? []).map((s) => s.id));
+  const stores = new Map(doc.stores.map((s) => [s.id, s]));
+  const products = new Map(doc.products.map((p) => [p.id, p]));
+  const out = [];
+  for (const e of doc.stock) {
+    const chain = e.s.split(':')[0];
+    if (!e.in || e.since !== doc.updatedAt || !doc.chains[chain]?.ok || !previous.chains?.[chain]?.checkedAt) continue;
+    const store = stores.get(e.s), product = products.get(e.p);
+    if (!store || !product || !known.has(e.s) || store.suspect || (store.distance ?? 1e9) > miles) continue;
+    out.push({ store, product, qty: e.qty, chain: doc.chains[chain].name });
+  }
+  return out.sort((a, b) => (a.store.distance ?? 0) - (b.store.distance ?? 0));
+}
+
+/** The alert for a set of restocks: { title, body }. */
+export function restockMessage(restocks) {
+  const stores = new Set(restocks.map((r) => r.store.id)).size;
+  const first = restocks[0];
+  const title = restocks.length === 1
+    ? `${first.chain} restock: ${first.product.name}`
+    : `${restocks.length} restocks at ${stores} store${stores === 1 ? '' : 's'}`;
+  const line = (r) => `${r.store.distance != null ? `${r.store.distance} mi · ` : ''}${r.chain} ${r.store.name}${r.store.city ? `, ${r.store.city}` : ''}: ${r.product.name}${r.qty != null ? ` (${r.qty} on hand)` : ''}`;
+  const lines = restocks.slice(0, 10).map(line);
+  if (restocks.length > 10) lines.push(`…and ${restocks.length - 10} more`);
+  return { title, body: lines.join('\n') };
 }
 
 /** Error text safe to publish: no keys, one line. */

@@ -1,15 +1,18 @@
 name: Nearby stock
 
-# Every 30 minutes: which nearby stores have Pokémon card product in stock. The answer is one
+# Every 15 minutes: which nearby stores have Pokémon card product in stock. The answer is one
 # small file on the "stock" branch that the website and the iPhone app read.
 #
 # Set up (Settings → Secrets and variables → Actions → Secrets):
 #   STOCK_ZIP         the ZIP code to look around (required)
 #   BESTBUY_API_KEY   Best Buy's free developer key (developer.bestbuy.com); without it Best Buy is skipped
-# Optional variable STOCK_RADIUS: miles (default 50). Dollar General needs no key.
+#   STOCK_NTFY_TOPIC  push alerts: a made-up, hard-to-guess name; subscribe to the same name in the ntfy app
+# Optional variables: STOCK_RADIUS (miles, default 50), STOCK_ALERT_MILES (alerts only for stores this
+# close, default 15), STOCK_BAD_STORES (store numbers whose counts are wrong, e.g. "12629, 4337").
+# Dollar General needs no key.
 on:
   schedule:
-    - cron: "7,37 * * * *"
+    - cron: "7,22,37,52 * * * *"
   workflow_dispatch:
     inputs:
       test_zip:
@@ -33,6 +36,10 @@ jobs:
       STOCK_RADIUS: ${{ vars.STOCK_RADIUS }}
       BESTBUY_API_KEY: ${{ secrets.BESTBUY_API_KEY }}
       STOCK_BROWSER: "1"
+      STOCK_NTFY_TOPIC: ${{ secrets.STOCK_NTFY_TOPIC }}
+      STOCK_ALERT_MILES: ${{ vars.STOCK_ALERT_MILES }}
+      STOCK_BAD_STORES: ${{ vars.STOCK_BAD_STORES }}
+      STOCK_NO_ALERTS: ${{ inputs.test_zip && '1' || '' }}
     steps:
       - name: Set up?
         id: setup
@@ -67,6 +74,8 @@ jobs:
           mkdir -p out
           # The last answer, to know when each product came in or sold out.
           git fetch -q --depth 1 origin stock 2>/dev/null && git show FETCH_HEAD:stock.json > previous.json 2>/dev/null || rm -f previous.json
+          OWNER_LC=$(echo "$GITHUB_REPOSITORY_OWNER" | tr '[:upper:]' '[:lower:]')
+          export STOCK_SITE="https://${OWNER_LC}.github.io/${GITHUB_REPOSITORY#*/}/stock"
           node server/src/stock/cli.js out/stock.json previous.json
 
       - name: Test summary

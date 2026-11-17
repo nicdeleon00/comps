@@ -6,6 +6,8 @@ export type StockChain = { name: string; checkedAt: number | null; ok: boolean; 
 export type StockStore = {
   id: string; chain: string; number: string; name: string; address: string | null; city: string | null; state: string | null;
   zip: string | null; distance: number | null; phone: string | null; url: string | null; lat: number | null; lng: number | null;
+  /** Its counts can't be trusted: 'auto' = caught showing a count that never moves, 'manual' = listed by hand. */
+  suspect?: 'auto' | 'manual' | null;
 };
 export type StockProduct = { id: string; chain: string; sku: string; name: string; price: number | null; image: string | null; url: string | null };
 /** One product at one store. log: [time, 0 = sold out, otherwise how many (1 when the chain doesn't say)]. */

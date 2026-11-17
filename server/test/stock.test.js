@@ -31,7 +31,7 @@ const server = createServer((req, res) => {
 });
 await new Promise((r) => server.listen(0, r));
 process.env.BESTBUY_BASE = `http://127.0.0.1:${server.address().port}`;
-const { checkStock, mergeChain, configuredChains, scrub } = await import('../src/stock/index.js');
+const { checkStock, mergeChain, configuredChains, scrub, learnWrongCounts, findRestocks, restockMessage } = await import('../src/stock/index.js');
 const { shortName, isPokemonCards } = await import('../src/stock/bestbuy.js');
 const env = { BESTBUY_API_KEY: KEY };
 const T0 = 1_763_000_000_000;
@@ -143,6 +143,50 @@ test('Dollar General: card products only, stores from several points merged, exa
   assert.deepEqual(r.products.map((p) => [p.sku, p.name, p.price]), [['728192558375', 'Pokémon Trading Card Game, 15 Card Pack, 1 ct', 8], ['820650105838', 'Pokémon TCG Mini Tin', 9.5]], 'the plush is left out; a seeded tin shows once a store has it');
   assert.ok(!lookups.includes('191726481539'));
   await assert.rejects(() => dollarGeneral({ radius: 25, lat: null, lon: null, open }), /ZIP/);
+});
+
+test('restock alerts: only what just came in, nearby, at stores already watched, never on the first check', () => {
+  const chains = { dg: { name: 'Dollar General', ok: true, exact: true, checkedAt: 1 } };
+  const stores = [{ id: 'dg:1', chain: 'dg', number: '1', name: '1 Main St', city: 'Dallas', distance: 3.3 }, { id: 'dg:2', chain: 'dg', number: '2', name: 'Far Rd', distance: 40 }, { id: 'dg:3', chain: 'dg', number: '3', name: 'New St', distance: 2 }];
+  const products = [{ id: 'dg:a', name: 'Mini Tin' }, { id: 'dg:b', name: 'Elite Trainer Box' }];
+  const before = { chains, stores: stores.slice(0, 2), stock: [{ s: 'dg:1', p: 'dg:a', in: true, qty: 2, since: 100, log: [[100, 2]] }] };
+  const doc = { updatedAt: 500, chains, stores, products, stock: [
+    { s: 'dg:1', p: 'dg:a', in: true, qty: 2, since: 100, log: [[100, 2]] },   // was already there
+    { s: 'dg:1', p: 'dg:b', in: true, qty: 4, since: 500, log: [[500, 4]] },   // new: alert
+    { s: 'dg:2', p: 'dg:b', in: true, qty: 1, since: 500, log: [[500, 1]] },   // too far
+    { s: 'dg:3', p: 'dg:b', in: true, qty: 1, since: 500, log: [[500, 1]] },   // store seen for the first time
+  ] };
+  const r = findRestocks(before, doc, { miles: 15 });
+  assert.deepEqual(r.map((x) => [x.store.id, x.product.id, x.qty]), [['dg:1', 'dg:b', 4]]);
+  assert.deepEqual(restockMessage(r), { title: 'Dollar General restock: Elite Trainer Box', body: '3.3 mi · Dollar General 1 Main St, Dallas: Elite Trainer Box (4 on hand)' });
+  assert.deepEqual(findRestocks(null, doc), [], 'first check: nothing');
+  doc.stores[0].suspect = 'auto';
+  assert.deepEqual(findRestocks(before, doc), [], 'a store with wrong counts never alerts');
+  assert.equal(restockMessage([...r, ...r, ...r]).title, '3 restocks at 1 store');
+});
+
+test('wrong-count stores: learned from a count that never moves on a scarce product, and remembered', () => {
+  const D = 86400_000, now = 100 * D;
+  const stores = Array.from({ length: 10 }, (_, i) => ({ id: `dg:${i}`, chain: 'dg', number: String(i) }));
+  const chains = { dg: { name: 'Dollar General', ok: true, exact: true } };
+  const everywhere = stores.map((s) => ({ s: s.id, p: 'dg:packs', in: true, qty: 5, since: now - 30 * D, log: [[now - 30 * D, 5]] }));
+  const doc = { chains, stores: stores.map((s) => ({ ...s })), stock: [
+    ...everywhere,                                                                              // common product: never a sign
+    { s: 'dg:1', p: 'dg:etb', in: true, qty: 3, since: now - 6 * D, log: [[now - 6 * D, 3]] },  // scarce, stuck 6 days
+    { s: 'dg:2', p: 'dg:etb', in: true, qty: 2, since: now - 5 * D, log: [[now - 5 * D, 4], [now - D, 2]] }, // scarce but selling
+  ] };
+  learnWrongCounts(doc, null, now, ['7']);
+  assert.deepEqual(doc.stores.filter((s) => s.suspect).map((s) => [s.id, s.suspect]), [['dg:1', 'auto'], ['dg:7', 'manual']]);
+  assert.deepEqual(doc.flags, { 'dg:1': { at: now, seen: now, product: 'dg:etb' } });
+
+  // Later the stuck count is gone: the store is still remembered, until 45 days pass.
+  const later = { chains, stores: stores.map((s) => ({ ...s })), stock: everywhere };
+  learnWrongCounts(later, doc, now + 10 * D);
+  assert.equal(later.stores[1].suspect, 'auto');
+  assert.equal(later.flags['dg:1'].at, now);
+  const muchLater = { chains, stores: stores.map((s) => ({ ...s })), stock: everywhere };
+  learnWrongCounts(muchLater, later, now + 50 * D);
+  assert.equal(muchLater.stores[1].suspect, undefined);
 });
 
 test.after(() => server.close());

@@ -78,6 +78,7 @@ function StoreCard({ g }: { g: StoreGroup }) {
         <div class="stock-head-main">
           <h2>{s.name}</h2>
           <div class="stock-sub">{g.chainName}{s.number ? ` · #${s.number}` : ''}{s.city ? ` · ${s.city}${s.state ? `, ${s.state}` : ''}` : ''}</div>
+          {s.suspect && <div class="stock-suspect" title={s.suspect === 'auto' ? "This store has shown a count that didn't move for days on a product most stores are out of." : 'You listed this store as having wrong counts.'}>Counts often wrong here</div>}
         </div>
         <a class="stock-distance" href={mapUrl(s, g.chainName)} target="_blank" rel="noopener" aria-label={`Directions to ${g.chainName} ${s.name}`}>
           <IconPin size={15} />{miles(s.distance) || 'Map'}
@@ -128,7 +129,7 @@ function ProductCard({ g }: { g: ProductGroup }) {
   );
 }
 
-/** Which nearby stores have Pokémon card product, from the checks that run every 30 minutes. */
+/** Which nearby stores have Pokémon card product, from the checks that run every 15 minutes. */
 export function StockPage() {
   const { doc, state, busy, reload } = useStock();
   const [prefs, setPrefs] = useState(readPrefs);
@@ -161,7 +162,7 @@ export function StockPage() {
       {state === 'none' && (
         <Empty icon={<IconStore size={26} />} title="Stock checks aren't switched on yet"
           action={SETUP_URL && <a class="btn primary" href={SETUP_URL} target="_blank" rel="noopener">How to switch them on</a>}>
-          Once they are, this page lists which stores near you have Pokémon card product, checked every 30 minutes. It takes a ZIP code and a free store key, added once.
+          Once they are, this page lists which stores near you have Pokémon card product, checked every 15 minutes. It takes a ZIP code and a free store key, added once.
         </Empty>
       )}
 
@@ -207,7 +208,7 @@ export function StockPage() {
 
         {!count && (
           <Empty icon={<IconStore size={26} />} title={query ? `No "${query}" in stock nearby` : `Nothing in stock within ${range} miles`}>
-            {range < reach ? 'Try a wider distance.' : 'This list updates on its own every 30 minutes.'}
+            {range < reach ? 'Try a wider distance.' : 'This list updates on its own every 15 minutes.'}
           </Empty>
         )}
         <div class="stock-grid">

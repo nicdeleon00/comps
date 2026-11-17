@@ -83,16 +83,21 @@ Install: download it from Deals → Marketplace and unzip it somewhere permanent
 
 ## Nearby stock
 
-The **Stock** tab (website and app) lists which nearby stores have Pokémon Trading Card Game product in stock. A GitHub job checks every 30 minutes and both read the same answer.
+The **Stock** tab (website and app) lists which nearby stores have Pokémon Trading Card Game product in stock. A GitHub job checks every 15 minutes and both read the same answer.
 
-Chains: **Best Buy**, through Best Buy's official developer API. It says which stores have a product and whether stock is low, not an exact count.
+- **Dollar General** — exact on-hand counts per store, read from what its own website shows a visitor. No key needed.
+- **Best Buy** — through Best Buy's official developer API: which stores have a product and whether stock is low.
 
-To switch it on, in the repository go to Settings → Secrets and variables → Actions → New repository secret and add:
+To switch it on, in the repository go to Settings → Secrets and variables → Actions → New repository secret and add `STOCK_ZIP`, the ZIP code to look around. The published list shows store distances from it, so use a nearby ZIP if you'd rather not use your own. Then run **Actions → Nearby stock → Run workflow** once; after that it runs on its own.
 
-- `STOCK_ZIP` — the ZIP code to look around. The published list shows store distances from it, so use a nearby ZIP if you'd rather not use your own.
-- `BESTBUY_API_KEY` — a free key from https://developer.bestbuy.com (Best Buy asks for a non-free email address, not Gmail or Yahoo).
+Optional:
 
-Optional variable `STOCK_RADIUS`: miles, default 50. Then run **Actions → Nearby stock → Run workflow** once; after that it runs on its own.
+- Secret `BESTBUY_API_KEY` — a free key from https://developer.bestbuy.com (Best Buy asks for a non-free email address).
+- Variable `STOCK_RADIUS` — miles, default 50.
+
+**Push alerts.** Install the free **ntfy** app on your iPhone, tap +, and subscribe to a made-up, hard-to-guess topic name (for example `comps-stock-` followed by random letters). Add the same name as the secret `STOCK_NTFY_TOPIC`. Each check then sends one alert listing what came into stock since the last one, for stores within 15 miles (variable `STOCK_ALERT_MILES` changes that). Anyone who knows the topic name can read the alerts, which is why it should be hard to guess.
+
+**Stores with wrong counts.** Some stores list stock they don't have. The checker learns them: a store showing the same count for three days on a product most stores are out of is marked "Counts often wrong here", left out of alerts, and remembered for 45 days after it was last caught. To mark stores yourself, put their store numbers in the variable `STOCK_BAD_STORES` (for example `12629, 4337`).
 
 ## How it works
 

@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Which nearby stores have Pokémon card product, from the checks that run every 30 minutes.
+/// Which nearby stores have Pokémon card product, from the checks that run every 15 minutes.
 /// The same screen as the website's Stock page.
 @MainActor
 struct StockView: View {
@@ -37,7 +37,7 @@ struct StockView: View {
                 ContentUnavailableView {
                     Label("Stock checks aren't switched on yet", systemImage: "storefront")
                 } description: {
-                    Text("Once they are, this lists which stores near you have Pokémon cards, checked every 30 minutes. It takes a ZIP code and a free store key, added once.")
+                    Text("Once they are, this lists which stores near you have Pokémon cards, checked every 15 minutes. It takes a ZIP code and a free store key, added once.")
                 } actions: {
                     if let url = StockModel.setupURL {
                         Link("How to switch them on", destination: url).buttonStyle(.borderedProminent)
@@ -115,7 +115,7 @@ struct StockView: View {
                 ContentUnavailableView {
                     Label(filter.query.isEmpty ? "Nothing in stock within \(range) miles" : "No “\(filter.query)” in stock nearby", systemImage: "storefront")
                 } description: {
-                    Text(range < reach ? "Try a wider distance." : "This list updates on its own every 30 minutes.")
+                    Text(range < reach ? "Try a wider distance." : "This list updates on its own every 15 minutes.")
                 }
                 .listRowBackground(Color.clear)
             }
@@ -135,6 +135,12 @@ struct StockView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(s.name).font(.headline)
                 Text(subtitle(group.chainName, s)).font(.subheadline).foregroundStyle(.secondary)
+                if s.suspect != nil {
+                    Text("Counts often wrong here")
+                        .font(.caption.weight(.semibold)).foregroundStyle(.orange)
+                        .padding(.horizontal, 7).padding(.vertical, 2)
+                        .background(Color.orange.opacity(0.14), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                }
             }
             Spacer(minLength: 8)
             Button { openMaps(group.chainName, s) } label: {

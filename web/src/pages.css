@@ -440,3 +440,5 @@ a.stock-name:hover { text-decoration: underline; text-underline-offset: 3px; }
   .coll-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px 10px; }
   .stat-tiles { max-width: none; }
 }
+
+.stock-suspect { display: inline-block; margin-top: 5px; padding: 2px 8px; border-radius: 6px; background: var(--warn-fill); color: var(--warn); font-size: 12px; font-weight: 600; }

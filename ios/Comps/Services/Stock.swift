@@ -1,7 +1,7 @@
 import Foundation
 import Observation
 
-/// Nearby stock: stock.json, written every 30 minutes by the "Nearby stock" job (server/src/stock).
+/// Nearby stock: stock.json, written every 15 minutes by the "Nearby stock" job (server/src/stock).
 /// Kept apart from the card collection: nothing here touches saved cards.
 struct StockDoc: Decodable {
     struct Chain: Decodable {
@@ -24,6 +24,8 @@ struct StockDoc: Decodable {
         var zip: String?
         var distance: Double?
         var url: String?
+        /// Its counts can't be trusted: "auto" (caught showing a count that never moves) or "manual".
+        var suspect: String? = nil
     }
 
     struct Product: Decodable, Identifiable, Hashable {
