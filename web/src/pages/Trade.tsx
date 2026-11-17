@@ -681,7 +681,7 @@ function OffersTab({ me, list, loading }: { me: Trader; list?: Offer[]; loading:
                 <span class="muted">{o.parent_id ? 'Counteroffer · ' : ''}You give {v.youGive.length} card{v.youGive.length === 1 ? '' : 's'}{v.cashOut > 0 ? ` + ${money(v.cashOut)}` : ''} · get {v.youGet.length}{v.cashOut < 0 ? ` + ${money(-v.cashOut)}` : ''} · {ago(o.updated_at)}</span>
               </span>
               <span class="tr-fan" aria-hidden="true">{[...v.youGet, ...v.youGive].slice(0, 3).map((c, i) => <span style={{ '--i': i }}><Thumb card={cardOf(c)} /></span>)}</span>
-              <span class="num tr-offer-val">{money(b.get)}</span>
+              {b.get > 0 && <span class="tr-offer-val"><b class="num">{money(b.get)}</b><small class="muted">you get</small></span>}
             </button>
           );
         })}

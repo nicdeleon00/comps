@@ -884,7 +884,13 @@ private struct OffersSection: View {
                                 .font(.caption2).foregroundStyle(.tertiary)
                         }
                         Spacer(minLength: 4)
-                        Text(Fmt.money(TradeAPI.total(v.youGet))).font(.subheadline.weight(.semibold)).monospacedDigit()
+                        let worth = TradeAPI.total(v.youGet) + max(0, -v.cashOut)
+                        if worth > 0 {
+                            VStack(alignment: .trailing, spacing: 1) {
+                                Text(Fmt.money(worth)).font(.subheadline.weight(.semibold)).monospacedDigit()
+                                Text("you get").font(.caption2).foregroundStyle(.secondary)
+                            }
+                        }
                     }
                 }
                 .buttonStyle(.plain)
@@ -1096,7 +1102,7 @@ enum TradeSample {
     static let offers: [TradeOffer] = {
         let now = Date().timeIntervalSince1970 * 1000
         return [
-            TradeOffer(id: "o1", fromUser: "b", toUser: "a", parentId: nil, status: .open, give: [mistyList[1]], get: [{ var p = pikachu; p.quantity = 2; return p }()],
+            TradeOffer(id: "o1", fromUser: "b", toUser: "a", parentId: nil, status: .open, give: [{ var c = mistyList[1]; c.value = 85.74; return c }()], get: [{ var p = pikachu; p.quantity = 2; p.value = 3.97; return p }()],
                        cash: 0, message: "Hey! Would you do two of your Pikachus for my Charizard?", createdAt: now - 3 * 3_600_000, updatedAt: now - 3 * 3_600_000),
             TradeOffer(id: "o2", fromUser: "a", toUser: "c", parentId: nil, status: .accepted, give: [pikachu], get: [], cash: -5, message: nil, createdAt: now - 50 * 3_600_000, updatedAt: now - 30 * 3_600_000),
         ]

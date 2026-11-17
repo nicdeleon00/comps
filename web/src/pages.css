@@ -575,3 +575,4 @@ button.tr-tile-btn:active { transform: scale(0.97); }
   .tr-offerbar > span { font-size: 13px; }
   .tr-profile h1 { font-size: 24px; }
 }
+.tr-offer-val { display: flex; flex-direction: column; align-items: flex-end; } .tr-offer-val small { font-size: 11px; font-weight: 500; }
