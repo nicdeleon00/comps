@@ -88,7 +88,7 @@ export function DealsPage() {
       {data && !items.length && (
         <Empty icon={<IconTag size={26} />} title="Nothing under value here">
           {kind === 'listing'
-            ? 'Live listings need an eBay developer key (free). Add it in Settings and the scanner checks listings every few hours.'
+            ? 'No live listings under value right now. They’re checked every few hours.'
             : 'Try another filter. Deals are recomputed after every price refresh.'}
         </Empty>
       )}

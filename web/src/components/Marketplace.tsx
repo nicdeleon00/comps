@@ -36,7 +36,7 @@ export function MarketplaceFinds() {
   return (
     <>
       <ExtensionBar ext={ext} />
-      {setupMissing && <p class="faint" style={{ fontSize: 13 }}>Shared Marketplace deals aren't switched on yet: the site owner runs <code>supabase/schema.sql</code> in Supabase once.</p>}
+      {setupMissing && <p class="faint" style={{ fontSize: 13 }}>Shared Marketplace deals aren’t available yet.</p>}
       <div class="toolbar">
         <Segmented value={show} label="Show" onChange={setShow}
           options={[{ value: 'deals' as Show, label: 'Under value', count: dealCount || undefined }, { value: 'all' as Show, label: 'All priced', count: items?.length || undefined }]} />

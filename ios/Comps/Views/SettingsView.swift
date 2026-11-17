@@ -28,11 +28,6 @@ struct SettingsView: View {
                     LabeledContent("Cards", value: catalogCount > 0 ? (catalogCount - japaneseCount).formatted() : "Not downloaded")
                     LabeledContent("Japanese cards", value: japaneseCount > 0 ? japaneseCount.formatted() : "Downloading…")
                     LabeledContent("Prices from", value: catalogDate.map { $0.formatted(.relative(presentation: .named)) } ?? "—")
-                    if let status {
-                        LabeledContent("Open deals", value: status.counts.deals.formatted())
-                        LabeledContent("Graded prices", value: status.providers["pricecharting"]?.on == true ? "On" : "Needs PriceCharting")
-                        LabeledContent("eBay listings", value: status.providers["ebay"]?.on == true ? "On" : "Needs eBay keys")
-                    }
                     Button {
                         Task { await update() }
                     } label: {
@@ -43,23 +38,10 @@ struct SettingsView: View {
                 } header: {
                     Text("Prices")
                 } footer: {
-                    Text("Prices refresh on GitHub every 6 hours. The app keeps a copy of every English Pokémon card, so scanning and values work offline.")
+                    Text("Prices update several times a day. The app keeps a copy of every English and Japanese Pokémon card, so scanning and values work offline.")
                 }
 
                 AccountSection()
-
-                Section {
-                    TextField(HostedData.defaultURL, text: $dataURL)
-                        .keyboardType(.URL)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .onSubmit { Task { await update() } }
-                    Button { showPairing = true } label: { Label("Scan site code", systemImage: "qrcode.viewfinder") }
-                } header: {
-                    Text("Price site")
-                } footer: {
-                    Text("Leave blank to use \(HostedData.defaultURL). The website's Settings page has a code you can scan.")
-                }
 
                 Section {
                     Picker("Default condition", selection: $scanCondition) {
@@ -78,8 +60,21 @@ struct SettingsView: View {
                 }
 
                 Section {
+                    DisclosureGroup("Advanced") {
+                        TextField(HostedData.defaultURL, text: $dataURL)
+                            .keyboardType(.URL)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .onSubmit { Task { await update() } }
+                        Button { showPairing = true } label: { Label("Scan site code", systemImage: "qrcode.viewfinder") }
+                    }
+                } footer: {
+                    Text("Only needed if the price site moves. Leave the address blank to use the usual one.")
+                }
+
+                Section {
                     LabeledContent("Version", value: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0")
-                    Text("Prices: TCGplayer via TCGCSV, Cardmarket via TCGdex. Card images © their owners.")
+                    Text("Prices from TCGplayer and Cardmarket. Card images © their owners.")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
             }

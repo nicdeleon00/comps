@@ -86,6 +86,18 @@ function HostedSettings() {
     else document.documentElement.dataset.theme = t;
   };
   const site = `${location.origin}${BASE}/`;
+  // Owner tools stay hidden unless this browser opened Settings with #owner once.
+  const [owner, setOwner] = useState(() => { try { return localStorage.getItem('comps.owner') === '1'; } catch { return false; } });
+  useEffect(() => {
+    const check = () => {
+      if (location.hash !== '#owner') return;
+      try { localStorage.setItem('comps.owner', '1'); } catch {}
+      setOwner(true);
+    };
+    check();
+    addEventListener('hashchange', check);
+    return () => removeEventListener('hashchange', check);
+  }, []);
   const gh = REPO ? `https://github.com/${REPO}` : '';
   const gr = st?.providers.graded;
   const eb = st?.providers.ebay?.on;
@@ -93,7 +105,40 @@ function HostedSettings() {
   return (
     <div class="page settings">
       <Header title="Settings" />
-      <Group title="Prices" note={st ? `Updated ${ago(st.exportedAt ?? null)}. GitHub refreshes everything every 6 hours — nothing runs on your computer.` : undefined}>
+      <Group title="Prices" note="Prices for every English and Japanese Pokémon card, updated several times a day.">
+        <div class="g-row">
+          <div class="g-main"><div class="g-title">Last updated</div><div class="g-desc">{st ? `${ago(st.exportedAt ?? null)} · ${num(st.counts.valued)} prices` : '…'}</div></div>
+          {jobOk('pokemon') && <span class={`dot ${jobOk('pokemon')!.status === 'error' ? 'err' : ''}`} />}
+        </div>
+      </Group>
+
+      <Group id="grading" title="Grading costs" note="Used for expected value on Raw to Graded and card pages. Saved in this browser.">
+        <div class="g-grid">
+          <Field label="Grading fee per card"><MoneyInput value={g.gradingFee ?? ''} onValue={(x) => setG({ ...g, gradingFee: x })} /></Field>
+          <Field label="Shipping & insurance per card"><MoneyInput value={g.gradingShipping ?? ''} onValue={(x) => setG({ ...g, gradingShipping: x })} /></Field>
+          <Field label="Selling fee (%)"><input class="input num" inputMode="decimal" value={g.sellFeePct ?? ''} onInput={(e) => setG({ ...g, sellFeePct: (e.target as HTMLInputElement).value })} /></Field>
+          <Field label="Fixed fee per sale"><MoneyInput value={g.sellFixed ?? ''} onValue={(x) => setG({ ...g, sellFixed: x })} /></Field>
+        </div>
+        <div class="g-foot"><button class="btn primary sm" onClick={async () => { await put('/api/settings', g); invalidate('/api/'); reload(); toast('Saved'); }}>Save and recalculate</button></div>
+      </Group>
+
+      <AccountGroup />
+
+      <Group title="iPhone app" note="Scan cards and keep your collection in your pocket. Sign in with the same account and everything stays in step.">
+        <div class="g-row">
+          <div class="g-main"><div class="g-title">Comps for iPhone</div><div class="g-desc">Install it with Sideloadly, AltStore or SideStore.</div></div>
+          {gh && <a class="btn primary sm" href={`${gh}/releases/download/ios-latest/Comps.ipa`}>Download app</a>}
+        </div>
+      </Group>
+
+      <Group title="Appearance">
+        <div class="g-row">
+          <div class="g-main"><div class="g-title">Theme</div></div>
+          <Segmented value={theme} onChange={applyTheme} label="Theme" options={[{ value: 'system', label: 'System' }, { value: 'light', label: 'Light' }, { value: 'dark', label: 'Dark' }]} />
+        </div>
+      </Group>
+      {owner && (
+        <Group id="owner" title="Owner tools" note="Only shown in this browser. Data sources, keys and the app's site link.">
         <div class="g-row">
           <div class="g-main"><div class="g-title">TCGplayer prices <span class="status-pill on">Daily</span></div><div class="g-desc">Every English Pokémon card and printing{st ? ` · ${num(st.counts.valued)} prices` : ''}.</div></div>
           {jobOk('pokemon') && <span class={`dot ${jobOk('pokemon')!.status === 'error' ? 'err' : ''}`} />}
@@ -120,43 +165,18 @@ function HostedSettings() {
             <a class="btn sm" href={`${gh}/actions/workflows/data.yml`} target="_blank" rel="noopener noreferrer"><IconRefresh size={15} />Refresh now on GitHub</a>
           </div>
         )}
-      </Group>
-
-      <Group id="grading" title="Grading costs" note="Used for expected value on Raw to Graded and card pages. Saved in this browser.">
-        <div class="g-grid">
-          <Field label="Grading fee per card"><MoneyInput value={g.gradingFee ?? ''} onValue={(x) => setG({ ...g, gradingFee: x })} /></Field>
-          <Field label="Shipping & insurance per card"><MoneyInput value={g.gradingShipping ?? ''} onValue={(x) => setG({ ...g, gradingShipping: x })} /></Field>
-          <Field label="Selling fee (%)"><input class="input num" inputMode="decimal" value={g.sellFeePct ?? ''} onInput={(e) => setG({ ...g, sellFeePct: (e.target as HTMLInputElement).value })} /></Field>
-          <Field label="Fixed fee per sale"><MoneyInput value={g.sellFixed ?? ''} onValue={(x) => setG({ ...g, sellFixed: x })} /></Field>
-        </div>
-        <div class="g-foot"><button class="btn primary sm" onClick={async () => { await put('/api/settings', g); invalidate('/api/'); reload(); toast('Saved'); }}>Save and recalculate</button></div>
-      </Group>
-
-      <AccountGroup />
-
-      <Group title="iPhone app" note="Install the app with Sideloadly, AltStore or SideStore. It reads prices from this site, so it works anywhere.">
-        <div class="pair">
-          <Qr text={`comps://connect?url=${encodeURIComponent(site)}`} />
-          <div>
-            <div class="pair-url num" style={{ fontSize: 14 }}>{site}</div>
-            <p class="g-desc" style={{ marginTop: 10, maxWidth: 380 }}>The app is already set to this site. If you ever move it, scan this code from the app's Settings.</p>
-            {gh && (
-              <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
-                <a class="btn primary sm" href={`${gh}/releases/download/ios-latest/Comps.ipa`}>Download app (.ipa)</a>
-                <a class="btn sm" href={`${gh}/releases/tag/ios-latest`} target="_blank" rel="noopener noreferrer">AltStore source</a>
-              </div>
-            )}
+          <div class="pair">
+            <Qr text={`comps://connect?url=${encodeURIComponent(site)}`} />
+            <div>
+              <div class="pair-url num" style={{ fontSize: 14 }}>{site}</div>
+              <p class="g-desc" style={{ marginTop: 10, maxWidth: 380 }}>The app is already set to this site. If you ever move it, scan this code from the app's Settings → Advanced.</p>
+              {gh && <a class="btn sm" style={{ marginTop: 12 }} href={`${gh}/releases/tag/ios-latest`} target="_blank" rel="noopener noreferrer">AltStore source</a>}
+            </div>
           </div>
-        </div>
-      </Group>
-
-      <Group title="Appearance">
-        <div class="g-row">
-          <div class="g-main"><div class="g-title">Theme</div></div>
-          <Segmented value={theme} onChange={applyTheme} label="Theme" options={[{ value: 'system', label: 'System' }, { value: 'light', label: 'Light' }, { value: 'dark', label: 'Dark' }]} />
-        </div>
-      </Group>
-      <p class="faint" style={{ fontSize: 12, marginTop: 28 }}>Prices: TCGplayer via TCGCSV, Cardmarket via TCGdex. Signed in, your collection, watchlist and settings are kept in your account; signed out, they stay in this browser.</p>
+          <div class="g-foot"><button class="btn sm" onClick={() => { try { localStorage.removeItem('comps.owner'); } catch {} setOwner(false); }}>Hide owner tools</button></div>
+        </Group>
+      )}
+      <p class="faint" style={{ fontSize: 12, marginTop: 28 }}>Prices from TCGplayer and Cardmarket. Signed in, your collection, watchlist and settings are kept in your account; signed out, they stay in this browser.</p>
     </div>
   );
 }

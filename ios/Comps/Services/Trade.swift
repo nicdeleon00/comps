@@ -152,7 +152,7 @@ enum TradeAPI {
         let raw = error.localizedDescription
         if raw.range(of: "duplicate|unique", options: [.regularExpression, .caseInsensitive]) != nil { return "That username is taken. Try another." }
         if raw.range(of: "relation .* does not exist|schema cache", options: [.regularExpression, .caseInsensitive]) != nil {
-            return "Trading isn't set up on the server yet: the site owner needs to run the latest supabase/schema.sql."
+            return "Trading isn't available yet. Check back soon."
         }
         return raw
     }

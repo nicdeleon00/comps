@@ -34,15 +34,8 @@ struct StockView: View {
             case .loading, .ready:
                 ProgressView()
             case .notSetUp:
-                ContentUnavailableView {
-                    Label("Stock checks aren't switched on yet", systemImage: "storefront")
-                } description: {
-                    Text("Once they are, this lists which stores near you have Pokémon cards, checked every 15 minutes. It takes a ZIP code and a free store key, added once.")
-                } actions: {
-                    if let url = StockModel.setupURL {
-                        Link("How to switch them on", destination: url).buttonStyle(.borderedProminent)
-                    }
-                }
+                ContentUnavailableView("Stock checks aren't on yet", systemImage: "storefront",
+                                       description: Text("Once they are, this lists which stores near you have Pokémon cards, checked every 15 minutes."))
             case .failed:
                 ContentUnavailableView {
                     Label("Couldn't load the stock list", systemImage: "wifi.slash")

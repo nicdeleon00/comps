@@ -47,7 +47,7 @@ enum Screenshots {
         return StockDoc(
             updatedAt: now - 11 * 60_000, radius: 50,
             chains: ["bestbuy": .init(name: "Best Buy", checkedAt: now - 11 * 60_000, ok: true, error: nil, exact: false)],
-            stores: [store("176", "Hulen", "Fort Worth", 5.2), store("665", "Burleson", "Burleson", 5.3), store("202", "South Arlington", "Arlington", 13.8), store("1067", "Alliance", "Fort Worth", 24.1)],
+            stores: [store("176", "Main Street", "Springfield", 5.2), store("665", "Oak Avenue", "Oak Avenue", 5.3), store("202", "Lakeside", "Shelbyville", 13.8), store("1067", "Alliance", "Springfield", 24.1)],
             products: [product("1", "Mega Evolution - Delta Reign Booster Bundle", 26.94), product("2", "30th Celebration Mini Tin", 9.99),
                        product("3", "Mega Evolution - Pitch Black Elite Trainer Box", 54.99), product("4", "30th Celebration Booster Bundle", 29.99)],
             stock: [entry("176", "1", low: true, since: 25, log: [[72, 1], [47, 0], [25, 1]]), entry("176", "2", isIn: false, since: 2, log: [[28, 1], [2, 0]]),

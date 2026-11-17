@@ -121,7 +121,7 @@ export function TradePage() {
   const [editing, setEditing] = useState(false);
   const waiting = user ? waitingOn(offerList.data ?? [], user.id).length : 0;
 
-  if (!accountsEnabled) return <div class="page"><Header title="Trade" /><Empty icon={<IconTrade size={26} />} title="Trading needs accounts">The site owner needs to switch accounts on first.</Empty></div>;
+  if (!accountsEnabled) return <div class="page"><Header title="Trade" /><Empty icon={<IconTrade size={26} />} title="Trading needs accounts">Accounts aren’t available yet. Check back soon.</Empty></div>;
   if (!user) {
     return (
       <div class="page">
@@ -134,8 +134,8 @@ export function TradePage() {
   }
   if (profile.loading && profile.data === undefined) return <div class="page"><Header title="Trade" /><SkRows n={5} /></div>;
   if (profile.error && !profile.data) {
-    return <div class="page"><Header title="Trade" /><Empty icon={<IconTrade size={26} />} title="Trading isn't set up on the server yet">
-      {/relation|does not exist|schema cache/i.test(profile.error) ? 'The site owner needs to run the latest supabase/schema.sql in Supabase (SQL Editor).' : profile.error}
+    return <div class="page"><Header title="Trade" /><Empty icon={<IconTrade size={26} />} title="Trading isn't available">
+      {/relation|does not exist|schema cache/i.test(profile.error) ? 'Trading isn’t available yet. Check back soon.' : profile.error}
     </Empty></div>;
   }
   if (!profile.data || editing) {
@@ -190,7 +190,7 @@ function ProfileForm({ existing, onDone }: { existing: Trader | null; onDone: ()
             onInput={(e) => setHandle((e.target as HTMLInputElement).value.toLowerCase().replace(/[^a-z0-9_]/g, ''))} /></div>
         </Field>
         <Field label="Name (optional)"><input class="input" value={name} maxLength={40} onInput={(e) => setName((e.target as HTMLInputElement).value)} /></Field>
-        <Field label="Area (optional)" hint="A city is enough, so people nearby can meet up"><input class="input" value={area} maxLength={40} placeholder="Fort Worth, TX" onInput={(e) => setArea((e.target as HTMLInputElement).value)} /></Field>
+        <Field label="Area (optional)" hint="A city is enough, so people nearby can meet up"><input class="input" value={area} maxLength={40} placeholder="Springfield" onInput={(e) => setArea((e.target as HTMLInputElement).value)} /></Field>
         <Field label="About (optional)"><textarea class="input" rows={2} value={bio} maxLength={200} placeholder="What you collect, how you like to trade" onInput={(e) => setBio((e.target as HTMLTextAreaElement).value)} /></Field>
         <label class="tr-share">
           <span>

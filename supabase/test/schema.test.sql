@@ -107,7 +107,7 @@ do $$ begin
     raise exception 'listed a card without a profile';
   exception when insufficient_privilege or check_violation then null; end;
 end $$;
-insert into public.traders (handle, name, area) values ('ash_k', 'Ash', 'Fort Worth, TX');
+insert into public.traders (handle, name, area) values ('ash_k', 'Ash', 'Springfield');
 insert into public.trade_cards (kind, card_id, name, holding_id) values ('have', 'tcg:1', 'Charizard', '11111111-1111-1111-1111-111111111111');
 insert into public.trade_cards (kind, card_id, name) values ('want', 'tcg:50', 'Umbreon VMAX');
 -- The same copy from the collection can't be listed twice.

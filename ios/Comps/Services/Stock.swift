@@ -209,7 +209,7 @@ final class StockModel {
 
     /// Where the steps to switch the checks on are.
     static var setupURL: URL? {
-        repository(HostedData.current.baseURL).flatMap { URL(string: "https://github.com/\($0)#nearby-stock") }
+        repository(HostedData.current.baseURL).flatMap { URL(string: "https://github.com/\($0)/blob/main/docs/OWNER.md#nearby-stock") }
     }
 
     /// Loads again when asked to, or when the last answer is older than five minutes.

@@ -9,7 +9,6 @@ const REPO = (import.meta.env.VITE_REPO as string | undefined) ?? '';
 /** The stock branch's one file (see .github/workflows/stock.yml); next to the site's data when there's no repo. */
 const STOCK_URL = (import.meta.env.VITE_STOCK_URL as string | undefined)
   ?? (REPO ? `https://raw.githubusercontent.com/${REPO}/stock/stock.json` : `${import.meta.env.BASE_URL}data/stock.json`);
-const SETUP_URL = REPO ? `https://github.com/${REPO}#nearby-stock` : null;
 
 type Prefs = { view: 'store' | 'product'; chain: string | null; miles: number | null; inStockOnly: boolean };
 const DEFAULTS: Prefs = { view: 'store', chain: null, miles: null, inStockOnly: true };
@@ -160,9 +159,8 @@ export function StockPage() {
       {state === 'loading' && <SkRows n={6} />}
 
       {state === 'none' && (
-        <Empty icon={<IconStore size={26} />} title="Stock checks aren't switched on yet"
-          action={SETUP_URL && <a class="btn primary" href={SETUP_URL} target="_blank" rel="noopener">How to switch them on</a>}>
-          Once they are, this page lists which stores near you have Pokémon card product, checked every 15 minutes. It takes a ZIP code and a free store key, added once.
+        <Empty icon={<IconStore size={26} />} title="Stock checks aren't on yet">
+          Once they are, this page lists which stores near you have Pokémon card product, checked every 15 minutes.
         </Empty>
       )}
 

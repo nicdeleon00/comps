@@ -23,8 +23,8 @@ export function AccountPanel({ compact = false }: { compact?: boolean }) {
   if (!accountsEnabled) {
     return (
       <div class="account-box">
-        <div class="g-title">Accounts aren't switched on yet</div>
-        <p class="g-desc">The site owner needs to connect Supabase (free). Until then your collection is saved in this browser.</p>
+        <div class="g-title">Accounts aren't available yet</div>
+        <p class="g-desc">Your collection is saved in this browser for now.</p>
       </div>
     );
   }

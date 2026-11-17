@@ -62,8 +62,8 @@ export function MarketPage() {
       {empty && (
         <Empty icon={<IconMarket size={26} />} title={s?.running ? 'Pulling prices for the first time' : 'No prices yet'}>
           {s?.running
-            ? 'The first refresh downloads the whole catalog. Without a Pokémon TCG API key that takes a few minutes. This page updates on its own.'
-            : 'Add API keys in Settings, then refresh. Pokémon, Magic and Yu-Gi-Oh! prices work without any keys.'}
+            ? 'Prices are on their way. This page updates on its own.'
+            : 'Prices aren’t available right now. Check back soon.'}
         </Empty>
       )}
 
@@ -119,7 +119,7 @@ export function MarketPage() {
             {data.spreads.length ? data.spreads.slice(0, 5).map((sp, i) => <SpreadRow s={sp} i={i} />)
               : <p class="muted" style={{ fontSize: 14 }}>{(s?.providers.graded?.on)
                 ? `Learning graded prices — ${s?.providers.graded?.cards ?? 0} cards so far, about 50 more a day.`
-                : 'Add a free PokemonPriceTracker key in Settings to get graded prices.'}</p>}
+                : 'Graded prices aren’t available yet.'}</p>}
           </section>
           <section>
             <div class="section-head">

@@ -4,7 +4,7 @@ import { createServer } from 'node:http';
 
 // A stand-in for Best Buy's API, in the shapes its documentation gives.
 const KEY = 'test-key-123';
-let inStock = { 6606082: [{ storeID: 176, name: 'Hulen', address: '4801 Overton Ridge Blvd', city: 'Fort Worth', state: 'TX', postalCode: '76132', lowStock: true, distance: 5.2 }, { storeID: 999, name: 'Far Away', city: 'Austin', state: 'TX', lowStock: false, distance: 180 }], 6600001: [] };
+let inStock = { 6606082: [{ storeID: 176, name: 'Main Street', address: '100 Main St', city: 'Springfield', state: 'TX', postalCode: '00001', lowStock: true, distance: 5.2 }, { storeID: 999, name: 'Far Away', city: 'Austin', state: 'TX', lowStock: false, distance: 180 }], 6600001: [] };
 let down = false;
 const calls = [];
 const server = createServer((req, res) => {
@@ -21,8 +21,8 @@ const server = createServer((req, res) => {
     { sku: 6500000, name: 'Pokémon Legends: Z-A - Nintendo Switch', salePrice: 59.99, inStoreAvailability: true },
   ] });
   if (path.startsWith('/stores(')) return send({ stores: [
-    { storeId: 176, storeType: 'Big Box', name: 'Hulen', address: '4801 Overton Ridge Blvd', city: 'Fort Worth', region: 'TX', postalCode: '76132', lat: 32.67, lng: -97.41, distance: 5.21, phone: '817-555-0100' },
-    { storeId: 665, storeType: 'Big Box', name: 'Burleson', city: 'Burleson', region: 'TX', postalCode: '76028', lat: 32.56, lng: -97.32, distance: 5.3 },
+    { storeId: 176, storeType: 'Big Box', name: 'Main Street', address: '100 Main St', city: 'Springfield', region: 'TX', postalCode: '00001', lat: 40.1, lng: -89.9, distance: 5.21, phone: '555-0100' },
+    { storeId: 665, storeType: 'Big Box', name: 'Oak Avenue', city: 'Oak Avenue', region: 'TX', postalCode: '00002', lat: 40.2, lng: -89.8, distance: 5.3 },
     { storeId: 7000, storeType: 'Express Kiosk', name: 'Airport kiosk', distance: 20 },
   ] });
   const m = /^\/products\/(\d+)\/stores\.json$/.exec(path);
@@ -71,10 +71,10 @@ test('later checks keep when it came in, and say when it sold out', async () => 
 
   const saved = inStock[6606082];
   inStock[6606082] = [];
-  inStock[6600001] = [{ storeID: 665, name: 'Burleson', lowStock: false, distance: 5.3 }];
+  inStock[6600001] = [{ storeID: 665, name: 'Oak Avenue', lowStock: false, distance: 5.3 }];
   const third = await checkStock({ zip: '76101', radius: 50, env, now: T0 + 3600_000, previous: second });
-  const hulen = third.stock.find((e) => e.s === 'bestbuy:176');
-  assert.deepEqual(hulen, { s: 'bestbuy:176', p: 'bestbuy:6606082', in: false, low: false, qty: null, since: T0 + 3600_000, log: [[T0, 1], [T0 + 3600_000, 0]] });
+  const mainSt = third.stock.find((e) => e.s === 'bestbuy:176');
+  assert.deepEqual(mainSt, { s: 'bestbuy:176', p: 'bestbuy:6606082', in: false, low: false, qty: null, since: T0 + 3600_000, log: [[T0, 1], [T0 + 3600_000, 0]] });
   assert.ok(third.stock.some((e) => e.s === 'bestbuy:665' && e.p === 'bestbuy:6600001' && e.in && e.since === T0 + 3600_000));
   assert.equal(third.products.length, 2, 'a product that just sold out is still described');
 

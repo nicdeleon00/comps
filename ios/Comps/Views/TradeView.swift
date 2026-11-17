@@ -40,7 +40,7 @@ struct TradeView: View {
 
     @ViewBuilder private var content: some View {
         if !account.isEnabled && !Screenshots.on {
-            ContentUnavailableView("Trading needs accounts", systemImage: "arrow.left.arrow.right", description: Text("The site owner needs to switch accounts on first."))
+            ContentUnavailableView("Trading needs accounts", systemImage: "arrow.left.arrow.right", description: Text("Accounts aren't available yet. Check back soon."))
         } else if !account.isSignedIn && !Screenshots.on {
             ContentUnavailableView {
                 Label("Sign in to trade", systemImage: "arrow.left.arrow.right")
@@ -135,7 +135,7 @@ struct ProfileForm: View {
                         }
                 }
                 TextField("Name (optional)", text: $name)
-                TextField("Area, e.g. Fort Worth, TX (optional)", text: $area)
+                TextField("Area, e.g. Springfield (optional)", text: $area)
                 TextField("About you (optional)", text: $bio, axis: .vertical).lineLimit(2...4)
             } header: {
                 Text(existing == nil ? "Pick a username other collectors will see" : "What other collectors see")
@@ -1087,9 +1087,9 @@ private struct Bubble: View {
 // MARK: Sample data for the screenshots
 
 enum TradeSample {
-    static let me = Trader(userId: "a", handle: "ash_k", name: "Ash", area: "Fort Worth, TX", bio: nil, shareCollection: false, createdAt: Date().timeIntervalSince1970 * 1000)
-    static let misty = Trader(userId: "b", handle: "misty_trades", name: "Misty", area: "Arlington, TX", bio: "Water types and alt arts. Meet at the Arlington card shop on weekends.", shareCollection: true, createdAt: (Date().timeIntervalSince1970 - 90 * 86400) * 1000)
-    static let brock = Trader(userId: "c", handle: "brock", name: "Brock", area: "Fort Worth, TX", bio: nil, shareCollection: false, createdAt: Date().timeIntervalSince1970 * 1000)
+    static let me = Trader(userId: "a", handle: "ash_k", name: "Ash", area: "Springfield", bio: nil, shareCollection: false, createdAt: Date().timeIntervalSince1970 * 1000)
+    static let misty = Trader(userId: "b", handle: "misty_trades", name: "Misty", area: "Shelbyville", bio: "Water types and alt arts. Meet at the Shelbyville card shop on weekends.", shareCollection: true, createdAt: (Date().timeIntervalSince1970 - 90 * 86400) * 1000)
+    static let brock = Trader(userId: "c", handle: "brock", name: "Brock", area: "Springfield", bio: nil, shareCollection: false, createdAt: Date().timeIntervalSince1970 * 1000)
     static let traders = [misty, brock]
     static let pikachu = TradeCard(cardId: "tcg:250303", name: "Pikachu", setName: "Celebrations", number: "005", image: "https://tcgplayer-cdn.tcgplayer.com/product/250303_200w.jpg")
     static let mistyList = [
