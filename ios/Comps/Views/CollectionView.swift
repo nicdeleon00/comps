@@ -17,6 +17,8 @@ struct CollectionView: View {
     @State private var path = NavigationPath()
     @State private var query = ""
     @AppStorage("collection.layout") private var layoutRaw = Layout.list.rawValue
+    /// Screenshot mode opens Master Sets straight away ("-tab masterSets").
+    @State private var showMasterSets = Screenshots.value("-tab") == "masterSets"
     var onScan: () -> Void
 
     enum Filter: String, CaseIterable { case all = "All", raw = "Raw", graded = "Graded" }
@@ -99,9 +101,11 @@ struct CollectionView: View {
             .navigationTitle("Collection")
             .searchable(text: $query, prompt: "Search your cards")
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItemGroup(placement: .topBarLeading) {
                     Button { path.append(HistoryRoute.all) } label: { Image(systemName: "clock.arrow.circlepath") }
                         .accessibilityLabel("History")
+                    Button { showMasterSets = true } label: { Image(systemName: "checklist") }
+                        .accessibilityLabel("Master Sets")
                 }
             }
             .topBarButtons(first: true)
@@ -124,6 +128,7 @@ struct CollectionView: View {
             .refreshable { await refresh() }
             .task { await refresh() }
             .sheet(item: $editing) { h in HoldingEditor(holding: h) }
+            .fullScreenCover(isPresented: $showMasterSets) { MasterSetsView(inSheet: true) }
         }
     }
 

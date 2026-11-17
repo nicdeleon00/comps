@@ -50,7 +50,7 @@ struct CompsApp: App {
 
 @MainActor
 struct RootView: View {
-    enum AppTab: Hashable { case collection, scan, deals, stock, masterSets }
+    enum AppTab: Hashable { case collection, scan, trade, deals, stock }
 
     @Environment(\.modelContext) private var context
     @Environment(\.scenePhase) private var scenePhase
@@ -67,7 +67,7 @@ struct RootView: View {
     private static var firstTab: AppTab {
         switch Screenshots.value("-tab") {
         case "deals": return .deals
-        case "masterSets": return .masterSets
+        case "trade": return .trade
         case "stock": return .stock
         default: return .collection
         }
@@ -81,15 +81,15 @@ struct RootView: View {
             Color.clear
                 .tabItem { Label("Scan", systemImage: "viewfinder") }
                 .tag(AppTab.scan)
+            TradeView()
+                .tabItem { Label("Trade", systemImage: "arrow.left.arrow.right") }
+                .tag(AppTab.trade)
             DealsView()
                 .tabItem { Label("Deals", systemImage: "tag.fill") }
                 .tag(AppTab.deals)
             StockView()
                 .tabItem { Label("Stock", systemImage: "storefront.fill") }
                 .tag(AppTab.stock)
-            MasterSetsView()
-                .tabItem { Label("Master Sets", systemImage: "checklist") }
-                .tag(AppTab.masterSets)
         }
         .onChange(of: selection) { old, new in
             if new == .scan {

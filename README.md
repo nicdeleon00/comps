@@ -5,7 +5,7 @@ Pokémon card prices, deals and collection tracking, in three parts that share o
 | | What it is | Get it |
 |---|---|---|
 | **Website** | Prices and price history for every English Pokémon card, deals, raw-to-graded, sets, master sets, your collection, and Facebook Marketplace deals | https://nicdeleon00.github.io/comps/ |
-| **iPhone app** | Card and binder scanner, collection, deals, nearby stock, master sets and search, with every price on the phone so it works offline | [Comps.ipa](https://github.com/nicdeleon00/comps/releases/download/ios-latest/Comps.ipa) (sideload) |
+| **iPhone app** | Card and binder scanner, collection, trading, deals, nearby stock, master sets and search, with every price on the phone so it works offline | [Comps.ipa](https://github.com/nicdeleon00/comps/releases/download/ios-latest/Comps.ipa) (sideload) |
 | **Chrome / Edge extension** | Prices every Pokémon card listing on Facebook Marketplace, finds the deals for you, and shares them on the site | Website → Deals → Marketplace → Get the extension |
 
 Everything runs on GitHub. There's no server to host and nothing to keep running on your computer.
@@ -80,6 +80,20 @@ Camera: pinch or tap **.5× / 1× / 2× / 3×** to zoom. On phones with an ultra
 Install: download it from Deals → Marketplace and unzip it somewhere permanent. Open `chrome://extensions`, turn on **Developer mode**, press **Load unpacked** and pick the folder. On the welcome page, press **Turn on automatic updates** and pick the same folder.
 
 > Facebook's terms don't allow automated browsing. Price tags and **Search now** only read pages you open; the background check is automated, so it's off unless you turn it on, and you use it at your own risk.
+
+## Trading
+
+The **Trade** section (website and app) lets collectors trade with each other.
+
+- **Profile:** pick a username, and optionally an area (a city is enough) so people nearby can meet up.
+- **Your list:** cards you have for trade and cards you want. Add them from your collection, list your whole collection at once, or pick any card from the full card list without scanning.
+- **Share your collection (optional):** other traders can then browse every card you own and ask for any of them. They never see what you paid or your notes.
+- **Traders:** good matches come first (people who have what you want, or want what you have). **Find a card** shows who has a specific card for trade.
+- **Offers:** pick cards from both sides, add or ask for cash, and see what each side is worth at today's prices. The other person can accept, decline or counter, and every offer has its own message thread.
+
+An accepted offer is an agreement, not a transfer: nothing moves in either collection until you add or remove the cards yourselves after the swap.
+
+Trading needs the latest `supabase/schema.sql`: run it once in Supabase → SQL Editor. It only adds the trading tables; your saved cards aren't touched.
 
 ## Nearby stock
 

@@ -251,7 +251,7 @@ struct HoldingEditor: View {
 
 /// Search the catalog for the right card (when a scan matched the wrong one).
 @MainActor
-private struct CardPicker: View {
+struct CardPicker: View {
     @Environment(\.dismiss) private var dismiss
     @State var query: String
     var onPick: (ScanCandidate) -> Void

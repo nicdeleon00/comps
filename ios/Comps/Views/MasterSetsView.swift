@@ -10,6 +10,9 @@ struct MasterSetsView: View {
     @State private var loaded = false
     @State private var query = ""
     @State private var path: [MSSetInfo] = []
+    @Environment(\.dismiss) private var dismiss
+    /// Opened from Collection: gets a Done button.
+    var inSheet = false
 
     private var mode: MSMode { MSMode(rawValue: modeRaw) ?? .master }
 
@@ -54,7 +57,7 @@ struct MasterSetsView: View {
                 }
             }
             .navigationTitle("Master Sets")
-            .topBarButtons()
+            .toolbar { if inSheet { ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } } } }
             .searchable(text: $query, prompt: "Find a set")
             .navigationDestination(for: MSSetInfo.self) { MasterSetDetailView(set: $0) }
             .task { await load() }
