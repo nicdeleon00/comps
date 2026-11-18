@@ -11,16 +11,26 @@ struct StockView: View {
     @AppStorage("stock.miles") private var miles = 0
     @AppStorage("stock.inStockOnly") private var inStockOnly = true
     @State private var query = ""
+    @State private var storePath: [StockDoc.Store] = []
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.openURL) private var openURL
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $storePath) {
             content
                 .navigationTitle("Stock")
+                .navigationDestination(for: StockDoc.Store.self) { s in
+                    let chain = model.doc?.chains[s.chain]
+                    StockStoreView(store: s, chainName: chain?.name ?? s.chain, exact: chain?.exact ?? false,
+                                   names: Dictionary((model.doc?.products ?? []).map { ($0.id, $0.name) }, uniquingKeysWith: { a, _ in a }))
+                }
                 .topBarButtons()
         }
-        .task { await model.load() }
+        .task {
+            await model.load()
+            // Screenshot mode opens the first store's history the way a tap would.
+            if Screenshots.flag("-storePage"), let first = model.doc?.stores.first { storePath = [first] }
+        }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { Task { await model.load() } }
         }
@@ -124,6 +134,8 @@ struct StockView: View {
 
     @ViewBuilder private func storeRows(_ group: StockStoreGroup) -> some View {
         let s = group.store
+        // The store's name opens its history; the distance stays visible.
+        NavigationLink(value: s) {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(s.name).font(.headline)
@@ -136,14 +148,10 @@ struct StockView: View {
                 }
             }
             Spacer(minLength: 8)
-            Button { openMaps(group.chainName, s) } label: {
-                Label(Stock.miles(s.distance) ?? "Map", systemImage: "mappin.and.ellipse")
-                    .font(.footnote.weight(.semibold).monospacedDigit())
-            }
-            .buttonStyle(.bordered)
-            .buttonBorderShape(.capsule)
-            .controlSize(.small)
-            .accessibilityLabel("Directions to \(group.chainName) \(s.name)")
+            Label(Stock.miles(s.distance) ?? "", systemImage: "mappin.and.ellipse")
+                .font(.footnote.weight(.semibold).monospacedDigit())
+                .foregroundStyle(.secondary)
+        }
         }
         if group.items.isEmpty {
             Text("Nothing in stock at the last check.").font(.subheadline).foregroundStyle(.secondary)

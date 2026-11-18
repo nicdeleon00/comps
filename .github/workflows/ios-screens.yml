@@ -70,6 +70,7 @@ jobs:
           shoot masterset -tab masterSets -set 23821
           shoot deals -tab deals
           shoot stock -tab stock
+          shoot stock-store -tab stock -storePage
           shoot trade -tab trade
           shoot trade-list -tab trade -trade "My list"
           shoot trade-offers -tab trade -trade Offers

@@ -54,6 +54,28 @@ enum Screenshots {
                     entry("665", "1", since: 11, log: [[11, 1]]), entry("665", "3", since: 1, log: [[1, 1]]), entry("1067", "4", since: 6, log: [[6, 1]])])
     }
 
+    /// A few weeks of Tuesday-morning deliveries at the first sample store.
+    static func sampleStockHistory() -> StockHistoryDoc {
+        let now = Date().timeIntervalSince1970 * 1000
+        let day = 86_400_000.0
+        var series: [String: [[Double]]] = [:]
+        for (i, p) in ["bestbuy:1", "bestbuy:2", "bestbuy:3"].enumerated() {
+            var pts: [[Double]] = []
+            for w in stride(from: 5, through: 1, by: -1) {
+                var c = Calendar.current.dateComponents([.year, .month, .day], from: Date(timeIntervalSince1970: (now - Double(w * 7) * day) / 1000))
+                c.hour = 7 + i
+                let base = Calendar.current.date(from: c)!
+                let shift = (Calendar.current.component(.weekday, from: base) - 3 + 7) % 7
+                let t = base.timeIntervalSince1970 * 1000 - Double(shift) * day
+                let n = Double(12 + (w * 7 + i * 3) % 9)
+                pts += [[t - 3 * day, 0], [t, n], [t + 9 * 3_600_000, (n / 2).rounded()], [t + 30 * 3_600_000, 0]]
+            }
+            pts += [[now - 2 * day, 18], [now - day, 9]]
+            series["bestbuy:176|\(p)"] = pts
+        }
+        return StockHistoryDoc(updatedAt: now, start: now - 40 * day, series: series, names: nil)
+    }
+
     /// Sample cards (and a value history for the chart) for the pictures.
     @MainActor
     static func seed(_ context: ModelContext) async {
