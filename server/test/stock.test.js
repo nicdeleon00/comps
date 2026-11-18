@@ -53,7 +53,7 @@ test('Pokémon card products only, with short names', () => {
 test('first check: stores in range, what each has, nothing from out of range', async () => {
   calls.length = 0;
   const doc = await checkStock({ zip: '76101', radius: 50, env, now: T0 });
-  assert.deepEqual(doc.chains.bestbuy, { name: 'Best Buy', checkedAt: T0, ok: true, error: null, exact: false });
+  assert.deepEqual(doc.chains.bestbuy, { name: 'Best Buy', checkedAt: T0, ok: true, error: null, exact: false, checked: ['bestbuy:6606082', 'bestbuy:6600001', 'bestbuy:6600002'] });
   assert.deepEqual(doc.stores.map((s) => s.id), ['bestbuy:176', 'bestbuy:665'], 'closest first; no kiosk, nothing 180 miles away');
   assert.equal(doc.stores[0].distance, 5.2);
   assert.equal(doc.stores[0].url, 'https://stores.bestbuy.com/176');
@@ -187,6 +187,44 @@ test('wrong-count stores: learned from a count that never moves on a scarce prod
   const muchLater = { chains, stores: stores.map((s) => ({ ...s })), stock: everywhere };
   learnWrongCounts(muchLater, later, now + 50 * D);
   assert.equal(muchLater.stores[1].suspect, undefined);
+});
+
+test('a product that was not read this time keeps its stock (no false sold-out)', () => {
+  const stores = [{ id: 'x:1' }, { id: 'x:2' }];
+  const before = { stock: [
+    { s: 'x:1', p: 'x:a', in: true, low: false, qty: 5, since: 100, log: [[100, 5]] },
+    { s: 'x:2', p: 'x:b', in: true, low: false, qty: 2, since: 100, log: [[100, 2]] },
+  ] };
+  // This time only product b was read, and store 2 has none of it now.
+  const out = mergeChain(before, 'x', { stores, products: [], checked: ['x:b'], available: [] }, 200);
+  assert.deepEqual(out.find((e) => e.p === 'x:a'), before.stock[0], 'a was not read: unchanged');
+  assert.equal(out.find((e) => e.p === 'x:b').in, false, 'b was read: sold out');
+});
+
+test('Dollar General: products found before are looked up again, and one item listed twice is shown once', async () => {
+  const { dollarGeneral } = await import('../src/stock/dollargeneral.js');
+  const asked = [];
+  const open = async () => ({
+    close: async () => {},
+    post: async (path, body) => {
+      if (path.startsWith('v5/search')) return { Items: [] }; // the search skips everything this time
+      if (path === 'store/search/inventory') {
+        const upc = new URLSearchParams(body).get('upc'); asked.push(upc);
+        const qty = upc === '820650105838' || upc === '196214141308' ? 4 : 0; // two UPCs, same tins
+        return { stores: [1, 2].map((n) => ({ storeNumber: n, address: `${n} Main`, city: 'X', state: 'TX', zipCode: '00001', latitude: 32.79 + n / 1000, longitude: -96.8, productQTY: n === 1 ? qty : (qty ? qty + 1 : 0) })) };
+      }
+      if (path.startsWith('v2/product')) return { description: 'Pokémon Mini Tin', finalPrice: 9 };
+      throw new Error(path);
+    },
+  });
+  const known = [{ id: 'dg:000000000111', chain: 'dg', sku: '000000000111', name: 'Booster Bundle', price: 25, image: null, url: null }];
+  const r = await dollarGeneral({ radius: 5, lat: 32.79, lon: -96.8, known, open, pace: 0 });
+  assert.ok(asked.includes('000000000111'), 'a product from before is checked even when the search skips it');
+  assert.ok(r.checked.includes('dg:000000000111'));
+  assert.ok(r.products.some((p) => p.sku === '000000000111'), 'and keeps its name');
+  const tins = r.products.filter((p) => /Mini Tin/.test(p.name));
+  assert.equal(tins.length, 1, 'the same tins under two UPCs are shown once');
+  assert.equal(r.available.filter((a) => a.product === tins[0].id).length, 2);
 });
 
 test.after(() => server.close());

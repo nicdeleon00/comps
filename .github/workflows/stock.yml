@@ -74,6 +74,7 @@ jobs:
           mkdir -p out
           # The last answer, to know when each product came in or sold out.
           git fetch -q --depth 1 origin stock 2>/dev/null && git show FETCH_HEAD:stock.json > previous.json 2>/dev/null || rm -f previous.json
+          git show FETCH_HEAD:history.json > previous-history.json 2>/dev/null || rm -f previous-history.json
           OWNER_LC=$(echo "$GITHUB_REPOSITORY_OWNER" | tr '[:upper:]' '[:lower:]')
           export STOCK_SITE="https://${OWNER_LC}.github.io/${GITHUB_REPOSITORY#*/}/stock"
           node server/src/stock/cli.js out/stock.json previous.json
@@ -95,6 +96,6 @@ jobs:
           [ -f out/stock.json ] || exit 0
           cd out
           git init -q -b stock
-          git add stock.json
+          git add stock.json history.json
           git -c user.name="comps-bot" -c user.email="comps-bot@users.noreply.github.com" commit -qm "Nearby stock $(date -u +%Y-%m-%dT%H:%MZ)"
           git push -qf "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git" stock

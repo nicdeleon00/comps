@@ -1,4 +1,5 @@
 // Scheduled stock check: node server/src/stock/cli.js <out file> [previous file]
+// Also keeps history.json (every change, for months) next to the out file, starting from previous-history.json.
 //
 //   STOCK_ZIP          the ZIP code to look around (required)
 //   STOCK_RADIUS       miles, default 50
@@ -13,8 +14,9 @@
 // Writes nothing when no chain is set up, so the last file stays as it is.
 
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
-import { dirname } from 'node:path';
+import { dirname, join } from 'node:path';
 import { checkStock, configuredChains, findRestocks, restockMessage } from './index.js';
+import { updateHistory } from './history.js';
 
 const [out, prev] = process.argv.slice(2);
 const zip = (process.env.STOCK_ZIP ?? '').trim();
@@ -35,6 +37,11 @@ const badStores = (process.env.STOCK_BAD_STORES ?? '').split(/[\s,]+/).filter(Bo
 const doc = await checkStock({ zip, radius, lat: num(process.env.STOCK_LAT), lon: num(process.env.STOCK_LON), badStores, previous, log: (m) => console.log(m) });
 mkdirSync(dirname(out), { recursive: true });
 writeFileSync(out, JSON.stringify(doc));
+let oldHistory = null;
+try { oldHistory = JSON.parse(readFileSync(join(dirname(prev ?? out), 'previous-history.json'), 'utf8')); } catch { /* first run */ }
+const history = updateHistory(oldHistory, doc);
+writeFileSync(join(dirname(out), 'history.json'), JSON.stringify(history));
+console.log(`history.json: ${Object.keys(history.series).length} store/product series`);
 const inStock = doc.stock.filter((e) => e.in).length;
 console.log(`stock.json: ${doc.stores.length} stores, ${doc.products.length} products, ${inStock} in stock`);
 const flagged = doc.stores.filter((s) => s.suspect).length;

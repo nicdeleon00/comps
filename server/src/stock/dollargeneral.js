@@ -67,8 +67,12 @@ async function openSite() {
   return { post, close: () => browser.close() };
 }
 
-/** { zip, radius, lat, lon } -> { products, stores, available }. `open` is replaced in tests. */
-export async function dollarGeneral({ radius, lat, lon, open = openSite, pace = 250 }) {
+/**
+ * { zip, radius, lat, lon, known } -> { products, stores, available, checked }. `known` are the products found
+ * before: they're looked up every time, so a product the search skips once doesn't look sold out.
+ * `checked` lists the products whose stock was really read this time. `open` is replaced in tests.
+ */
+export async function dollarGeneral({ radius, lat, lon, known = [], open = openSite, pace = 250 }) {
   if (!(Number.isFinite(lat) && Number.isFinite(lon))) throw new Error("couldn't place the ZIP code on the map");
   const site = await open();
   const wait = () => new Promise((r) => setTimeout(r, pace));
@@ -95,6 +99,8 @@ export async function dollarGeneral({ radius, lat, lon, open = openSite, pace = 
         if (start + 24 >= (res?.PaginationInfo?.TotalRecords ?? 0)) break;
       }
     }
+    // Products found on earlier checks keep their name and picture even when the search skips them.
+    for (const p of known) if (p.sku && !products.has(p.sku)) products.set(p.sku, { ...p });
     const seeds = SEED_UPCS.filter((u) => !products.has(u));
 
     // 2. For each product, the stores around each point and how many each has.
@@ -102,12 +108,14 @@ export async function dollarGeneral({ radius, lat, lon, open = openSite, pace = 
     const best = new Map(); // "store|upc" -> qty
     const points = lookupPoints(lat, lon, radius);
     let answered = 0;
+    const checkedUpcs = new Set();
     for (const upc of [...products.keys(), ...seeds]) {
       for (const [pLat, pLon] of points) {
         let res;
         try {
           res = await site.post('store/search/inventory', new URLSearchParams({ latitude: pLat.toFixed(5), longitude: pLon.toFixed(5), radius: String(Math.min(radius, 50)), upc, offerSourceType: '0' }).toString(), false);
           answered++;
+          checkedUpcs.add(upc);
         } catch { await wait(); continue; }
         await wait();
         for (const s of res.stores ?? []) {
@@ -131,8 +139,21 @@ export async function dollarGeneral({ radius, lat, lon, open = openSite, pace = 
       await wait();
       products.set(upc, { id: `dg:${upc}`, chain: 'dg', sku: upc, name: d?.description ?? `Pokémon cards (UPC ${upc})`, price: d?.finalPrice ?? null, image: d?.images?.[0] ?? null, url: `${SITE}/p/pokemon/${upc}` });
     }
+    // The same item under two UPCs (Dollar General lists some twice): identical counts at every store. Keep one.
+    const signature = new Map();
+    for (const [key, qty] of best) {
+      const [store, upc] = key.split('|');
+      signature.set(upc, [...(signature.get(upc) ?? []), `${store}:${qty}`]);
+    }
+    const bySig = new Map();
+    for (const upc of products.keys()) {
+      const sig = (signature.get(upc) ?? []).sort().join(',');
+      if ((signature.get(upc) ?? []).length < 2) continue;
+      if (bySig.has(sig)) { products.delete(upc); checkedUpcs.delete(upc); } else bySig.set(sig, upc);
+    }
     const available = [...best].map(([key, qty]) => { const [store, upc] = key.split('|'); return { store, product: `dg:${upc}`, qty, low: qty <= 2 }; }).filter((a) => products.has(a.product.slice(3)));
-    return { products: [...products.values()], stores: [...stores.values()], available };
+    const checked = [...checkedUpcs].filter((u) => products.has(u) || SEED_UPCS.includes(u)).map((u) => `dg:${u}`);
+    return { products: [...products.values()], stores: [...stores.values()], available, checked };
   } finally {
     await site.close();
   }

@@ -41,6 +41,10 @@ export function configuredChains(env = process.env) {
 export function mergeChain(previous, chainId, fresh, now) {
   const before = new Map((previous?.stock ?? []).filter((e) => e.s.startsWith(`${chainId}:`)).map((e) => [`${e.s}|${e.p}`, e]));
   const stores = new Map(fresh.stores.map((s) => [s.id, s]));
+  // Products whose stock was read this time; anything else keeps what was known (a lookup that
+  // failed or a product the search skipped once isn't "sold out").
+  const ids = fresh.checked ?? fresh.products?.map((p) => p.id);
+  const isChecked = (p) => !ids || ids.includes(p);
   const out = [];
   const seen = new Set();
   for (const a of fresh.available) {
@@ -59,7 +63,9 @@ export function mergeChain(previous, chainId, fresh, now) {
   }
   // Sold out since the last check, or still within a week of selling out: kept so the screen can say when.
   for (const [key, old] of before) {
-    if (seen.has(key) || !stores.has(old.s)) continue;
+    if (seen.has(key)) continue;
+    if (!stores.has(old.s)) continue;
+    if (!isChecked(old.p)) { if (old.in || now - old.since < KEEP_SOLD_OUT) out.push(old); continue; }
     if (old.in) out.push({ s: old.s, p: old.p, in: false, low: false, qty: null, since: now, log: [...(old.log ?? []), [now, 0]].slice(-LOG_LENGTH) });
     else if (now - old.since < KEEP_SOLD_OUT) out.push(old);
   }
@@ -75,10 +81,15 @@ export async function checkStock({ zip, radius = 50, lat = null, lon = null, bad
   for (const id of chains) {
     const chain = CHAINS[id];
     try {
-      const fresh = await chain.check({ zip, radius, lat, lon, key: chain.key ? env[chain.key] : null });
+      const known = (previous?.products ?? []).filter((p) => p.chain === id);
+      const fresh = await chain.check({ zip, radius, lat, lon, known, key: chain.key ? env[chain.key] : null });
       doc.chains[id] = { name: chain.name, checkedAt: now, ok: true, error: null, exact: chain.exact };
       doc.stores.push(...fresh.stores);
       doc.products.push(...fresh.products);
+      // Products still shown from before (not read this time) keep their description.
+      const have = new Set(fresh.products.map((p) => p.id));
+      doc.products.push(...known.filter((p) => !have.has(p.id)));
+      doc.chains[id].checked = fresh.checked ?? fresh.products.map((p) => p.id);
       doc.stock.push(...mergeChain(previous, id, fresh, now));
       log(`${chain.name}: ${fresh.stores.length} stores, ${fresh.products.length} products, ${fresh.available.length} in stock`);
     } catch (err) {
