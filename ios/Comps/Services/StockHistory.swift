@@ -120,9 +120,9 @@ enum StockHistory {
     static let weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
     static func hour(_ h: Int) -> String { "\(h % 12 == 0 ? 12 : h % 12) \(h < 12 ? "AM" : "PM")" }
 
-    static var url: URL { StockModel.url.deletingLastPathComponent().appendingPathComponent("history.json") }
+    @MainActor static var url: URL { StockModel.url.deletingLastPathComponent().appendingPathComponent("history.json") }
 
-    static func load() async -> StockHistoryDoc? {
+    @MainActor static func load() async -> StockHistoryDoc? {
         if Screenshots.on { return Screenshots.sampleStockHistory() }
         var request = URLRequest(url: url)
         request.cachePolicy = .reloadIgnoringLocalCacheData
