@@ -55,5 +55,10 @@ export function updateHistory(previous, doc, now = doc.updatedAt) {
     series[key] = kept;
     start = Math.min(start, kept[0][0]);
   }
-  return { v: 1, updatedAt: now, start: Math.min(previous?.start ?? start, start), series };
+  // Product names, so a product that drops off the list still has one.
+  const names = { ...(previous?.names ?? {}) };
+  for (const p of doc.products ?? []) if (p.name) names[p.id] = p.name;
+  const used = new Set(Object.keys(series).map((k) => k.split('|')[1]));
+  for (const id of Object.keys(names)) if (!used.has(id)) delete names[id];
+  return { v: 1, updatedAt: now, start: Math.min(previous?.start ?? start, start), series, names };
 }

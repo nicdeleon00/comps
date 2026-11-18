@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from 'preact/hooks';
 import { money, ago } from '../lib/format';
 import { byStore, byProduct, stockLabel, logLabel, radiusOptions, isStale, type StockDoc, type StockEntry, type StockFilter, type StoreGroup, type ProductGroup } from '../lib/stock';
 import { Segmented, Empty, SkRows } from '../components/ui';
-import { IconStore, IconRefresh, IconSearch, IconPin } from '../components/icons';
+import { Link, navigate } from '../lib/router';
+import { storeHistory, duration, WEEKDAYS, hourLabel, type StockHistoryDoc, type ProductHistory } from '../lib/stockHistory';
+import { IconStore, IconRefresh, IconSearch, IconPin, IconBack, IconChevron } from '../components/icons';
 import { Header } from './shared';
 
 const REPO = (import.meta.env.VITE_REPO as string | undefined) ?? '';
@@ -75,7 +77,7 @@ function StoreCard({ g }: { g: StoreGroup }) {
     <section class="stock-card">
       <header class="stock-head">
         <div class="stock-head-main">
-          <h2>{s.name}</h2>
+          <h2><Link href={`/stock/store/${encodeURIComponent(s.id)}`} class="stock-store-link">{s.name}<IconChevron size={15} /></Link></h2>
           <div class="stock-sub">{g.chainName}{s.number ? ` · #${s.number}` : ''}{s.city ? ` · ${s.city}${s.state ? `, ${s.state}` : ''}` : ''}</div>
           {s.suspect && <div class="stock-suspect" title={s.suspect === 'auto' ? "This store has shown a count that didn't move for days on a product most stores are out of." : 'You listed this store as having wrong counts.'}>Counts often wrong here</div>}
         </div>
@@ -214,6 +216,147 @@ export function StockPage() {
             ? stores.map((g) => <StoreCard g={g} key={g.store.id} />)
             : products.map((g) => <ProductCard g={g} key={g.product.id} />)}
         </div>
+      </>}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------- one store's history
+
+const HISTORY_URL = STOCK_URL.replace(/stock\.json$/, 'history.json');
+
+function useHistory() {
+  const [doc, setDoc] = useState<StockHistoryDoc | null | undefined>(undefined);
+  useEffect(() => {
+    let live = true;
+    fetch(HISTORY_URL, { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : null)).then((d) => live && setDoc(d)).catch(() => live && setDoc(null));
+    return () => { live = false; };
+  }, []);
+  return doc;
+}
+
+/** How many there were over time: a step line, with the restocks marked. */
+function StepChart({ p, from, to }: { p: ProductHistory; from: number; to: number }) {
+  const W = 600, Hh = 90, pad = 4;
+  const pts = p.points;
+  const max = Math.max(1, ...pts.map((x) => x[1]));
+  const x = (t: number) => pad + ((Math.max(from, Math.min(to, t)) - from) / Math.max(1, to - from)) * (W - pad * 2);
+  const y = (v: number) => Hh - pad - (v / max) * (Hh - pad * 2 - 12);
+  // The level when the window starts, then each change, then flat to now.
+  let level = 0;
+  for (const [t, v] of pts) if (t <= from) level = v;
+  let d = `M${x(from)},${y(level)}`;
+  for (const [t, v] of pts) { if (t <= from) continue; d += ` H${x(t)} V${y(v)}`; level = v; }
+  d += ` H${x(to)}`;
+  const area = `${d} V${Hh - pad} H${x(from)} Z`;
+  return (
+    <svg class="stock-chart" viewBox={`0 0 ${W} ${Hh}`} preserveAspectRatio="none" role="img" aria-label={`How many over time; now ${p.now}`}>
+      <path d={area} class="area" />
+      <path d={d} class="line" vector-effect="non-scaling-stroke" />
+      {p.restocks.filter((e) => e.t >= from).map((e) => <circle key={e.t} cx={x(e.t)} cy={y(e.to)} r="3.5" class="dot" vector-effect="non-scaling-stroke" />)}
+      <text x={W - pad} y="11" text-anchor="end" class="max">{max}</text>
+    </svg>
+  );
+}
+
+const day = (t: number) => new Date(t).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+
+/** Everything a store has done: when it restocks, how much, how long it lasts, and every change. */
+export function StockStorePage({ id }: { id: string }) {
+  const { doc, state } = useStock();
+  const history = useHistory();
+  const [days, setDays] = useState('30');
+  const now = Date.now();
+  const store = doc?.stores.find((s) => s.id === id);
+  const chain = store ? doc!.chains[store.chain] : null;
+  const products = new Map((doc?.products ?? []).map((p) => [p.id, p]));
+  const h = useMemo(() => (history ? storeHistory(history, id, now, Number(days)) : null), [history, id, days]);
+  const span = Number(days) * 86400_000;
+  const from = Math.max(now - span, history?.start ?? now - span);
+  const nameOf = (pid: string) => products.get(pid)?.name ?? history?.names?.[pid] ?? 'A product no longer listed';
+  const unit = chain?.exact ? '' : ' (in stock / out)';
+
+  if (state === 'loading' || history === undefined) return <div class="page"><SkRows n={6} /></div>;
+  if (!store) return <div class="page"><Empty icon={<IconStore size={26} />} title="This store isn't in range any more" action={<Link class="btn" href="/stock">Back to Stock</Link>} /></div>;
+
+  return (
+    <div class="page">
+      <button class="btn sm card-back" onClick={() => navigate('/stock')}><IconBack size={16} />Stock</button>
+      <header class="stock-store-head">
+        <div>
+          <h1>{store.name}</h1>
+          <div class="muted">{chain?.name}{store.number ? ` · #${store.number}` : ''}{store.city ? ` · ${store.city}${store.state ? `, ${store.state}` : ''}` : ''}</div>
+          {store.suspect && <div class="stock-suspect">Counts often wrong here</div>}
+        </div>
+        <a class="btn" href={mapUrl(store, chain?.name ?? '')} target="_blank" rel="noopener"><IconPin size={15} />{miles(store.distance) || 'Map'} · Directions</a>
+      </header>
+
+      <div class="toolbar">
+        <Segmented value={days} label="Period" onChange={setDays} options={[{ value: '7', label: '7 days' }, { value: '30', label: '30 days' }, { value: '90', label: '90 days' }]} />
+        <span class="spacer" />
+        {history && <span class="muted" style={{ fontSize: 13 }}>Tracking since {day(history.start)}</span>}
+      </div>
+
+      {!h || !h.products.length ? (
+        <Empty icon={<IconStore size={26} />} title="No history here yet">Changes at this store are recorded every 15 minutes. Check back after its next delivery.</Empty>
+      ) : <>
+        <div class="ms-stats stock-stats">
+          <div class="ms-stat"><span>Restocks</span><b>{h.restocks.length}</b><small>in the last {days} days</small></div>
+          <div class="ms-stat"><span>Usually restocks</span><b class="stock-stat-text">{h.usualDay != null ? WEEKDAYS[h.usualDay].slice(0, 3) : '—'}</b>
+            <small>{h.usualHours ? `${hourLabel(h.usualHours[0])} – ${hourLabel(h.usualHours[1])}` : 'Needs a few more deliveries'}</small></div>
+          <div class="ms-stat"><span>Each restock</span><b>{h.avgAdded != null ? `+${Math.round(h.avgAdded)}` : '—'}</b><small>{chain?.exact ? 'on average' : 'in stock / out only'}</small></div>
+          <div class="ms-stat"><span>Lasts on the shelf</span><b class="stock-stat-text">{h.avgShelf != null ? duration(h.avgShelf) : '—'}</b><small>{h.avgShelf != null ? 'from restock to sold out' : 'Nothing has sold out yet'}</small></div>
+        </div>
+
+        {h.restocks.length > 0 && (
+          <section class="section">
+            <div class="section-head"><h2>When it restocks</h2><span class="muted">{h.lastRestock ? `Last: ${when(h.lastRestock.t)}` : ''}</span></div>
+            <div class="stock-week" role="img" aria-label="Restocks by weekday">
+              {h.weekdays.map((n, i) => (
+                <div class="stock-week-col" key={i}>
+                  <div class="stock-week-bar"><i style={{ height: `${(n / Math.max(1, ...h.weekdays)) * 100}%` }} class={i === h.usualDay ? 'top' : ''} /></div>
+                  <span>{WEEKDAYS[i].slice(0, 3)}</span><b class="num">{n || ''}</b>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        <section class="section">
+          <div class="section-head"><h2>Products</h2><span class="muted">How many{unit} over the last {days} days</span></div>
+          <div class="stock-grid">
+            {h.products.map((p) => (
+              <div class="stock-card stock-product" key={p.product}>
+                <div class="stock-product-head">
+                  <div class="stock-product-name">{nameOf(p.product)}</div>
+                  <span class={`stock-status ${p.now > 0 ? 'in' : 'out'}`}>{p.now > 0 ? (chain?.exact ? `${p.now} on hand` : 'In stock') : 'Sold out'}</span>
+                </div>
+                <StepChart p={p} from={from} to={now} />
+                <div class="stock-product-facts">
+                  <span>{p.restocks.filter((e) => e.t >= from).length} restock{p.restocks.filter((e) => e.t >= from).length === 1 ? '' : 's'}</span>
+                  {p.lastRestock && <span>last {when(p.lastRestock.t)} (+{p.lastRestock.to - p.lastRestock.from})</span>}
+                  {p.avgShelf != null && <span>lasts ~{duration(p.avgShelf)}</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-head"><h2>Every change</h2><span class="muted">Newest first</span></div>
+          {!h.events.length && <p class="muted">Nothing changed in this period.</p>}
+          <div class="stock-events">
+            {h.events.slice(0, 200).map((e, i) => (
+              <div class={`stock-event ev-${e.kind}`} key={e.t + e.product + i}>
+                <i aria-hidden="true" />
+                <time>{when(e.t)}</time>
+                <span class="ellipsis">{nameOf(e.product)}</span>
+                <b class="num">{e.kind === 'restock' ? `+${e.to - e.from}` : `−${e.from - e.to}`}</b>
+                <span class="muted num">{e.from} → {e.to}{e.kind === 'soldout' ? ' · sold out' : ''}</span>
+              </div>
+            ))}
+          </div>
+        </section>
       </>}
     </div>
   );

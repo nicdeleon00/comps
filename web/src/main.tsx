@@ -20,7 +20,7 @@ import { WatchlistPage } from './pages/Watchlist';
 import { SettingsPage } from './pages/Settings';
 import { SetsPage, SetPage } from './pages/Sets';
 import { MasterSetsPage, MasterSetPage } from './pages/MasterSets';
-import { StockPage } from './pages/Stock';
+import { StockPage, StockStorePage } from './pages/Stock';
 import { TradePage, TraderPage, useTradeWaiting } from './pages/Trade';
 import { useAccount } from './components/Account';
 import { accountsEnabled } from './lib/supabase';
@@ -47,6 +47,8 @@ function route(path: string, panel = false) {
   if (path === '/deals') return { title: 'Deals', el: <DealsPage /> };
   if (path === '/grading') return { title: 'Deals', el: <GradingPage /> };
   if (path === '/stock') return { title: 'Stock', el: <StockPage /> };
+  const ss = /^\/stock\/store\/([^/]+)$/.exec(path);
+  if (ss) return { title: 'Store', el: <StockStorePage id={decodeURIComponent(ss[1])} key={ss[1]} /> };
   if (path === '/trade') return { title: 'Trade', el: <TradePage /> };
   const tr = /^\/trade\/u\/([^/]+)$/.exec(path);
   if (tr) return { title: 'Trader', el: <TraderPage handle={decodeURIComponent(tr[1])} key={tr[1]} /> };
@@ -129,7 +131,7 @@ function CardPanel({ children }: { children: preact.ComponentChildren }) {
 }
 
 const TOP_LEVEL = new Set(['/', '/collection', '/trade', '/deals', '/grading', '/stock', '/mastersets', '/market']);
-const parentOf = (path: string) => (path.startsWith('/sets/') ? '/sets' : path === '/sets' ? '/market' : path.startsWith('/mastersets/') ? '/mastersets' : path.startsWith('/trade/') ? '/trade' : '/');
+const parentOf = (path: string) => (path.startsWith('/sets/') ? '/sets' : path === '/sets' ? '/market' : path.startsWith('/mastersets/') ? '/mastersets' : path.startsWith('/trade/') ? '/trade' : path.startsWith('/stock/') ? '/stock' : '/');
 
 function App() {
   const loc = useLocation();

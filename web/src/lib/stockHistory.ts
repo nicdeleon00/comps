@@ -4,7 +4,7 @@
 // No imports, so it can be unit-tested with Node directly.
 
 /** series: "store id|product id" -> [[time, how many], ...] in time order, one point per change. */
-export type StockHistoryDoc = { v: number; updatedAt: number; start: number; series: Record<string, [number, number][]> };
+export type StockHistoryDoc = { v: number; updatedAt: number; start: number; series: Record<string, [number, number][]>; names?: Record<string, string> };
 
 export type StockEvent = { t: number; product: string; from: number; to: number; kind: 'restock' | 'down' | 'soldout' };
 export type Stint = { start: number; end: number | null; added: number };
@@ -21,7 +21,7 @@ export type StoreHistory = {
 const DAY = 86400_000;
 
 /** What happened to one product at one store. */
-export function productHistory(product: string, points: [number, number][], now: number): ProductHistory {
+export function productHistory(product: string, points: [number, number][], _now?: number): ProductHistory {
   const events: StockEvent[] = [];
   const stints: Stint[] = [];
   let open: Stint | null = null;
