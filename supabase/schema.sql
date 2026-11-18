@@ -229,7 +229,7 @@ create index if not exists trade_cards_card on public.trade_cards (card_id, kind
 create unique index if not exists trade_cards_holding on public.trade_cards (user_id, kind, holding_id) where holding_id is not null;
 drop trigger if exists trade_cards_limit on public.trade_cards;
 create trigger trade_cards_limit before insert on public.trade_cards
-  for each row execute function public.limit_per_user('3000');
+  for each row execute function public.limit_per_user('20000');
 alter table public.trade_cards enable row level security;
 drop policy if exists "anyone signed in can read" on public.trade_cards;
 create policy "anyone signed in can read" on public.trade_cards for select to authenticated using (true);

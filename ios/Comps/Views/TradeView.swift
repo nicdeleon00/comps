@@ -448,7 +448,7 @@ struct HoldingPicker: View {
                 if shown.isEmpty {
                     Text(holdings.isEmpty ? "Your collection is empty. Use Any card instead." : "No cards match.").foregroundStyle(.secondary)
                 }
-                ForEach(shown.prefix(400)) { h in
+                ForEach(shown) { h in
                     Button {
                         if picked.contains(h.id) { picked.remove(h.id) } else { picked.insert(h.id) }
                     } label: {

@@ -22,6 +22,22 @@ export type Message = { id: string; offer_id: string; from_user: string; body: s
 export type Match = { user_id: string; they_have: number; they_want: number };
 
 const enc = encodeURIComponent;
+
+/**
+ * Every row, however many: the account server hands back at most 1,000 rows per request, so ask
+ * again from where the last page ended until nothing more comes back. `order` keeps pages stable.
+ */
+async function allRows<T>(path: string, init?: RequestInit): Promise<T[]> {
+  const out: T[] = [];
+  const sep = path.includes('?') ? '&' : '?';
+  // Stop at an empty page (the server may cap pages below 1,000, so a short page isn't the end).
+  for (let pages = 0; pages < 100; pages++) {
+    const rows = await rest<T[]>(`${path}${sep}limit=1000&offset=${out.length}`, init);
+    if (!rows.length) break;
+    out.push(...rows);
+  }
+  return out;
+}
 const changed = () => dispatchEvent(new Event('comps:trade'));
 
 // ---------------------------------------------------------------- profiles
@@ -52,10 +68,10 @@ export const tradersById = async (ids: string[]) => (ids.length ? rest<Trader[]>
 export const matches = () => rpc<Match[]>('trade_matches', {});
 
 // ---------------------------------------------------------------- trade lists
-export const listOf = (userId: string) => rest<ListCard[]>(`trade_cards?user_id=eq.${userId}&select=*&order=created_at.desc&limit=3000`);
+export const listOf = (userId: string) => allRows<ListCard>(`trade_cards?user_id=eq.${userId}&select=*&order=created_at.desc,id.asc`);
 /** How many cards each trader has listed, for the trader list. */
 export async function listCounts(): Promise<Map<string, { have: number; want: number }>> {
-  const rows = await rest<{ user_id: string; kind: 'have' | 'want' }[]>('trade_cards?select=user_id,kind&limit=20000');
+  const rows = await allRows<{ user_id: string; kind: 'have' | 'want' }>('trade_cards?select=user_id,kind&order=id.asc');
   const out = new Map<string, { have: number; want: number }>();
   for (const r of rows) {
     const c = out.get(r.user_id) ?? { have: 0, want: 0 };
@@ -94,7 +110,7 @@ export async function removeFromList(ids: string[]) {
   changed();
 }
 
-export const sharedCollection = (userId: string) => rpc<TradeCard[]>('trader_collection', { trader: userId });
+export const sharedCollection = (userId: string) => allRows<TradeCard>('rpc/trader_collection?order=name.asc,id.asc', { method: 'POST', body: JSON.stringify({ trader: userId }) });
 
 // ---------------------------------------------------------------- offers
 export const offers = () => rest<Offer[]>('trade_offers?select=*&order=updated_at.desc&limit=300');

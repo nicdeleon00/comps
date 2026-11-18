@@ -7,13 +7,20 @@ import { sessions, byDay, dayTitle, type AddSession } from '../lib/history';
 import { Thumb } from '../components/Thumb';
 import { GradeBadge, Empty, SkRows, toast } from '../components/ui';
 import { HoldingSheet } from '../components/HoldingSheet';
-import { IconChevron, IconHistory, IconPencil } from '../components/icons';
+import { IconChevron, IconHistory, IconPencil, IconSearch } from '../components/icons';
 import { Header } from './shared';
 
 type Res = { items: Holding[]; summary: CollectionSummary };
 
 const cards = (n: number) => `${n} card${n === 1 ? '' : 's'}`;
 const time = (t: number) => new Date(t).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+/** Every word has to appear in the card's name, set or number. */
+const fold = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+const matches = (h: Holding, words: string[]) => {
+  const n = (h.number ?? '').toLowerCase();
+  const hay = fold(`${h.name} ${h.setName ?? ''} ${n} #${n} ${n.replace(/^0+/, '')}`);
+  return words.every((w) => hay.includes(w));
+};
 const thumbCard = (h: Holding) => ({ id: h.cardId, name: h.name, game: h.game, image: h.imageUrl, set: h.setName ?? undefined, number: h.number ?? undefined });
 
 /**
@@ -26,10 +33,19 @@ export function HistoryPage() {
   const [open, setOpen] = useState<Set<string> | null>(null);
   const [editing, setEditing] = useState<Holding | null>(null);
   const [busy, setBusy] = useState(false);
-  const days = useMemo(() => byDay(sessions(data?.items ?? [])), [data]);
-  const newest = days[0]?.sessions[0];
+  const [query, setQuery] = useState('');
+  const words = fold(query).split(/\s+/).filter(Boolean);
+  const all = useMemo(() => byDay(sessions(data?.items ?? [])), [data]);
+  // Searching: only the adds with a matching card, each showing just those cards, all open.
+  const days = useMemo(() => {
+    if (!words.length) return all;
+    return all.map((d) => ({ ...d, sessions: d.sessions.map((s) => ({ ...s, items: s.items.filter((h) => matches(h, words)) })).filter((s) => s.items.length) }))
+      .filter((d) => d.sessions.length);
+  }, [all, query]);
+  const found = words.length ? days.reduce((n, d) => n + d.sessions.reduce((m, s) => m + s.items.reduce((k, h) => k + (h.quantity || 1), 0), 0), 0) : 0;
+  const newest = all[0]?.sessions[0];
 
-  const isOpen = (s: AddSession<Holding>) => (open ? s.items.some((h) => open.has(h.id)) : s === newest);
+  const isOpen = (s: AddSession<Holding>) => words.length > 0 || (open ? s.items.some((h) => open.has(h.id)) : s.id === newest?.id);
   const toggle = (s: AddSession<Holding>) => {
     const next = new Set(open ?? newest?.items.map((h) => h.id) ?? []);
     if (isOpen(s)) s.items.forEach((h) => next.delete(h.id));
@@ -54,6 +70,18 @@ export function HistoryPage() {
       <Header title="History">
         <span>Every time cards were added, newest first. Open one to check what a scan added and fix it.</span>
       </Header>
+
+      {data && data.items.length > 0 && (
+        <div class="toolbar">
+          <div class="input-wrap hist-search">
+            <span class="prefix"><IconSearch size={14} /></span>
+            <input class="input" type="search" placeholder="Find a card you added: name, set or number" value={query}
+              onInput={(e) => setQuery((e.target as HTMLInputElement).value)} aria-label="Search History" />
+          </div>
+          {words.length > 0 && <span class="muted">{found} card{found === 1 ? '' : 's'} found</span>}
+        </div>
+      )}
+      {words.length > 0 && !days.length && <Empty icon={<IconSearch size={26} />} title="No cards match">Try fewer words, or the card number.</Empty>}
 
       {loading && !data && <SkRows n={6} />}
 
@@ -89,8 +117,8 @@ export function HistoryPage() {
                   {opened && (
                     <div class="hist-body">
                       <div class="hist-tools">
-                        <span class="muted">In the order they were added. Edit a card to fix the card itself, its printing, grade or quantity.</span>
-                        <button class="btn sm" style={{ color: 'var(--down)' }} disabled={busy} onClick={() => removeAll(s)}>Remove all</button>
+                        <span class="muted">{words.length ? 'The matching cards from this add. Edit a card to fix it.' : 'In the order they were added. Edit a card to fix the card itself, its printing, grade or quantity.'}</span>
+                        {!words.length && <button class="btn sm" style={{ color: 'var(--down)' }} disabled={busy} onClick={() => removeAll(s)}>Remove all</button>}
                       </div>
                       {s.items.map((h, i) => (
                         <div class="row hist-row enter" style={{ '--i': i }} key={h.id}>

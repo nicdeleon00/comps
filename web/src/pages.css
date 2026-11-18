@@ -576,3 +576,5 @@ button.tr-tile-btn:active { transform: scale(0.97); }
   .tr-profile h1 { font-size: 24px; }
 }
 .tr-offer-val { display: flex; flex-direction: column; align-items: flex-end; } .tr-offer-val small { font-size: 11px; font-weight: 500; }
+.tr-more { display: flex; justify-content: center; margin-top: 16px; }
+.hist-search { flex: 1 1 320px; max-width: 460px; } .hist-search .prefix { display: grid; } .hist-search .input { padding-left: 30px; }

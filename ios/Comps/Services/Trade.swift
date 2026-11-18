@@ -139,6 +139,19 @@ enum TradeAPI {
         return d
     }()
 
+    /// Every row, however many: the account server hands back at most 1,000 rows per request, so
+    /// ask again from where the last page ended until an empty page comes back.
+    private static func all<T: Decodable>(_ path: String, method: String = "GET", json: Any? = nil) async throws -> [T] {
+        var out: [T] = []
+        let sep = path.contains("?") ? "&" : "?"
+        for _ in 0..<100 {
+            let page: [T] = try decoder.decode([T].self, from: try await account.rest("\(path)\(sep)limit=1000&offset=\(out.count)", method: method, json: json))
+            if page.isEmpty { break }
+            out += page
+        }
+        return out
+    }
+
     private static func get<T: Decodable>(_ path: String) async throws -> T {
         try decoder.decode(T.self, from: try await account.rest(path))
     }
@@ -191,10 +204,10 @@ enum TradeAPI {
     static func matches() async throws -> [TradeMatch] { try await rpc("trade_matches", [:]) }
 
     // Trade lists
-    static func list(of user: String) async throws -> [TradeCard] { try await get("trade_cards?user_id=eq.\(user)&select=*&order=created_at.desc&limit=3000") }
+    static func list(of user: String) async throws -> [TradeCard] { try await all("trade_cards?user_id=eq.\(user)&select=*&order=created_at.desc,id.asc") }
     static func listCounts() async throws -> [String: (have: Int, want: Int)] {
         struct Row: Decodable { var userId: String; var kind: String }
-        let rows: [Row] = try await get("trade_cards?select=user_id,kind&limit=20000")
+        let rows: [Row] = try await all("trade_cards?select=user_id,kind&order=id.asc")
         var out: [String: (have: Int, want: Int)] = [:]
         for r in rows {
             var c = out[r.userId] ?? (0, 0)
@@ -236,7 +249,7 @@ enum TradeAPI {
     }
 
     static func sharedCollection(of user: String) async throws -> [TradeCard] {
-        var cards: [TradeCard] = try await rpc("trader_collection", ["trader": user])
+        var cards: [TradeCard] = try await all("rpc/trader_collection?order=name.asc,id.asc", method: "POST", json: ["trader": user])
         for i in cards.indices { cards[i].id = nil; cards[i].holdingId = nil }
         return cards
     }

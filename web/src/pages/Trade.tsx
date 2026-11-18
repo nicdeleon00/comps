@@ -400,6 +400,7 @@ function CollectionPicker({ title, hide, onClose, onDone, initial = [] }: { titl
   const res = useAsync(() => get<{ items: Holding[] }>('/api/collection?days=30'), []);
   const [q, setQ] = useState('');
   const [picked, setPicked] = useState<Set<string>>(new Set(initial.map((c) => c.holding_id!).filter(Boolean)));
+  const [shown, setShown] = useState(300);
   const words = q.toLowerCase().split(/\s+/).filter(Boolean);
   const items = (res.data?.items ?? []).filter((h) => !hide?.has(h.id)).filter((h) => words.every((w) => `${h.name} ${h.setName ?? ''} ${h.number ?? ''}`.toLowerCase().includes(w)))
     .sort((a, b) => (b.value ?? 0) - (a.value ?? 0));
@@ -418,9 +419,10 @@ function CollectionPicker({ title, hide, onClose, onDone, initial = [] }: { titl
         {res.loading && !res.data && <SkRows n={4} />}
         {res.data && !items.length && <p class="muted" style={{ marginTop: 16 }}>{res.data.items.length ? 'No cards match.' : 'Your collection is empty. Use “Any card” instead.'}</p>}
         <div class="tr-grid compact">
-          {items.slice(0, 300).map((h) => <CardTile key={h.id} c={fromHolding(h)} picked={picked.has(h.id)} onPick={() => toggle(h.id)} />)}
+          {items.slice(0, shown).map((h) => <CardTile key={h.id} c={fromHolding(h)} picked={picked.has(h.id)} onPick={() => toggle(h.id)} />)}
         </div>
-        {items.length > 300 && <p class="muted">Showing the 300 most valuable. Search to find others.</p>}
+        {items.length > shown && <div class="tr-more"><button class="btn" onClick={() => setShown((n) => n + 300)}>Show more ({items.length - shown} left)</button></div>}
+        {res.data && items.length > 1 && <div class="tr-more"><button class="btn sm" onClick={() => setPicked(new Set(items.map((h) => h.id)))}>Pick all {items.length}</button></div>}
       </div>
     </Sheet>
   );

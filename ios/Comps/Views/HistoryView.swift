@@ -74,11 +74,53 @@ enum AddHistory {
 @MainActor
 struct HistoryView: View {
     @Query(filter: #Predicate<Holding> { $0.isTombstoned == false }, sort: \Holding.createdAt, order: .reverse) private var holdings: [Holding]
+    @State private var query = ""
+
+    /// Every word has to appear in the card's name, set or number.
+    private func matches(_ h: Holding, _ words: [String]) -> Bool {
+        let n = (h.number ?? "").lowercased()
+        let hay = "\(h.name) \(h.setName ?? "") \(n) #\(n) \(n.drop { $0 == "0" })"
+            .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: nil).lowercased()
+        return words.allSatisfy { hay.contains($0) }
+    }
 
     var body: some View {
         let groups = AddHistory.days(holdings)
+        let words = query.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: nil).lowercased().split(separator: " ").map(String.init)
         List {
-            ForEach(groups) { group in
+            if !words.isEmpty {
+                // Searching: each matching card, with when it was added; tap to open that add.
+                let found = groups.flatMap { g in g.sessions.map { s in (g, s, s.holdings.filter { matches($0, words) }) } }.filter { !$0.2.isEmpty }
+                let count = found.reduce(0) { $0 + $1.2.reduce(0) { $0 + $1.quantity } }
+                Section {
+                    ForEach(found, id: \.1.id) { item in
+                        NavigationLink(value: HistoryRoute(item.1)) {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("\(AddHistory.dayTitle(item.0.day)) · \(item.1.start.formatted(date: .omitted, time: .shortened))")
+                                    .font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                                ForEach(item.2) { h in
+                                    HStack(spacing: 10) {
+                                        CardImage(url: ImageURL.resolve(h.imageURL), name: h.name, game: h.gameKind, corner: 4).frame(width: 36)
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            HStack(spacing: 5) {
+                                                Text(h.name).font(.subheadline.weight(.semibold)).lineLimit(1)
+                                                if h.quantity > 1 { Text("×\(h.quantity)").font(.caption.weight(.semibold)).foregroundStyle(.secondary) }
+                                            }
+                                            Text(h.subtitle).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                                        }
+                                        Spacer(minLength: 4)
+                                        Text(Fmt.money(h.totalValue)).font(.subheadline.weight(.semibold)).monospacedDigit()
+                                    }
+                                }
+                            }
+                            .padding(.vertical, 2)
+                        }
+                    }
+                } header: {
+                    Text("\(count) card\(count == 1 ? "" : "s") found")
+                }
+            }
+            ForEach(words.isEmpty ? groups : []) { group in
                 Section {
                     ForEach(group.sessions) { s in
                         NavigationLink(value: HistoryRoute(s)) { SessionRow(session: s) }
@@ -95,6 +137,7 @@ struct HistoryView: View {
         }
         .listStyle(.insetGrouped)
         .navigationTitle("History")
+        .searchable(text: $query, prompt: "Find a card you added")
         .overlay {
             if holdings.isEmpty {
                 ContentUnavailableView("Nothing added yet", systemImage: "clock.arrow.circlepath",
