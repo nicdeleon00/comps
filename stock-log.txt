@@ -1,0 +1,79 @@
+2026-11-18 10:12:49.180 Df Comps[6957:625d] [com.apple.UIKit:BackgroundTask] Creating new assertion because there is no existing background assertion.
+2026-11-18 10:12:49.180 Df Comps[6957:625d] [com.apple.UIKit:BackgroundTask] Creating new background assertion
+2026-11-18 10:12:49.181 Df Comps[6957:625d] [com.apple.UIKit:BackgroundTask] Created new background assertion <BKSProcessAssertion: 0x60000210a440>
+2026-11-18 10:12:49.185 Df Comps[6957:625d] [com.apple.UIKit:BackgroundTask] Incrementing reference count for background assertion <BKSProcessAssertion: 0x60000210a440>
+2026-11-18 10:12:49.188 E  Comps[6957:0] [com.apple.os_debug_log:] assertion failed: 24H232 22F77: libxpc.dylib + 72720 [021C0BF8-EDD4-395A-B281-2CC7A26F742F]: 0x7d
+2026-11-18 10:12:49.190 Df Comps[6957:625d] [com.apple.FrontBoard:SceneExtension] Realizing settings extension <_UISceneHostingSheetPresentationSettings> on FBSSceneSettings
+2026-11-18 10:12:49.190 Df Comps[6957:625d] [com.apple.FrontBoard:SceneExtension] Realizing settings extension <_UISceneHostingSheetPresentationClientSettings> on FBSSceneClientSettings
+2026-11-18 10:12:49.193 Df Comps[6957:6233] [com.apple.runningboard:general] Added observer for process assertions expiration warning: <_RBSExpirationWarningClient: 0x600000219b80>
+2026-11-18 10:12:49.223 Df Comps[6957:6233] [com.apple.dt.xctest:Default] Registering for test daemon availability notify post.
+2026-11-18 10:12:49.223 Df Comps[6957:6233] [com.apple.dt.xctest:Default] notify_get_state check indicated test daemon not ready.
+2026-11-18 10:12:49.223 Df Comps[6957:6233] [com.apple.dt.xctest:Default] notify_get_state check indicated test daemon not ready.
+2026-11-18 10:12:49.223 Df Comps[6957:6233] [com.apple.dt.xctest:Default] notify_get_state check indicated test daemon not ready.
+2026-11-18 10:12:49.274 Df Comps[6957:6233] [com.apple.UIKit:BackgroundTask] Reusing background assertion <BKSProcessAssertion: 0x60000210a440>
+2026-11-18 10:12:49.274 Df Comps[6957:6233] [com.apple.UIKit:BackgroundTask] Incrementing reference count for background assertion <BKSProcessAssertion: 0x60000210a440>
+2026-11-18 10:12:49.278 Df Comps[6957:6233] [com.apple.BacklightServices:scenes] 0x600000c11e60 setDelegate:<0x600000c0ca20 _UIBacklightEnvironment> hasDelegate:YES for environment:sceneID:com.comps.scanner-default
+2026-11-18 10:12:49.280 Df Comps[6957:6233] [com.apple.UIKit:KeyWindow] Setting default evaluation strategy for UIUserInterfaceIdiomPhone to LastOneWins
+2026-11-18 10:12:49.280 Df Comps[6957:6233] [com.apple.UIKit:KeyWindow] Scene target of keyboard event deferring environment did change: 1; scene: UIWindowScene: 0x101211210; scene identity: com.apple.frontboard.systemappservices/FBSceneManager:sceneID%3Acom.comps.scanner-default
+2026-11-18 10:12:49.280 Df Comps[6957:6233] [com.apple.UIKit:KeyWindow] Scene became target of keyboard event deferring environment: UIWindowScene: 0x101211210; scene identity: com.apple.frontboard.systemappservices/FBSceneManager:sceneID%3Acom.comps.scanner-default
+2026-11-18 10:12:49.280 Df Comps[6957:6233] [com.apple.UIKit:KeyWindow] Setting default evaluation strategy for UIUserInterfaceIdiomPhone to SystemShellManaged
+2026-11-18 10:12:49.353 Df Comps[6957:6233] [com.apple.UIKit:KeyWindow] Window did become application key: UIWindow: 0x101204a00; contextId: 0xBE9990A0; scene identity: com.apple.frontboard.systemappservices/FBSceneManager:sceneID%3Acom.comps.scanner-default
+2026-11-18 10:12:49.361 Df Comps[6957:6268] [com.apple.BackBoard:EventDelivery] policyStatus:<BKSHIDEventDeliveryPolicyObserver: 0x600002110050; token: com.apple.frontboard.systemappservices/FBSceneManager:sceneID%3Acom.comps.scanner-default; status: ancestor> was:target
+2026-11-18 10:12:49.363 Df Comps[6957:6233] [com.apple.UIKit:AppLifecycle] sceneOfRecord: sceneID: sceneID:com.comps.scanner-default  persistentID: E94DAA09-E770-4528-BD51-917605567F63
+2026-11-18 10:12:49.798 Df Comps[6957:6233] [PrototypeTools:domain] Not observing PTDefaults on customer install.
+2026-11-18 10:12:49.800 Df Comps[6957:6264] [com.apple.UIKit:BackgroundTask] Decrementing reference count for assertion <BKSProcessAssertion: 0x60000210a440> (used by background task with identifier 2: <_UIBackgroundTaskInfo: 0x60000171cdc0>: taskID = 2, taskName = Persistent SceneSession Map Update, creationTime = 451 (elapsed = 0))
+2026-11-18 10:12:50.019 Df Comps[6957:6233] [com.apple.UIKit:_UIVisualStyleRegistry] Note: no default visual style class registered as fallback for stylable class UIActivityIndicatorView
+2026-11-18 10:12:50.019 Df Comps[6957:6233] [com.apple.UIKit:_UIVisualStyleRegistry] Note: no default visual style class registered as fallback for stylable class UIActivityIndicatorView
+2026-11-18 10:12:50.151 Df Comps[6957:6233] [com.apple.network:activity] Create activity from XPC object <nw_activity 50:1 [3649E98C-2FFE-4659-85BE-27200C01A387] (reporting strategy default)>
+2026-11-18 10:12:50.151 Df Comps[6957:6233] [com.apple.network:activity] Create activity from XPC object <nw_activity 50:2 [59FFFA31-93DF-44A5-892C-5DDC8144113E] (reporting strategy default)>
+2026-11-18 10:12:50.152 Df Comps[6957:6233] [com.apple.network:activity] Set activity <nw_activity 50:1 [3649E98C-2FFE-4659-85BE-27200C01A387] (reporting strategy default)> as the global parent
+2026-11-18 10:12:50.152 Df Comps[6957:6233] [com.apple.UIKit:BackgroundTask] Decrementing reference count for assertion <BKSProcessAssertion: 0x60000210a440> (used by background task with identifier 1: <_UIBackgroundTaskInfo: 0x600001701280>: taskID = 1, taskName = Launch Background Task for Coalescing, creationTime = 450 (elapsed = 1))
+2026-11-18 10:12:50.152 Df Comps[6957:6233] [com.apple.UIKit:BackgroundTask] Will invalidate assertion: <BKSProcessAssertion: 0x60000210a440> for task identifier: 1
+2026-11-18 10:12:50.154 Df Comps[6957:6233] [com.apple.UIKit:AppLifecycle] sceneOfRecord: sceneID: sceneID:com.comps.scanner-default  persistentID: E94DAA09-E770-4528-BD51-917605567F63
+2026-11-18 10:12:50.164 Df Comps[6957:6233] [com.apple.UIKit:KeyWindow] Scene became target of keyboard event deferring environment: UIWindowScene: 0x101211210; scene identity: com.apple.frontboard.systemappservices/FBSceneManager:sceneID%3Acom.comps.scanner-default
+2026-11-18 10:12:50.187 Df Comps[6957:6268] [com.apple.CFNetwork:Default] Task <5A23406C-5257-4982-9DB2-39EEA3268EF5>.<1> resuming, timeouts(30.0, 604800.0) qos(0x19) voucher((null)) activity(00000000-0000-0000-0000-000000000000)
+2026-11-18 10:12:50.196 Df Comps[6957:6264] [com.apple.CFNetwork:Default] Initializing NSHTTPCookieStorage singleton
+2026-11-18 10:12:50.198 Df Comps[6957:6264] [com.apple.CFNetwork:Default] Initializing CFHTTPCookieStorage singleton
+2026-11-18 10:12:50.198 Df Comps[6957:6264] [com.apple.CFNetwork:Default] Creating default cookie storage with process/bundle identifier
+2026-11-18 10:12:50.202 Df Comps[6957:6264] [com.apple.CFNetwork:Default] Initializing AlternativeServices Storage singleton
+2026-11-18 10:12:50.203 Df Comps[6957:6264] [com.apple.FileURL:default] kExcludedFromBackupXattrName set on path: /Users/runner/Library/Developer/CoreSimulator/Devices/4A57FB15-6E7C-49CC-BE93-450B18BD286E/data/Containers/Data/Application/D33C75AD-2C6D-4B3E-AA53-4322A037204C/Library/HTTPStorages/com.comps.scanner
+2026-11-18 10:12:50.218 Df Comps[6957:6264] [com.apple.CFNetwork:Default] Connection 0: creating secure tcp or quic connection
+2026-11-18 10:12:50.238 Df Comps[6957:6264] [com.apple.CFNetwork:Default] Connection 1: enabling TLS
+2026-11-18 10:12:50.238 Df Comps[6957:6264] [com.apple.CFNetwork:Default] Connection 1: starting, TC(0x0)
+2026-11-18 10:12:50.266 Df Comps[6957:6264] [com.apple.CFNetwork:Default] Task <5A23406C-5257-4982-9DB2-39EEA3268EF5>.<1> setting up Connection 1
+2026-11-18 10:12:50.341 Df Comps[6957:6265] [com.apple.calls.callkit:Default] Call host has no calls
+2026-11-18 10:12:50.360 Df Comps[6957:6268] [com.apple.CFNetwork:Default] Connection 1: asked to evaluate TLS Trust
+2026-11-18 10:12:50.362 Df Comps[6957:6268] [com.apple.CFNetwork:Default] Task <5A23406C-5257-4982-9DB2-39EEA3268EF5>.<1> auth completion disp=1 cred=0x0
+2026-11-18 10:12:50.362 Df Comps[6957:626a] [com.apple.CFNetwork:Default] Garbage collection for alternative services
+2026-11-18 10:12:50.373 Df Comps[6957:6264] [com.apple.CFNetwork:Default] System Trust Evaluation yielded status(0)
+2026-11-18 10:12:50.377 Df Comps[6957:6268] [com.apple.CFNetwork:Default] Connection 1: TLS Trust result 0
+2026-11-18 10:12:50.383 Df Comps[6957:6268] [com.apple.CFNetwork:Default] Connection 1: connected successfully
+2026-11-18 10:12:50.383 Df Comps[6957:6268] [com.apple.CFNetwork:Default] Connection 1: TLS handshake complete
+2026-11-18 10:12:50.383 Df Comps[6957:6268] [com.apple.CFNetwork:Default] Connection 1: ready C(N) E(N)
+2026-11-18 10:12:50.388 Df Comps[6957:6268] [com.apple.CFNetwork:Default] Task <5A23406C-5257-4982-9DB2-39EEA3268EF5>.<1> now using Connection 1
+2026-11-18 10:12:50.388 Df Comps[6957:6268] [com.apple.CFNetwork:Default] Connection 1: received viability advisory(Y)
+2026-11-18 10:12:50.389 Df Comps[6957:6268] [com.apple.CFNetwork:Default] Task <5A23406C-5257-4982-9DB2-39EEA3268EF5>.<1> sent request, body N 0
+2026-11-18 10:12:50.593 Df Comps[6957:626a] [com.apple.CFNetwork:Default] Task <5A23406C-5257-4982-9DB2-39EEA3268EF5>.<1> received response, status 200 content K
+2026-11-18 10:12:50.606 Df Comps[6957:626a] [com.apple.CFNetwork:Default] Task <5A23406C-5257-4982-9DB2-39EEA3268EF5>.<1> done using Connection 1
+2026-11-18 10:12:50.607 Df Comps[6957:626a] [com.apple.CFNetwork:Default] Task <5A23406C-5257-4982-9DB2-39EEA3268EF5>.<1> response ended
+2026-11-18 10:12:50.618 Df Comps[6957:626a] [com.apple.CFNetwork:Default] Task <5A23406C-5257-4982-9DB2-39EEA3268EF5>.<1> finished successfully
+2026-11-18 10:12:50.619 Df Comps[6957:6264] [com.apple.CFNetwork:Default] Task <6C7591E3-A120-4437-A614-51B7A4ED8930>.<2> resuming, timeouts(30.0, 604800.0) qos(0x19) voucher((null)) activity(00000000-0000-0000-0000-000000000000)
+2026-11-18 10:12:50.620 Df Comps[6957:626a] [com.apple.CFNetwork:Default] Task <6C7591E3-A120-4437-A614-51B7A4ED8930>.<2> now using Connection 1
+2026-11-18 10:12:50.620 Df Comps[6957:626a] [com.apple.CFNetwork:Default] Task <6C7591E3-A120-4437-A614-51B7A4ED8930>.<2> sent request, body N 0
+2026-11-18 10:12:50.712 Df Comps[6957:6233] [com.apple.UIKit:AppLifecycle] sceneOfRecord: sceneID: sceneID:com.comps.scanner-default  persistentID: E94DAA09-E770-4528-BD51-917605567F63
+2026-11-18 10:12:50.783 Df Comps[6957:625d] [com.apple.CFNetwork:Default] Task <6C7591E3-A120-4437-A614-51B7A4ED8930>.<2> received response, status 200 content K
+2026-11-18 10:12:50.784 Df Comps[6957:6265] [com.apple.CFNetwork:Default] Task <6C7591E3-A120-4437-A614-51B7A4ED8930>.<2> done using Connection 1
+2026-11-18 10:12:50.786 Df Comps[6957:6265] [com.apple.CFNetwork:Default] Task <6C7591E3-A120-4437-A614-51B7A4ED8930>.<2> response ended
+2026-11-18 10:12:50.786 Df Comps[6957:6265] [com.apple.CFNetwork:Default] Task <6C7591E3-A120-4437-A614-51B7A4ED8930>.<2> finished successfully
+2026-11-18 10:12:50.795 Df Comps[6957:6233] [com.apple.UIKit:AppLifecycle] sceneOfRecord: sceneID: sceneID:com.comps.scanner-default  persistentID: E94DAA09-E770-4528-BD51-917605567F63
+2026-11-18 10:12:50.796 Df Comps[6957:6233] [com.apple.UIKit:AppLifecycle] sceneOfRecord: sceneID: sceneID:com.comps.scanner-default  persistentID: E94DAA09-E770-4528-BD51-917605567F63
+2026-11-18 10:12:50.871 Df Comps[6957:6233] [com.apple.network:activity] <nw_activity 50:1 [3649E98C-2FFE-4659-85BE-27200C01A387] (global parent) (reporting strategy default) complete (reason success)> complete with reason 2 (success), duration 2390ms
+2026-11-18 10:12:50.871 Df Comps[6957:6233] [com.apple.network:activity] <nw_activity 50:2 [59FFFA31-93DF-44A5-892C-5DDC8144113E] (reporting strategy default) complete (reason success)> complete with reason 2 (success), duration 2390ms
+2026-11-18 10:12:50.871 Df Comps[6957:6233] [com.apple.network:activity] Unsetting the global parent activity <nw_activity 50:1 [3649E98C-2FFE-4659-85BE-27200C01A387] (global parent) (reporting strategy default) complete (reason success)>
+2026-11-18 10:12:52.575 Df Comps[6957:6265] [com.apple.CFNetwork:Default] Task <F33D1B06-D3D4-49A4-ADCD-BDA657CC61A3>.<3> resuming, timeouts(30.0, 604800.0) qos(0x19) voucher((null)) activity(00000000-0000-0000-0000-000000000000)
+2026-11-18 10:12:52.576 Df Comps[6957:6265] [com.apple.CFNetwork:Default] Task <F33D1B06-D3D4-49A4-ADCD-BDA657CC61A3>.<3> now using Connection 1
+2026-11-18 10:12:52.576 Df Comps[6957:6265] [com.apple.CFNetwork:Default] Task <F33D1B06-D3D4-49A4-ADCD-BDA657CC61A3>.<3> sent request, body N 0
+2026-11-18 10:12:52.676 Df Comps[6957:6267] [com.apple.CFNetwork:Default] Task <F33D1B06-D3D4-49A4-ADCD-BDA657CC61A3>.<3> received response, status 200 content K
+2026-11-18 10:12:52.676 Df Comps[6957:6267] [com.apple.CFNetwork:Default] Task <F33D1B06-D3D4-49A4-ADCD-BDA657CC61A3>.<3> done using Connection 1
+2026-11-18 10:12:52.677 Df Comps[6957:6267] [com.apple.CFNetwork:Default] Task <F33D1B06-D3D4-49A4-ADCD-BDA657CC61A3>.<3> response ended
+2026-11-18 10:12:52.677 Df Comps[6957:6267] [com.apple.CFNetwork:Default] Task <F33D1B06-D3D4-49A4-ADCD-BDA657CC61A3>.<3> finished successfully
